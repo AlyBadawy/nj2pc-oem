@@ -1,7 +1,7 @@
 import { useQuery } from '@tanstack/react-query'
 import { Users, Siren, Boxes, Activity, CalendarClock } from 'lucide-react'
 import { api } from '@/lib/api'
-import type { Operator, Incident, Resource } from '@/lib/types'
+import type { Incident, OperatorCheckIn, Resource } from '@/lib/types'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
 function useList<T>(key: string, url: string) {
@@ -12,19 +12,21 @@ function useList<T>(key: string, url: string) {
 }
 
 export function Dashboard() {
-  const operators = useList<Operator>('operators', '/api/operators')
   const incidents = useList<Incident>('incidents', '/api/incidents')
   const resources = useList<Resource>('resources', '/api/resources')
+  const activeOperatorCheckIns = useList<OperatorCheckIn>(
+    'operator-checkins-active',
+    '/api/operator-checkins/active',
+  )
 
   const plannedIncidents = incidents.data?.filter((i) => i.status === 'PLANNED').length ?? 0
   const activeIncidents = incidents.data?.filter((i) => i.status === 'ACTIVE').length ?? 0
-  const activeOperators = operators.data?.filter((o) => o.status === 'ACTIVE').length ?? 0
   const assignedResources = resources.data?.filter((r) => r.status === 'ASSIGNED').length ?? 0
 
   const stats = [
     { label: 'Planned Incidents', value: plannedIncidents, icon: CalendarClock },
     { label: 'Active Incidents', value: activeIncidents, icon: Siren },
-    { label: 'Active Operators', value: activeOperators, icon: Users },
+    { label: 'Operators Checked In', value: activeOperatorCheckIns.data?.length ?? 0, icon: Users },
     { label: 'Resources Deployed', value: assignedResources, icon: Boxes },
     { label: 'Total Resources', value: resources.data?.length ?? 0, icon: Activity },
   ]

@@ -36,6 +36,12 @@ public class OperatorCheckInService {
                 .map(OperatorCheckInResponse::from).toList();
     }
 
+    @Transactional(readOnly = true)
+    public List<OperatorCheckInResponse> findAllOpen() {
+        return operatorCheckInRepository.findByCheckedOutAtIsNull().stream()
+                .map(OperatorCheckInResponse::from).toList();
+    }
+
     @Transactional
     public OperatorCheckInResponse checkIn(Long incidentId, OperatorCheckInRequest request) {
         Incident incident = incidentRepository.findById(incidentId)
