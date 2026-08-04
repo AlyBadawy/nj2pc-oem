@@ -8,6 +8,7 @@ public record OperatorRequest(
         @NotBlank String callsign,
         @NotBlank String name,
         String licenseClass,
+        String dmrId,
         String phone,
         @Email String email,
         @NotNull OperatorStatus status,

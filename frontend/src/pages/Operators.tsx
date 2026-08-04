@@ -32,6 +32,7 @@ type FormState = {
   callsign: string
   name: string
   licenseClass: string
+  dmrId: string
   phone: string
   email: string
   status: OperatorStatus
@@ -48,6 +49,7 @@ const emptyForm: FormState = {
   callsign: '',
   name: '',
   licenseClass: '',
+  dmrId: '',
   phone: '',
   email: '',
   status: 'ACTIVE',
@@ -110,6 +112,7 @@ export function Operators() {
       callsign: operator.callsign,
       name: operator.name,
       licenseClass: operator.licenseClass ?? '',
+      dmrId: operator.dmrId ?? '',
       phone: operator.phone ?? '',
       email: operator.email ?? '',
       status: operator.status,
@@ -184,6 +187,7 @@ export function Operators() {
                 <TableHead>Callsign</TableHead>
                 <TableHead>Name</TableHead>
                 <TableHead>License</TableHead>
+                <TableHead>DMR ID</TableHead>
                 <TableHead>Contact</TableHead>
                 <TableHead>Status</TableHead>
                 {isAdmin && <TableHead className="text-right">Actions</TableHead>}
@@ -192,7 +196,7 @@ export function Operators() {
             <TableBody>
               {isLoading && (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center text-muted-foreground">
+                  <TableCell colSpan={7} className="text-center text-muted-foreground">
                     Loading…
                   </TableCell>
                 </TableRow>
@@ -202,6 +206,7 @@ export function Operators() {
                   <TableCell className="font-medium">{op.callsign}</TableCell>
                   <TableCell>{op.name}</TableCell>
                   <TableCell>{op.licenseClass || '—'}</TableCell>
+                  <TableCell>{op.dmrId || '—'}</TableCell>
                   <TableCell className="text-muted-foreground text-sm">
                     {op.phone || op.email || '—'}
                   </TableCell>
@@ -259,6 +264,15 @@ export function Operators() {
                   onChange={(e) => setForm({ ...form, licenseClass: e.target.value })}
                 />
               </div>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="dmrId">DMR ID</Label>
+              <Input
+                id="dmrId"
+                value={form.dmrId}
+                onChange={(e) => setForm({ ...form, dmrId: e.target.value })}
+                placeholder="3123456"
+              />
             </div>
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="name">Name</Label>

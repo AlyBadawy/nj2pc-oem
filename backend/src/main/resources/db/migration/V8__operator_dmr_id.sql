@@ -1,0 +1,1 @@
+ALTER TABLE operators ADD COLUMN dmr_id VARCHAR(20);

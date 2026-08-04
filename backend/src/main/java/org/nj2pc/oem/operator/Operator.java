@@ -21,6 +21,9 @@ public class Operator {
     @Column(name = "license_class")
     private String licenseClass;
 
+    @Column(name = "dmr_id")
+    private String dmrId;
+
     private String phone;
 
     private String email;
@@ -76,6 +79,14 @@ public class Operator {
 
     public void setLicenseClass(String licenseClass) {
         this.licenseClass = licenseClass;
+    }
+
+    public String getDmrId() {
+        return dmrId;
+    }
+
+    public void setDmrId(String dmrId) {
+        this.dmrId = dmrId;
     }
 
     public String getPhone() {

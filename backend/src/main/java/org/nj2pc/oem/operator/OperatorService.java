@@ -57,6 +57,7 @@ public class OperatorService {
         operator.setCallsign(request.callsign());
         operator.setName(request.name());
         operator.setLicenseClass(request.licenseClass());
+        operator.setDmrId(request.dmrId());
         operator.setPhone(request.phone());
         operator.setEmail(request.email());
         operator.setStatus(request.status());

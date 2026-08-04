@@ -7,6 +7,7 @@ public record OperatorResponse(
         String callsign,
         String name,
         String licenseClass,
+        String dmrId,
         String phone,
         String email,
         OperatorStatus status,
@@ -22,7 +23,7 @@ public record OperatorResponse(
     public static OperatorResponse from(Operator o) {
         return new OperatorResponse(
                 o.getId(), o.getCallsign(), o.getName(),
-                o.getLicenseClass(), o.getPhone(), o.getEmail(), o.getStatus(),
+                o.getLicenseClass(), o.getDmrId(), o.getPhone(), o.getEmail(), o.getStatus(),
                 o.getNotes(), o.getAddressLine1(), o.getAddressLine2(), o.getAddressAttn(),
                 o.getLatitude(), o.getLongitude(), o.getGridSquare(), o.getCreatedAt()
         );
