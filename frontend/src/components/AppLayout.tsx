@@ -1,5 +1,16 @@
 import { NavLink, Outlet, useNavigate } from 'react-router-dom'
-import { Radio, Users, Siren, Boxes, RadioTower, ShieldCheck, User, UserCog, LogOut } from 'lucide-react'
+import {
+  Radio,
+  Users,
+  Siren,
+  Boxes,
+  RadioTower,
+  ShieldCheck,
+  FilePlus2,
+  User,
+  UserCog,
+  LogOut,
+} from 'lucide-react'
 import { useAuth } from '@/lib/auth-context'
 import { Button } from '@/components/ui/button'
 import {
@@ -19,7 +30,10 @@ const navItems = [
   { to: '/comms-plans', label: 'Comms Plans', icon: RadioTower },
 ]
 
-const adminNavItems = [{ to: '/roles', label: 'Roles', icon: ShieldCheck }]
+const settingsNavItems = [
+  { to: '/roles', label: 'Operator Roles', icon: ShieldCheck },
+  { to: '/incidents/new', label: 'Create Incident', icon: FilePlus2 },
+]
 
 export function AppLayout() {
   const { user, logout } = useAuth()
@@ -54,24 +68,30 @@ export function AppLayout() {
               {label}
             </NavLink>
           ))}
-          {isAdmin &&
-            adminNavItems.map(({ to, label, icon: Icon }) => (
-              <NavLink
-                key={to}
-                to={to}
-                className={({ isActive }) =>
-                  cn(
-                    'flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors',
-                    isActive
-                      ? 'bg-sidebar-accent text-sidebar-accent-foreground'
-                      : 'text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
-                  )
-                }
-              >
-                <Icon className="size-4" />
-                {label}
-              </NavLink>
-            ))}
+          {isAdmin && (
+            <>
+              <div className="px-3 pt-4 pb-1 text-xs font-semibold uppercase tracking-wide text-sidebar-foreground/50">
+                Settings
+              </div>
+              {settingsNavItems.map(({ to, label, icon: Icon }) => (
+                <NavLink
+                  key={to}
+                  to={to}
+                  className={({ isActive }) =>
+                    cn(
+                      'flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors',
+                      isActive
+                        ? 'bg-sidebar-accent text-sidebar-accent-foreground'
+                        : 'text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
+                    )
+                  }
+                >
+                  <Icon className="size-4" />
+                  {label}
+                </NavLink>
+              ))}
+            </>
+          )}
         </nav>
       </aside>
       <div className="flex flex-col min-h-svh">

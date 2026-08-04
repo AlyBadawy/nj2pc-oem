@@ -6,6 +6,7 @@ import { Login } from '@/pages/Login'
 import { AccountSettings } from '@/pages/AccountSettings'
 import { Operators } from '@/pages/Operators'
 import { Incidents } from '@/pages/Incidents'
+import { IncidentCreate } from '@/pages/IncidentCreate'
 import { IncidentDetail } from '@/pages/IncidentDetail'
 import { Resources } from '@/pages/Resources'
 import { CommsPlans } from '@/pages/CommsPlans'
@@ -22,6 +23,7 @@ function App() {
             <Route index element={<AccountSettings />} />
             <Route path="operators" element={<Operators />} />
             <Route path="incidents" element={<Incidents />} />
+            <Route path="incidents/new" element={<IncidentCreate />} />
             <Route path="incidents/:id" element={<IncidentDetail />} />
             <Route path="resources" element={<Resources />} />
             <Route path="comms-plans" element={<CommsPlans />} />
