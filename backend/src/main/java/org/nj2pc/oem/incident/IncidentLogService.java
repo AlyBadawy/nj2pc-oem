@@ -23,6 +23,7 @@ public class IncidentLogService {
         this.operatorRepository = operatorRepository;
     }
 
+    @Transactional(readOnly = true)
     public List<IncidentLogResponse> findByIncident(Long incidentId) {
         incidentService.getIncidentOrThrow(incidentId);
         return incidentLogRepository.findByIncidentIdOrderByLoggedAtAsc(incidentId).stream()

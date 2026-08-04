@@ -25,10 +25,12 @@ public class ResourceService {
         this.incidentRepository = incidentRepository;
     }
 
+    @Transactional(readOnly = true)
     public List<ResourceResponse> findAll() {
         return resourceRepository.findAll().stream().map(ResourceResponse::from).toList();
     }
 
+    @Transactional(readOnly = true)
     public ResourceResponse findById(Long id) {
         return ResourceResponse.from(getResourceOrThrow(id));
     }

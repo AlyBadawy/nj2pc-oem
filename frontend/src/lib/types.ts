@@ -103,3 +103,24 @@ export interface CommunicationPlan {
   createdAt: string
   incidents: CommunicationPlanIncidentSummary[]
 }
+
+export interface OperatorCheckIn {
+  id: number
+  incidentId: number
+  operatorId: number
+  operatorCallsign: string
+  checkedInAt: string
+  checkedOutAt: string | null
+  notes: string | null
+}
+
+export interface ResourceCheckIn {
+  id: number
+  incidentId: number
+  resourceId: number
+  resourceIdentifier: string
+  resourceType: ResourceType
+  checkedInAt: string
+  checkedOutAt: string | null
+  notes: string | null
+}

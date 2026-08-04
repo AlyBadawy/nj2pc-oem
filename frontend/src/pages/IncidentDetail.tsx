@@ -1,10 +1,19 @@
 import { useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Plus, RadioTower } from 'lucide-react'
+import { ArrowLeft, Plus, RadioTower, LogIn, LogOut, Flag } from 'lucide-react'
 import { toast } from 'sonner'
 import { api } from '@/lib/api'
-import type { CommunicationPlan, Incident, IncidentLog, Operator, Priority } from '@/lib/types'
+import type {
+  CommunicationPlan,
+  Incident,
+  IncidentLog,
+  Operator,
+  OperatorCheckIn,
+  Priority,
+  Resource,
+  ResourceCheckIn,
+} from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -22,6 +31,7 @@ import {
 import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -61,6 +71,13 @@ export function IncidentDetail() {
   const queryClient = useQueryClient()
   const [dialogOpen, setDialogOpen] = useState(false)
   const [form, setForm] = useState<LogFormState>(emptyLogForm)
+  const [endDialogOpen, setEndDialogOpen] = useState(false)
+  const [operatorCheckInOpen, setOperatorCheckInOpen] = useState(false)
+  const [operatorCheckInId, setOperatorCheckInId] = useState('')
+  const [operatorCheckInNotes, setOperatorCheckInNotes] = useState('')
+  const [resourceCheckInOpen, setResourceCheckInOpen] = useState(false)
+  const [resourceCheckInId, setResourceCheckInId] = useState('')
+  const [resourceCheckInNotes, setResourceCheckInNotes] = useState('')
 
   const { data: incident } = useQuery({
     queryKey: ['incidents', id],
@@ -77,9 +94,24 @@ export function IncidentDetail() {
     queryFn: async () => (await api.get<Operator[]>('/api/operators')).data,
   })
 
+  const { data: resources } = useQuery({
+    queryKey: ['resources'],
+    queryFn: async () => (await api.get<Resource[]>('/api/resources')).data,
+  })
+
   const { data: commsPlans } = useQuery({
     queryKey: ['incidents', id, 'comms-plans'],
     queryFn: async () => (await api.get<CommunicationPlan[]>(`/api/incidents/${id}/comms-plans`)).data,
+  })
+
+  const { data: operatorCheckIns } = useQuery({
+    queryKey: ['incidents', id, 'operator-checkins'],
+    queryFn: async () => (await api.get<OperatorCheckIn[]>(`/api/incidents/${id}/operator-checkins`)).data,
+  })
+
+  const { data: resourceCheckIns } = useQuery({
+    queryKey: ['incidents', id, 'resource-checkins'],
+    queryFn: async () => (await api.get<ResourceCheckIn[]>(`/api/incidents/${id}/resource-checkins`)).data,
   })
 
   const createLogMutation = useMutation({
@@ -100,12 +132,98 @@ export function IncidentDetail() {
     onError: () => toast.error('Failed to add log entry'),
   })
 
+  const checkInOperatorMutation = useMutation({
+    mutationFn: async () =>
+      api.post(`/api/incidents/${id}/operator-checkins`, {
+        operatorId: Number(operatorCheckInId),
+        notes: operatorCheckInNotes || null,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['incidents', id, 'operator-checkins'] })
+      toast.success('Operator checked in')
+      setOperatorCheckInOpen(false)
+      setOperatorCheckInId('')
+      setOperatorCheckInNotes('')
+    },
+    onError: (err: unknown) => {
+      const message =
+        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
+        'Failed to check in operator'
+      toast.error(message)
+    },
+  })
+
+  const checkOutOperatorMutation = useMutation({
+    mutationFn: async (checkInId: number) =>
+      api.post(`/api/incidents/${id}/operator-checkins/${checkInId}/checkout`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['incidents', id, 'operator-checkins'] })
+      toast.success('Operator checked out')
+    },
+    onError: () => toast.error('Failed to check out operator'),
+  })
+
+  const checkInResourceMutation = useMutation({
+    mutationFn: async () =>
+      api.post(`/api/incidents/${id}/resource-checkins`, {
+        resourceId: Number(resourceCheckInId),
+        notes: resourceCheckInNotes || null,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['incidents', id, 'resource-checkins'] })
+      queryClient.invalidateQueries({ queryKey: ['resources'] })
+      toast.success('Resource checked in')
+      setResourceCheckInOpen(false)
+      setResourceCheckInId('')
+      setResourceCheckInNotes('')
+    },
+    onError: (err: unknown) => {
+      const message =
+        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ??
+        'Failed to check in resource'
+      toast.error(message)
+    },
+  })
+
+  const checkOutResourceMutation = useMutation({
+    mutationFn: async (checkInId: number) =>
+      api.post(`/api/incidents/${id}/resource-checkins/${checkInId}/checkout`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['incidents', id, 'resource-checkins'] })
+      queryClient.invalidateQueries({ queryKey: ['resources'] })
+      toast.success('Resource checked out')
+    },
+    onError: () => toast.error('Failed to check out resource'),
+  })
+
+  const endIncidentMutation = useMutation({
+    mutationFn: async () => api.post(`/api/incidents/${id}/end`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['incidents', id] })
+      queryClient.invalidateQueries({ queryKey: ['incidents', id, 'operator-checkins'] })
+      queryClient.invalidateQueries({ queryKey: ['incidents', id, 'resource-checkins'] })
+      queryClient.invalidateQueries({ queryKey: ['incidents'] })
+      queryClient.invalidateQueries({ queryKey: ['resources'] })
+      toast.success('Incident ended — all operators and resources checked out')
+      setEndDialogOpen(false)
+    },
+    onError: () => toast.error('Failed to end incident'),
+  })
+
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
     createLogMutation.mutate()
   }
 
   if (!incident) return null
+
+  const openOperatorCheckIns = operatorCheckIns?.filter((c) => !c.checkedOutAt) ?? []
+  const openResourceCheckIns = resourceCheckIns?.filter((c) => !c.checkedOutAt) ?? []
+  const checkedInOperatorIds = new Set(openOperatorCheckIns.map((c) => c.operatorId))
+  const checkedInResourceIds = new Set(openResourceCheckIns.map((c) => c.resourceId))
+  const availableOperators = operators?.filter((o) => !checkedInOperatorIds.has(o.id)) ?? []
+  const availableResources = resources?.filter((r) => !checkedInResourceIds.has(r.id)) ?? []
+  const isClosed = incident.status === 'CLOSED'
 
   return (
     <div className="flex flex-col gap-6">
@@ -122,10 +240,20 @@ export function IncidentDetail() {
             </div>
             <p className="text-muted-foreground text-sm">{incident.location}</p>
           </div>
-          <Button onClick={() => setDialogOpen(true)}>
-            <Plus className="size-4" />
-            Log Entry
-          </Button>
+          <div className="flex items-center gap-2">
+            {!isClosed && (
+              <Button variant="outline" onClick={() => setEndDialogOpen(true)}>
+                <Flag className="size-4" />
+                End Incident
+              </Button>
+            )}
+            {!isClosed && (
+              <Button onClick={() => setDialogOpen(true)}>
+                <Plus className="size-4" />
+                Log Entry
+              </Button>
+            )}
+          </div>
         </div>
         {incident.description && <p className="mt-3 text-sm max-w-2xl">{incident.description}</p>}
       </div>
@@ -165,6 +293,146 @@ export function IncidentDetail() {
                   <TableCell className="max-w-xs truncate">{log.message}</TableCell>
                   <TableCell>
                     <Badge variant={priorityVariant[log.priority]}>{log.priority}</Badge>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle className="text-base">
+            Operators On Scene
+            <span className="ml-2 text-muted-foreground font-normal text-sm">
+              ({openOperatorCheckIns.length} on scene)
+            </span>
+          </CardTitle>
+          {!isClosed && (
+            <Button size="sm" onClick={() => setOperatorCheckInOpen(true)}>
+              <LogIn className="size-4" />
+              Check In
+            </Button>
+          )}
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Callsign</TableHead>
+                <TableHead>Checked In</TableHead>
+                <TableHead>Checked Out</TableHead>
+                <TableHead>Notes</TableHead>
+                <TableHead className="text-right">Action</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {(!operatorCheckIns || operatorCheckIns.length === 0) && (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center text-muted-foreground">
+                    No operators checked in yet.
+                  </TableCell>
+                </TableRow>
+              )}
+              {operatorCheckIns?.map((c) => (
+                <TableRow key={c.id}>
+                  <TableCell className="font-medium">{c.operatorCallsign}</TableCell>
+                  <TableCell className="text-sm whitespace-nowrap">
+                    {new Date(c.checkedInAt).toLocaleString()}
+                  </TableCell>
+                  <TableCell className="text-sm whitespace-nowrap">
+                    {c.checkedOutAt ? (
+                      new Date(c.checkedOutAt).toLocaleString()
+                    ) : (
+                      <Badge variant="default">On Scene</Badge>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground text-sm max-w-[200px] truncate">
+                    {c.notes || '—'}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {!c.checkedOutAt && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => checkOutOperatorMutation.mutate(c.id)}
+                      >
+                        <LogOut className="size-4" />
+                        Check Out
+                      </Button>
+                    )}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle className="text-base">
+            Resources On Scene
+            <span className="ml-2 text-muted-foreground font-normal text-sm">
+              ({openResourceCheckIns.length} on scene)
+            </span>
+          </CardTitle>
+          {!isClosed && (
+            <Button size="sm" onClick={() => setResourceCheckInOpen(true)}>
+              <LogIn className="size-4" />
+              Check In
+            </Button>
+          )}
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Resource</TableHead>
+                <TableHead>Type</TableHead>
+                <TableHead>Checked In</TableHead>
+                <TableHead>Checked Out</TableHead>
+                <TableHead>Notes</TableHead>
+                <TableHead className="text-right">Action</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {(!resourceCheckIns || resourceCheckIns.length === 0) && (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center text-muted-foreground">
+                    No resources checked in yet.
+                  </TableCell>
+                </TableRow>
+              )}
+              {resourceCheckIns?.map((c) => (
+                <TableRow key={c.id}>
+                  <TableCell className="font-medium">{c.resourceIdentifier}</TableCell>
+                  <TableCell>{c.resourceType}</TableCell>
+                  <TableCell className="text-sm whitespace-nowrap">
+                    {new Date(c.checkedInAt).toLocaleString()}
+                  </TableCell>
+                  <TableCell className="text-sm whitespace-nowrap">
+                    {c.checkedOutAt ? (
+                      new Date(c.checkedOutAt).toLocaleString()
+                    ) : (
+                      <Badge variant="default">On Scene</Badge>
+                    )}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground text-sm max-w-[200px] truncate">
+                    {c.notes || '—'}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    {!c.checkedOutAt && (
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => checkOutResourceMutation.mutate(c.id)}
+                      >
+                        <LogOut className="size-4" />
+                        Check Out
+                      </Button>
+                    )}
                   </TableCell>
                 </TableRow>
               ))}
@@ -288,6 +556,126 @@ export function IncidentDetail() {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={operatorCheckInOpen} onOpenChange={setOperatorCheckInOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Check In Operator</DialogTitle>
+          </DialogHeader>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault()
+              checkInOperatorMutation.mutate()
+            }}
+            className="flex flex-col gap-3"
+          >
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="checkInOperatorId">Operator</Label>
+              <Select value={operatorCheckInId} onValueChange={setOperatorCheckInId}>
+                <SelectTrigger id="checkInOperatorId">
+                  <SelectValue placeholder="Select operator" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableOperators.map((op) => (
+                    <SelectItem key={op.id} value={String(op.id)}>
+                      {op.callsign}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="checkInOperatorNotes">Notes</Label>
+              <Textarea
+                id="checkInOperatorNotes"
+                value={operatorCheckInNotes}
+                onChange={(e) => setOperatorCheckInNotes(e.target.value)}
+              />
+            </div>
+            <DialogFooter>
+              <Button
+                type="submit"
+                disabled={!operatorCheckInId || checkInOperatorMutation.isPending}
+              >
+                Check In
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={resourceCheckInOpen} onOpenChange={setResourceCheckInOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Check In Resource</DialogTitle>
+          </DialogHeader>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault()
+              checkInResourceMutation.mutate()
+            }}
+            className="flex flex-col gap-3"
+          >
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="checkInResourceId">Resource</Label>
+              <Select value={resourceCheckInId} onValueChange={setResourceCheckInId}>
+                <SelectTrigger id="checkInResourceId">
+                  <SelectValue placeholder="Select resource" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableResources.map((r) => (
+                    <SelectItem key={r.id} value={String(r.id)}>
+                      {r.identifier} ({r.type})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="checkInResourceNotes">Notes</Label>
+              <Textarea
+                id="checkInResourceNotes"
+                value={resourceCheckInNotes}
+                onChange={(e) => setResourceCheckInNotes(e.target.value)}
+              />
+            </div>
+            <DialogFooter>
+              <Button
+                type="submit"
+                disabled={!resourceCheckInId || checkInResourceMutation.isPending}
+              >
+                Check In
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={endDialogOpen} onOpenChange={setEndDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>End Incident</DialogTitle>
+            <DialogDescription>
+              This will close "{incident.name}" and automatically check out{' '}
+              {openOperatorCheckIns.length} operator{openOperatorCheckIns.length === 1 ? '' : 's'} and{' '}
+              {openResourceCheckIns.length} resource{openResourceCheckIns.length === 1 ? '' : 's'}{' '}
+              still on scene. This cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEndDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={endIncidentMutation.isPending}
+              onClick={() => endIncidentMutation.mutate()}
+            >
+              End Incident
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
