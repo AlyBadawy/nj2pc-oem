@@ -33,6 +33,9 @@ public class OperatorService {
         if (operatorRepository.existsByCallsignIgnoreCase(request.callsign())) {
             throw ApiException.conflict("Callsign already registered: " + request.callsign());
         }
+        if (request.password() == null || request.password().isBlank()) {
+            throw ApiException.badRequest("Password is required");
+        }
         Operator operator = new Operator();
         applyRequest(operator, request);
         return OperatorResponse.from(operatorRepository.save(operator));

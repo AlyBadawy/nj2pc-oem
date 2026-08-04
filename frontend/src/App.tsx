@@ -5,6 +5,9 @@ import { ProtectedRoute } from '@/routes/ProtectedRoute'
 import { Login } from '@/pages/Login'
 import { AccountSettings } from '@/pages/AccountSettings'
 import { Operators } from '@/pages/Operators'
+import { OperatorCreate } from '@/pages/OperatorCreate'
+import { OperatorView } from '@/pages/OperatorView'
+import { OperatorEdit } from '@/pages/OperatorEdit'
 import { Incidents } from '@/pages/Incidents'
 import { IncidentCreate } from '@/pages/IncidentCreate'
 import { IncidentDetail } from '@/pages/IncidentDetail'
@@ -22,6 +25,9 @@ function App() {
           <Route element={<AppLayout />}>
             <Route index element={<AccountSettings />} />
             <Route path="operators" element={<Operators />} />
+            <Route path="operators/new" element={<OperatorCreate />} />
+            <Route path="operators/:id" element={<OperatorView />} />
+            <Route path="operators/:id/edit" element={<OperatorEdit />} />
             <Route path="incidents" element={<Incidents />} />
             <Route path="incidents/new" element={<IncidentCreate />} />
             <Route path="incidents/:id" element={<IncidentDetail />} />

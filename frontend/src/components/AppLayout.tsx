@@ -7,6 +7,7 @@ import {
   RadioTower,
   ShieldCheck,
   FilePlus2,
+  UserPlus,
   User,
   UserCog,
   LogOut,
@@ -30,8 +31,9 @@ const navItems = [
 ]
 
 const settingsNavItems = [
-  { to: '/roles', label: 'Operator Roles', icon: ShieldCheck },
   { to: '/incidents/new', label: 'Create Incident', icon: FilePlus2 },
+  { to: '/operators/new', label: 'Register Operator', icon: UserPlus },
+  { to: '/roles', label: 'Operator Roles', icon: ShieldCheck },
   { to: '/comms-plans', label: 'Comms Plans', icon: RadioTower },
 ]
 
