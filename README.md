@@ -83,7 +83,8 @@ All endpoints under `/api/**` except `/api/auth/**` require a `Bearer` JWT.
 
 - `POST /api/auth/login`, `POST /api/auth/register` (ADMIN only)
 - `GET/POST/PUT/DELETE /api/operators[/:id]` (write/delete: ADMIN only)
-- `GET/POST/PUT/DELETE /api/incidents[/:id]`
+- `GET/POST/PUT /api/incidents[/:id]` (incidents cannot be deleted; `PUT` is rejected once CLOSED)
+- `POST /api/incidents/:id/start`, `POST /api/incidents/:id/end`
 - `GET/POST /api/incidents/:id/logs` (ICS-213-style message log)
 - `GET/POST/PUT/DELETE /api/resources[/:id]`
 
@@ -91,7 +92,8 @@ All endpoints under `/api/**` except `/api/auth/**` require a `Bearer` JWT.
 
 Manifests live in `k8s/`. Build and push (or import) images tagged to match the Deployments
 (`nj2pc-oem/backend:latest`, `nj2pc-oem/frontend:latest`), fill in real values in
-`k8s/postgres-secret.yaml`, then:
+`k8s/db-credentials-secret.yaml` pointing at the PostgreSQL server already running in your
+cluster (this repo never deploys a database itself — only connects to one you provide), then:
 
 ```bash
 kubectl apply -f k8s/
