@@ -1,9 +1,15 @@
 import { useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Plus, Pencil, Trash2 } from 'lucide-react'
+import { Plus, Pencil, Trash2, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { api } from '@/lib/api'
 import { useAuth } from '@/lib/auth-context'
+import {
+  formatCallookAddress,
+  formatCallookLicenseClass,
+  formatCallookName,
+  lookupCallsign,
+} from '@/lib/callook'
 import type { Operator, OperatorStatus } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -54,6 +60,7 @@ export function Operators() {
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editing, setEditing] = useState<Operator | null>(null)
   const [form, setForm] = useState<FormState>(emptyForm)
+  const [lookupLoading, setLookupLoading] = useState(false)
 
   const { data: operators, isLoading } = useQuery({
     queryKey: ['operators'],
@@ -107,6 +114,31 @@ export function Operators() {
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
     saveMutation.mutate()
+  }
+
+  async function handleCallsignBlur() {
+    if (editing || !form.callsign.trim()) return
+    setLookupLoading(true)
+    const result = await lookupCallsign(form.callsign)
+    setLookupLoading(false)
+
+    if (!result || result.status !== 'VALID' || result.type !== 'PERSON') {
+      if (result) {
+        toast.info('Callsign not found in FCC database — enter details manually.')
+      }
+      return
+    }
+
+    const address = formatCallookAddress(result)
+    setForm((f) => ({
+      ...f,
+      name: result.name ? formatCallookName(result.name) : f.name,
+      licenseClass: result.current?.operClass
+        ? formatCallookLicenseClass(result.current.operClass)
+        : f.licenseClass,
+      notes: address || f.notes,
+    }))
+    toast.success('Auto-filled from FCC database — review before saving.')
   }
 
   return (
@@ -190,11 +222,15 @@ export function Operators() {
           <form onSubmit={handleSubmit} className="flex flex-col gap-3">
             <div className="grid grid-cols-2 gap-3">
               <div className="flex flex-col gap-1.5">
-                <Label htmlFor="callsign">Callsign</Label>
+                <Label htmlFor="callsign" className="flex items-center gap-1.5">
+                  Callsign
+                  {lookupLoading && <Loader2 className="size-3 animate-spin text-muted-foreground" />}
+                </Label>
                 <Input
                   id="callsign"
                   value={form.callsign}
                   onChange={(e) => setForm({ ...form, callsign: e.target.value.toUpperCase() })}
+                  onBlur={handleCallsignBlur}
                   required
                 />
               </div>
