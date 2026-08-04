@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: backend
+  namespace: nj2pc-oem
+  labels:
+    app: nj2pc-oem
+    component: backend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nj2pc-oem
+      component: backend
+  template:
+    metadata:
+      labels:
+        app: nj2pc-oem
+        component: backend
+    spec:
+      containers:
+        - name: backend
+          image: nj2pc-oem/backend:latest
+          ports:
+            - containerPort: 8080
+          envFrom:
+            - secretRef:
+                name: nj2pc-oem-db
+          readinessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8080
+            initialDelaySeconds: 15
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /actuator/health
+              port: 8080
+            initialDelaySeconds: 30
+            periodSeconds: 20

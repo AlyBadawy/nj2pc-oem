@@ -1,0 +1,37 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: frontend
+  namespace: nj2pc-oem
+  labels:
+    app: nj2pc-oem
+    component: frontend
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: nj2pc-oem
+      component: frontend
+  template:
+    metadata:
+      labels:
+        app: nj2pc-oem
+        component: frontend
+    spec:
+      containers:
+        - name: frontend
+          image: nj2pc-oem/frontend:latest
+          ports:
+            - containerPort: 80
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 5
+            periodSeconds: 10
+          livenessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 15
+            periodSeconds: 20

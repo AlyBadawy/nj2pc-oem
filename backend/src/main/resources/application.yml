@@ -1,0 +1,30 @@
+server:
+  port: 8080
+
+spring:
+  application:
+    name: nj2pc-oem
+  datasource:
+    url: jdbc:postgresql://${DB_HOST:localhost}:${DB_PORT:5432}/${DB_NAME:nj2pc_oem}
+    username: ${DB_USER:nj2pc_oem}
+    password: ${DB_PASSWORD:changeme}
+  jpa:
+    hibernate:
+      ddl-auto: validate
+    open-in-view: false
+    properties:
+      hibernate:
+        format_sql: true
+  flyway:
+    enabled: true
+    locations: classpath:db/migration
+    baseline-on-migrate: true
+
+app:
+  jwt:
+    secret: ${JWT_SECRET:change-this-development-only-secret-key-must-be-long-enough}
+    expiration-minutes: ${JWT_EXPIRATION_MINUTES:480}
+
+logging:
+  level:
+    org.nj2pc.oem: INFO
