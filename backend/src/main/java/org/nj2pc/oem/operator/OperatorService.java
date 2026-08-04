@@ -61,5 +61,11 @@ public class OperatorService {
         operator.setEmail(request.email());
         operator.setStatus(request.status());
         operator.setNotes(request.notes());
+        operator.setAddressLine1(request.addressLine1());
+        operator.setAddressLine2(request.addressLine2());
+        operator.setAddressAttn(request.addressAttn());
+        operator.setLatitude(request.latitude());
+        operator.setLongitude(request.longitude());
+        operator.setGridSquare(request.gridSquare());
     }
 }

@@ -4,12 +4,7 @@ import { Plus, Pencil, Trash2, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { api } from '@/lib/api'
 import { useAuth } from '@/lib/auth-context'
-import {
-  formatCallookAddress,
-  formatCallookLicenseClass,
-  formatCallookName,
-  lookupCallsign,
-} from '@/lib/callook'
+import { formatCallookLicenseClass, formatCallookName, lookupCallsign } from '@/lib/callook'
 import type { Operator, OperatorStatus } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -41,6 +36,12 @@ type FormState = {
   email: string
   status: OperatorStatus
   notes: string
+  addressLine1: string
+  addressLine2: string
+  addressAttn: string
+  latitude: string
+  longitude: string
+  gridSquare: string
 }
 
 const emptyForm: FormState = {
@@ -51,6 +52,12 @@ const emptyForm: FormState = {
   email: '',
   status: 'ACTIVE',
   notes: '',
+  addressLine1: '',
+  addressLine2: '',
+  addressAttn: '',
+  latitude: '',
+  longitude: '',
+  gridSquare: '',
 }
 
 export function Operators() {
@@ -107,6 +114,12 @@ export function Operators() {
       email: operator.email ?? '',
       status: operator.status,
       notes: operator.notes ?? '',
+      addressLine1: operator.addressLine1 ?? '',
+      addressLine2: operator.addressLine2 ?? '',
+      addressAttn: operator.addressAttn ?? '',
+      latitude: operator.latitude ?? '',
+      longitude: operator.longitude ?? '',
+      gridSquare: operator.gridSquare ?? '',
     })
     setDialogOpen(true)
   }
@@ -129,14 +142,18 @@ export function Operators() {
       return
     }
 
-    const address = formatCallookAddress(result)
     setForm((f) => ({
       ...f,
       name: result.name ? formatCallookName(result.name) : f.name,
       licenseClass: result.current?.operClass
         ? formatCallookLicenseClass(result.current.operClass)
         : f.licenseClass,
-      notes: address || f.notes,
+      addressLine1: result.address?.line1 || f.addressLine1,
+      addressLine2: result.address?.line2 || f.addressLine2,
+      addressAttn: result.address?.attn || f.addressAttn,
+      latitude: result.location?.latitude || f.latitude,
+      longitude: result.location?.longitude || f.longitude,
+      gridSquare: result.location?.gridsquare || f.gridSquare,
     }))
     toast.success('Auto-filled from FCC database — review before saving.')
   }
@@ -215,7 +232,7 @@ export function Operators() {
       </Card>
 
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-lg max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editing ? 'Edit Operator' : 'Register Operator'}</DialogTitle>
           </DialogHeader>
@@ -294,6 +311,70 @@ export function Operators() {
                 onChange={(e) => setForm({ ...form, notes: e.target.value })}
               />
             </div>
+
+            <div className="pt-1 border-t">
+              <p className="text-sm font-medium pt-3 pb-1">Address</p>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="addressLine1">Street</Label>
+              <Input
+                id="addressLine1"
+                value={form.addressLine1}
+                onChange={(e) => setForm({ ...form, addressLine1: e.target.value })}
+              />
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="addressLine2">City, State ZIP</Label>
+                <Input
+                  id="addressLine2"
+                  value={form.addressLine2}
+                  onChange={(e) => setForm({ ...form, addressLine2: e.target.value })}
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="addressAttn">Attn</Label>
+                <Input
+                  id="addressAttn"
+                  value={form.addressAttn}
+                  onChange={(e) => setForm({ ...form, addressAttn: e.target.value })}
+                />
+              </div>
+            </div>
+
+            <div className="pt-1 border-t">
+              <p className="text-sm font-medium pt-3 pb-1">Location</p>
+            </div>
+            <div className="grid grid-cols-3 gap-3">
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="latitude">Latitude</Label>
+                <Input
+                  id="latitude"
+                  value={form.latitude}
+                  onChange={(e) => setForm({ ...form, latitude: e.target.value })}
+                  placeholder="40.8915158"
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="longitude">Longitude</Label>
+                <Input
+                  id="longitude"
+                  value={form.longitude}
+                  onChange={(e) => setForm({ ...form, longitude: e.target.value })}
+                  placeholder="-74.1959347"
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="gridSquare">Grid Square</Label>
+                <Input
+                  id="gridSquare"
+                  value={form.gridSquare}
+                  onChange={(e) => setForm({ ...form, gridSquare: e.target.value })}
+                  placeholder="FN20vv"
+                />
+              </div>
+            </div>
+
             <DialogFooter>
               <Button type="submit" disabled={saveMutation.isPending}>
                 {editing ? 'Save Changes' : 'Register'}

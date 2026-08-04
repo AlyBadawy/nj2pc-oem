@@ -11,6 +11,12 @@ public record OperatorRequest(
         String phone,
         @Email String email,
         @NotNull OperatorStatus status,
-        String notes
+        String notes,
+        String addressLine1,
+        String addressLine2,
+        String addressAttn,
+        String latitude,
+        String longitude,
+        String gridSquare
 ) {
 }

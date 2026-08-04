@@ -17,6 +17,12 @@ export interface Operator {
   email: string | null
   status: OperatorStatus
   notes: string | null
+  addressLine1: string | null
+  addressLine2: string | null
+  addressAttn: string | null
+  latitude: string | null
+  longitude: string | null
+  gridSquare: string | null
   createdAt: string
 }
 

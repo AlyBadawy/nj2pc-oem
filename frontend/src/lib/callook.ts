@@ -9,6 +9,7 @@ export interface CallookResponse {
   address?: {
     line1: string
     line2: string
+    attn: string
   }
   location?: {
     latitude: string
@@ -39,12 +40,4 @@ export function formatCallookName(name: string): string {
 
 export function formatCallookLicenseClass(operClass: string): string {
   return toTitleCase(operClass)
-}
-
-export function formatCallookAddress(result: CallookResponse): string {
-  const lines: string[] = []
-  if (result.address?.line1) lines.push(result.address.line1)
-  if (result.address?.line2) lines.push(result.address.line2)
-  if (result.location?.gridsquare) lines.push(`Grid Square: ${result.location.gridsquare}`)
-  return lines.join('\n')
 }

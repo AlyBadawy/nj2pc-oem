@@ -31,6 +31,22 @@ public class Operator {
 
     private String notes;
 
+    @Column(name = "address_line1")
+    private String addressLine1;
+
+    @Column(name = "address_line2")
+    private String addressLine2;
+
+    @Column(name = "address_attn")
+    private String addressAttn;
+
+    private String latitude;
+
+    private String longitude;
+
+    @Column(name = "grid_square")
+    private String gridSquare;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
 
@@ -92,6 +108,54 @@ public class Operator {
 
     public void setNotes(String notes) {
         this.notes = notes;
+    }
+
+    public String getAddressLine1() {
+        return addressLine1;
+    }
+
+    public void setAddressLine1(String addressLine1) {
+        this.addressLine1 = addressLine1;
+    }
+
+    public String getAddressLine2() {
+        return addressLine2;
+    }
+
+    public void setAddressLine2(String addressLine2) {
+        this.addressLine2 = addressLine2;
+    }
+
+    public String getAddressAttn() {
+        return addressAttn;
+    }
+
+    public void setAddressAttn(String addressAttn) {
+        this.addressAttn = addressAttn;
+    }
+
+    public String getLatitude() {
+        return latitude;
+    }
+
+    public void setLatitude(String latitude) {
+        this.latitude = latitude;
+    }
+
+    public String getLongitude() {
+        return longitude;
+    }
+
+    public void setLongitude(String longitude) {
+        this.longitude = longitude;
+    }
+
+    public String getGridSquare() {
+        return gridSquare;
+    }
+
+    public void setGridSquare(String gridSquare) {
+        this.gridSquare = gridSquare;
     }
 
     public Instant getCreatedAt() {
