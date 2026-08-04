@@ -64,3 +64,42 @@ export interface Resource {
   assignedIncidentName: string | null
   notes: string | null
 }
+
+export type ChannelMode = 'ANALOG' | 'DIGITAL' | 'MIXED'
+
+export interface CommunicationChannel {
+  id: number
+  planId: number
+  zoneGroup: string
+  channelNumber: number
+  function: string
+  channelName: string
+  assignment: string | null
+  rxFrequency: string | null
+  rxTone: string | null
+  txFrequency: string | null
+  txTone: string | null
+  mode: ChannelMode
+  remarks: string | null
+}
+
+export interface CommunicationPlanIncidentSummary {
+  id: number
+  name: string
+}
+
+export interface CommunicationPlan {
+  id: number
+  name: string
+  operationalPeriodStart: string | null
+  operationalPeriodEnd: string | null
+  specialInstructions: string | null
+  preparedByName: string | null
+  preparedByCallsign: string | null
+  preparedAt: string | null
+  approvedByName: string | null
+  approvedByCallsign: string | null
+  approvedAt: string | null
+  createdAt: string
+  incidents: CommunicationPlanIncidentSummary[]
+}

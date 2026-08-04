@@ -1,10 +1,10 @@
 import { useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Plus } from 'lucide-react'
+import { Link, useNavigate, useParams } from 'react-router-dom'
+import { ArrowLeft, Plus, RadioTower } from 'lucide-react'
 import { toast } from 'sonner'
 import { api } from '@/lib/api'
-import type { Incident, IncidentLog, Operator, Priority } from '@/lib/types'
+import type { CommunicationPlan, Incident, IncidentLog, Operator, Priority } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -75,6 +75,11 @@ export function IncidentDetail() {
   const { data: operators } = useQuery({
     queryKey: ['operators'],
     queryFn: async () => (await api.get<Operator[]>('/api/operators')).data,
+  })
+
+  const { data: commsPlans } = useQuery({
+    queryKey: ['incidents', id, 'comms-plans'],
+    queryFn: async () => (await api.get<CommunicationPlan[]>(`/api/incidents/${id}/comms-plans`)).data,
   })
 
   const createLogMutation = useMutation({
@@ -165,6 +170,37 @@ export function IncidentDetail() {
               ))}
             </TableBody>
           </Table>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Communications Plans</CardTitle>
+        </CardHeader>
+        <CardContent>
+          {commsPlans && commsPlans.length > 0 ? (
+            <ul className="flex flex-col gap-2">
+              {commsPlans.map((plan) => (
+                <li key={plan.id}>
+                  <Link
+                    to={`/comms-plans/${plan.id}`}
+                    className="flex items-center gap-2 text-sm font-medium hover:underline"
+                  >
+                    <RadioTower className="size-4 text-muted-foreground" />
+                    {plan.name}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              No communications plans linked. Link one from the{' '}
+              <Link to="/comms-plans" className="underline">
+                Communications Plans
+              </Link>{' '}
+              page.
+            </p>
+          )}
         </CardContent>
       </Card>
 

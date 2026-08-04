@@ -1,6 +1,8 @@
 package org.nj2pc.oem.incident;
 
 import jakarta.validation.Valid;
+import org.nj2pc.oem.commsplan.CommunicationPlanResponse;
+import org.nj2pc.oem.commsplan.CommunicationPlanService;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
@@ -13,10 +15,14 @@ public class IncidentController {
 
     private final IncidentService incidentService;
     private final IncidentLogService incidentLogService;
+    private final CommunicationPlanService communicationPlanService;
 
-    public IncidentController(IncidentService incidentService, IncidentLogService incidentLogService) {
+    public IncidentController(IncidentService incidentService,
+                               IncidentLogService incidentLogService,
+                               CommunicationPlanService communicationPlanService) {
         this.incidentService = incidentService;
         this.incidentLogService = incidentLogService;
+        this.communicationPlanService = communicationPlanService;
     }
 
     @GetMapping
@@ -56,5 +62,10 @@ public class IncidentController {
     @ResponseStatus(HttpStatus.CREATED)
     public IncidentLogResponse createLog(@PathVariable Long id, @Valid @RequestBody IncidentLogRequest request) {
         return incidentLogService.create(id, request);
+    }
+
+    @GetMapping("/{id}/comms-plans")
+    public List<CommunicationPlanResponse> findCommsPlans(@PathVariable Long id) {
+        return communicationPlanService.findByIncident(id);
     }
 }

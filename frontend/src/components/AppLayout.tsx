@@ -1,5 +1,5 @@
 import { NavLink, Outlet } from 'react-router-dom'
-import { Radio, LayoutDashboard, Users, Siren, Boxes, LogOut } from 'lucide-react'
+import { Radio, LayoutDashboard, Users, Siren, Boxes, RadioTower, LogOut } from 'lucide-react'
 import { useAuth } from '@/lib/auth-context'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
@@ -9,6 +9,7 @@ const navItems = [
   { to: '/operators', label: 'Operators', icon: Users },
   { to: '/incidents', label: 'Incidents', icon: Siren },
   { to: '/resources', label: 'Resources', icon: Boxes },
+  { to: '/comms-plans', label: 'Comms Plans', icon: RadioTower },
 ]
 
 export function AppLayout() {
