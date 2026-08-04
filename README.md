@@ -50,9 +50,13 @@ change their own password from **Account Settings** once logged in.
 change that password from Account Settings and create real operator accounts from the Operators
 page (Register Operator → set access level + password).
 
-Access levels: `RESTRICTED`, `STANDARD`, `ADMIN`. Only `ADMIN` is currently enforced on specific
-endpoints (operator create/update/delete, role management); `RESTRICTED` vs `STANDARD` is tracked
-but not yet differentiated in authorization — extend as needed.
+Access levels: `RESTRICTED`, `STANDARD`, `ADMIN`.
+- `ADMIN` — full access: manage operators/roles, create incidents, manage communications plans.
+- `STANDARD` — full read access to operators/incidents/resources and normal incident workflows
+  (logs, check-ins), but can't see access levels or creation metadata, and can't reach admin-only
+  pages (create incident, register operator, comms plans, roles).
+- `RESTRICTED` — operator roster is reduced to callsign + name only; per-operator detail view is
+  blocked outright (`403`) at the API level, not just hidden in the UI.
 
 ## Local Development
 
@@ -91,12 +95,29 @@ npm run dev
 All endpoints under `/api/**` except `/api/auth/**` require a `Bearer` JWT.
 
 - `POST /api/auth/login`, `GET /api/auth/me`, `POST /api/auth/change-password`
-- `GET/POST/PUT/DELETE /api/operators[/:id]` (write/delete: ADMIN only; `password`/`accessLevel` set login access)
-- `GET/POST/DELETE /api/operator-roles[/:id]` (write/delete: ADMIN only)
-- `GET/POST/PUT /api/incidents[/:id]` (incidents cannot be deleted; `PUT` is rejected once CLOSED)
-- `POST /api/incidents/:id/start`, `POST /api/incidents/:id/end`
-- `GET/POST /api/incidents/:id/logs` (ICS-213-style message log)
+- `GET/POST/PUT/DELETE /api/operators[/:id]` (write/delete: ADMIN only; `password`/`accessLevel`
+  set login access; list/detail responses vary by caller's own access level — see Access levels
+  above)
+- `GET/POST/DELETE /api/operator-roles[/:id]` (write/delete: ADMIN only) — admin-managed lookup
+  table for check-in roles (Com-T, Net Control, ...), not a fixed enum
+- `GET /api/operator-checkins/active` — every currently open operator check-in, across all incidents
+- `GET/POST/PUT /api/incidents[/:id]` (create: ADMIN only; incidents cannot be deleted; `PUT` is
+  rejected once `CLOSED`)
+- `POST /api/incidents/:id/start`, `POST /api/incidents/:id/end` (lifecycle transitions;
+  `end` auto-checks-out every open operator/resource check-in on that incident)
+- `GET/POST /api/incidents/:id/logs` (ICS-213-style message log; rejected once incident is `CLOSED`)
+- `GET/POST/PUT/DELETE /api/incidents/:id/operator-checkins[/:checkInId]`,
+  `.../resource-checkins[/:checkInId]`, plus `POST .../checkout` on each — time-boxed check-in
+  sessions, not a static assignment
 - `GET/POST/PUT/DELETE /api/resources[/:id]`
+- `GET/POST/PUT/DELETE /api/comms-plans[/:id]` (ADMIN only, whole controller) — ICS-205
+  communications plans; `GET /api/comms-plans/:id/pdf` renders one to a PDF matching the real
+  ICS-205 layout
+- `GET/POST/PUT/DELETE /api/comms-plans/:id/channels[/:channelId]` (ADMIN only) — the radio
+  channel rows on a plan
+- `POST/DELETE /api/comms-plans/:id/incidents/:incidentId` (ADMIN only) — link/unlink a plan to an
+  incident (many-to-many)
+- `GET /api/incidents/:id/comms-plans` (ADMIN only) — reverse lookup of plans linked to an incident
 
 ## Kubernetes / K3s Deployment
 
