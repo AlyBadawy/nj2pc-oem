@@ -1,7 +1,10 @@
 package org.nj2pc.oem.commsplan;
 
 import jakarta.validation.Valid;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
@@ -13,11 +16,14 @@ public class CommunicationPlanController {
 
     private final CommunicationPlanService communicationPlanService;
     private final CommunicationChannelService communicationChannelService;
+    private final Ics205PdfService ics205PdfService;
 
     public CommunicationPlanController(CommunicationPlanService communicationPlanService,
-                                        CommunicationChannelService communicationChannelService) {
+                                        CommunicationChannelService communicationChannelService,
+                                        Ics205PdfService ics205PdfService) {
         this.communicationPlanService = communicationPlanService;
         this.communicationChannelService = communicationChannelService;
+        this.ics205PdfService = ics205PdfService;
     }
 
     @GetMapping
@@ -59,6 +65,17 @@ public class CommunicationPlanController {
     @DeleteMapping("/{id}/incidents/{incidentId}")
     public CommunicationPlanResponse unlinkIncident(@PathVariable Long id, @PathVariable Long incidentId) {
         return communicationPlanService.unlinkIncident(id, incidentId);
+    }
+
+    @GetMapping("/{id}/pdf")
+    public ResponseEntity<byte[]> downloadPdf(@PathVariable Long id) {
+        byte[] pdf = ics205PdfService.generate(id);
+        CommunicationPlanResponse plan = communicationPlanService.findById(id);
+        String filename = "ICS-205-" + plan.name().replaceAll("[^a-zA-Z0-9-]+", "_") + ".pdf";
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_PDF)
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+                .body(pdf);
     }
 
     @GetMapping("/{id}/channels")

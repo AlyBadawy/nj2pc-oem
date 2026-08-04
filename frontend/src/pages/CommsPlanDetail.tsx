@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Plus, Pencil, Trash2, Link as LinkIcon, X } from 'lucide-react'
+import { ArrowLeft, Plus, Pencil, Trash2, Link as LinkIcon, X, Download, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { api } from '@/lib/api'
 import type { ChannelMode, CommunicationChannel, CommunicationPlan, Incident } from '@/lib/types'
@@ -69,6 +69,7 @@ export function CommsPlanDetail() {
   const [editingChannel, setEditingChannel] = useState<CommunicationChannel | null>(null)
   const [channelForm, setChannelForm] = useState<ChannelFormState>(emptyChannelForm)
   const [linkIncidentId, setLinkIncidentId] = useState('')
+  const [downloadingPdf, setDownloadingPdf] = useState(false)
 
   const { data: plan } = useQuery({
     queryKey: ['comms-plans', id],
@@ -170,6 +171,25 @@ export function CommsPlanDetail() {
     saveChannelMutation.mutate()
   }
 
+  async function handleDownloadPdf() {
+    setDownloadingPdf(true)
+    try {
+      const response = await api.get(`/api/comms-plans/${id}/pdf`, { responseType: 'blob' })
+      const url = window.URL.createObjectURL(new Blob([response.data]))
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `ICS-205-${(plan?.name ?? 'plan').replace(/[^a-zA-Z0-9-]+/g, '_')}.pdf`
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.URL.revokeObjectURL(url)
+    } catch {
+      toast.error('Failed to generate PDF')
+    } finally {
+      setDownloadingPdf(false)
+    }
+  }
+
   if (!plan) return null
 
   const linkedIds = new Set(plan.incidents.map((i) => i.id))
@@ -182,7 +202,17 @@ export function CommsPlanDetail() {
           <ArrowLeft className="size-4" />
           Back to Communications Plans
         </Button>
-        <h1 className="text-2xl font-semibold">{plan.name}</h1>
+        <div className="flex items-center justify-between">
+          <h1 className="text-2xl font-semibold">{plan.name}</h1>
+          <Button variant="outline" disabled={downloadingPdf} onClick={handleDownloadPdf}>
+            {downloadingPdf ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <Download className="size-4" />
+            )}
+            Download PDF
+          </Button>
+        </div>
         {(plan.preparedByCallsign || plan.preparedByName) && (
           <p className="text-muted-foreground text-sm">
             Prepared by {plan.preparedByName} {plan.preparedByCallsign && `(${plan.preparedByCallsign})`}
