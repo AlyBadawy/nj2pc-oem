@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Plus, RadioTower, LogIn, LogOut, Flag } from 'lucide-react'
+import { ArrowLeft, Plus, RadioTower, LogIn, LogOut, Flag, Play } from 'lucide-react'
 import { toast } from 'sonner'
 import { api } from '@/lib/api'
 import type {
@@ -196,6 +196,16 @@ export function IncidentDetail() {
     onError: () => toast.error('Failed to check out resource'),
   })
 
+  const startIncidentMutation = useMutation({
+    mutationFn: async () => api.post(`/api/incidents/${id}/start`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['incidents', id] })
+      queryClient.invalidateQueries({ queryKey: ['incidents'] })
+      toast.success('Incident started')
+    },
+    onError: () => toast.error('Failed to start incident'),
+  })
+
   const endIncidentMutation = useMutation({
     mutationFn: async () => api.post(`/api/incidents/${id}/end`),
     onSuccess: () => {
@@ -224,6 +234,11 @@ export function IncidentDetail() {
   const availableOperators = operators?.filter((o) => !checkedInOperatorIds.has(o.id)) ?? []
   const availableResources = resources?.filter((r) => !checkedInResourceIds.has(r.id)) ?? []
   const isClosed = incident.status === 'CLOSED'
+  const isPlanned = incident.status === 'PLANNED'
+  const isActive = incident.status === 'ACTIVE'
+
+  const fmt = (v: string | null) =>
+    v ? new Date(v).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' }) : '—'
 
   return (
     <div className="flex flex-col gap-6">
@@ -241,7 +256,17 @@ export function IncidentDetail() {
             <p className="text-muted-foreground text-sm">{incident.location}</p>
           </div>
           <div className="flex items-center gap-2">
-            {!isClosed && (
+            {isPlanned && (
+              <Button
+                variant="outline"
+                disabled={startIncidentMutation.isPending}
+                onClick={() => startIncidentMutation.mutate()}
+              >
+                <Play className="size-4" />
+                Start Incident
+              </Button>
+            )}
+            {isActive && (
               <Button variant="outline" onClick={() => setEndDialogOpen(true)}>
                 <Flag className="size-4" />
                 End Incident
@@ -256,6 +281,14 @@ export function IncidentDetail() {
           </div>
         </div>
         {incident.description && <p className="mt-3 text-sm max-w-2xl">{incident.description}</p>}
+        <div className="mt-3 flex flex-wrap gap-x-8 gap-y-1 text-sm text-muted-foreground">
+          <span>
+            Planned: {fmt(incident.plannedStartTime)} – {fmt(incident.plannedEndTime)}
+          </span>
+          <span>
+            Actual: {fmt(incident.actualStartTime)} – {fmt(incident.actualEndTime)}
+          </span>
+        </div>
       </div>
 
       <Card>

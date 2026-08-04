@@ -33,8 +33,10 @@ export interface Incident {
   name: string
   location: string | null
   status: IncidentStatus
-  startTime: string | null
-  endTime: string | null
+  plannedStartTime: string | null
+  plannedEndTime: string | null
+  actualStartTime: string | null
+  actualEndTime: string | null
   description: string | null
   createdAt: string
 }

@@ -7,15 +7,19 @@ public record IncidentResponse(
         String name,
         String location,
         IncidentStatus status,
-        Instant startTime,
-        Instant endTime,
+        Instant plannedStartTime,
+        Instant plannedEndTime,
+        Instant actualStartTime,
+        Instant actualEndTime,
         String description,
         Instant createdAt
 ) {
     public static IncidentResponse from(Incident i) {
         return new IncidentResponse(
                 i.getId(), i.getName(), i.getLocation(), i.getStatus(),
-                i.getStartTime(), i.getEndTime(), i.getDescription(), i.getCreatedAt()
+                i.getPlannedStartTime(), i.getPlannedEndTime(),
+                i.getActualStartTime(), i.getActualEndTime(),
+                i.getDescription(), i.getCreatedAt()
         );
     }
 }

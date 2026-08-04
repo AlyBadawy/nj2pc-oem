@@ -21,11 +21,17 @@ public class Incident {
     @Column(nullable = false)
     private IncidentStatus status = IncidentStatus.PLANNED;
 
-    @Column(name = "start_time")
-    private Instant startTime;
+    @Column(name = "planned_start_time")
+    private Instant plannedStartTime;
 
-    @Column(name = "end_time")
-    private Instant endTime;
+    @Column(name = "planned_end_time")
+    private Instant plannedEndTime;
+
+    @Column(name = "actual_start_time")
+    private Instant actualStartTime;
+
+    @Column(name = "actual_end_time")
+    private Instant actualEndTime;
 
     private String description;
 
@@ -60,20 +66,36 @@ public class Incident {
         this.status = status;
     }
 
-    public Instant getStartTime() {
-        return startTime;
+    public Instant getPlannedStartTime() {
+        return plannedStartTime;
     }
 
-    public void setStartTime(Instant startTime) {
-        this.startTime = startTime;
+    public void setPlannedStartTime(Instant plannedStartTime) {
+        this.plannedStartTime = plannedStartTime;
     }
 
-    public Instant getEndTime() {
-        return endTime;
+    public Instant getPlannedEndTime() {
+        return plannedEndTime;
     }
 
-    public void setEndTime(Instant endTime) {
-        this.endTime = endTime;
+    public void setPlannedEndTime(Instant plannedEndTime) {
+        this.plannedEndTime = plannedEndTime;
+    }
+
+    public Instant getActualStartTime() {
+        return actualStartTime;
+    }
+
+    public void setActualStartTime(Instant actualStartTime) {
+        this.actualStartTime = actualStartTime;
+    }
+
+    public Instant getActualEndTime() {
+        return actualEndTime;
+    }
+
+    public void setActualEndTime(Instant actualEndTime) {
+        this.actualEndTime = actualEndTime;
     }
 
     public String getDescription() {

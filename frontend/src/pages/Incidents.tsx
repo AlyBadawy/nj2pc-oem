@@ -1,10 +1,10 @@
 import { useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { Plus } from 'lucide-react'
+import { Plus, Play, Flag } from 'lucide-react'
 import { toast } from 'sonner'
 import { api } from '@/lib/api'
-import type { Incident, IncidentStatus } from '@/lib/types'
+import type { Incident } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -13,15 +13,9 @@ import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select'
-import {
   Dialog,
   DialogContent,
+  DialogDescription,
   DialogFooter,
   DialogHeader,
   DialogTitle,
@@ -30,16 +24,35 @@ import {
 type FormState = {
   name: string
   location: string
-  status: IncidentStatus
+  plannedStartTime: string
+  plannedEndTime: string
   description: string
 }
 
-const emptyForm: FormState = { name: '', location: '', status: 'PLANNED', description: '' }
+const emptyForm: FormState = {
+  name: '',
+  location: '',
+  plannedStartTime: '',
+  plannedEndTime: '',
+  description: '',
+}
 
-const statusVariant: Record<IncidentStatus, 'default' | 'secondary' | 'destructive'> = {
+const statusVariant: Record<Incident['status'], 'default' | 'secondary' | 'destructive'> = {
   PLANNED: 'secondary',
   ACTIVE: 'default',
   CLOSED: 'destructive',
+}
+
+function toIso(localDateTime: string): string | null {
+  return localDateTime ? new Date(localDateTime).toISOString() : null
+}
+
+function formatRange(start: string | null, end: string | null): string {
+  if (!start && !end) return '—'
+  const fmt = (v: string) => new Date(v).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' })
+  if (start && end) return `${fmt(start)} – ${fmt(end)}`
+  if (start) return `From ${fmt(start)}`
+  return `Until ${fmt(end as string)}`
 }
 
 export function Incidents() {
@@ -47,6 +60,7 @@ export function Incidents() {
   const queryClient = useQueryClient()
   const [dialogOpen, setDialogOpen] = useState(false)
   const [form, setForm] = useState<FormState>(emptyForm)
+  const [endTarget, setEndTarget] = useState<Incident | null>(null)
 
   const { data: incidents, isLoading } = useQuery({
     queryKey: ['incidents'],
@@ -54,7 +68,14 @@ export function Incidents() {
   })
 
   const createMutation = useMutation({
-    mutationFn: async () => api.post('/api/incidents', form),
+    mutationFn: async () =>
+      api.post('/api/incidents', {
+        name: form.name,
+        location: form.location || null,
+        plannedStartTime: toIso(form.plannedStartTime),
+        plannedEndTime: toIso(form.plannedEndTime),
+        description: form.description || null,
+      }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['incidents'] })
       toast.success('Incident created')
@@ -62,6 +83,25 @@ export function Incidents() {
       setForm(emptyForm)
     },
     onError: () => toast.error('Failed to create incident'),
+  })
+
+  const startMutation = useMutation({
+    mutationFn: async (id: number) => api.post(`/api/incidents/${id}/start`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['incidents'] })
+      toast.success('Incident started')
+    },
+    onError: () => toast.error('Failed to start incident'),
+  })
+
+  const endMutation = useMutation({
+    mutationFn: async (id: number) => api.post(`/api/incidents/${id}/end`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['incidents'] })
+      toast.success('Incident ended — all operators and resources checked out')
+      setEndTarget(null)
+    },
+    onError: () => toast.error('Failed to end incident'),
   })
 
   function handleSubmit(e: FormEvent) {
@@ -93,13 +133,15 @@ export function Incidents() {
                 <TableHead>Name</TableHead>
                 <TableHead>Location</TableHead>
                 <TableHead>Status</TableHead>
-                <TableHead>Created</TableHead>
+                <TableHead>Planned</TableHead>
+                <TableHead>Actual</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading && (
                 <TableRow>
-                  <TableCell colSpan={4} className="text-center text-muted-foreground">
+                  <TableCell colSpan={6} className="text-center text-muted-foreground">
                     Loading…
                   </TableCell>
                 </TableRow>
@@ -115,8 +157,30 @@ export function Incidents() {
                   <TableCell>
                     <Badge variant={statusVariant[incident.status]}>{incident.status}</Badge>
                   </TableCell>
-                  <TableCell className="text-muted-foreground text-sm">
-                    {new Date(incident.createdAt).toLocaleDateString()}
+                  <TableCell className="text-muted-foreground text-sm whitespace-nowrap">
+                    {formatRange(incident.plannedStartTime, incident.plannedEndTime)}
+                  </TableCell>
+                  <TableCell className="text-muted-foreground text-sm whitespace-nowrap">
+                    {formatRange(incident.actualStartTime, incident.actualEndTime)}
+                  </TableCell>
+                  <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                    {incident.status === 'PLANNED' && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        disabled={startMutation.isPending}
+                        onClick={() => startMutation.mutate(incident.id)}
+                      >
+                        <Play className="size-4" />
+                        Start
+                      </Button>
+                    )}
+                    {incident.status === 'ACTIVE' && (
+                      <Button variant="outline" size="sm" onClick={() => setEndTarget(incident)}>
+                        <Flag className="size-4" />
+                        End
+                      </Button>
+                    )}
                   </TableCell>
                 </TableRow>
               ))}
@@ -149,21 +213,25 @@ export function Incidents() {
                 onChange={(e) => setForm({ ...form, location: e.target.value })}
               />
             </div>
-            <div className="flex flex-col gap-1.5">
-              <Label htmlFor="status">Status</Label>
-              <Select
-                value={form.status}
-                onValueChange={(value: IncidentStatus) => setForm({ ...form, status: value })}
-              >
-                <SelectTrigger id="status">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="PLANNED">Planned</SelectItem>
-                  <SelectItem value="ACTIVE">Active</SelectItem>
-                  <SelectItem value="CLOSED">Closed</SelectItem>
-                </SelectContent>
-              </Select>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="plannedStartTime">Planned Start</Label>
+                <Input
+                  id="plannedStartTime"
+                  type="datetime-local"
+                  value={form.plannedStartTime}
+                  onChange={(e) => setForm({ ...form, plannedStartTime: e.target.value })}
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="plannedEndTime">Planned End</Label>
+                <Input
+                  id="plannedEndTime"
+                  type="datetime-local"
+                  value={form.plannedEndTime}
+                  onChange={(e) => setForm({ ...form, plannedEndTime: e.target.value })}
+                />
+              </div>
             </div>
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="description">Description</Label>
@@ -179,6 +247,31 @@ export function Incidents() {
               </Button>
             </DialogFooter>
           </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!endTarget} onOpenChange={(open) => !open && setEndTarget(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>End Incident</DialogTitle>
+            <DialogDescription>
+              This will close "{endTarget?.name}" and automatically check out any operators and
+              resources still on scene. No further changes can be made once it's closed. This
+              cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEndTarget(null)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={endMutation.isPending}
+              onClick={() => endTarget && endMutation.mutate(endTarget.id)}
+            >
+              End Incident
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

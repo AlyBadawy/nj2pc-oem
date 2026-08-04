@@ -33,6 +33,7 @@ public class IncidentLogService {
     @Transactional
     public IncidentLogResponse create(Long incidentId, IncidentLogRequest request) {
         Incident incident = incidentService.getIncidentOrThrow(incidentId);
+        IncidentService.requireNotClosed(incident);
         Operator from = getOperatorOrThrow(request.operatorId());
         Operator to = request.toOperatorId() != null ? getOperatorOrThrow(request.toOperatorId()) : null;
 

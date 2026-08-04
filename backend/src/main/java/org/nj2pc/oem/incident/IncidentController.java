@@ -10,7 +10,6 @@ import org.nj2pc.oem.checkin.ResourceCheckInService;
 import org.nj2pc.oem.commsplan.CommunicationPlanResponse;
 import org.nj2pc.oem.commsplan.CommunicationPlanService;
 import org.springframework.http.HttpStatus;
-import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -58,11 +57,9 @@ public class IncidentController {
         return incidentService.update(id, request);
     }
 
-    @DeleteMapping("/{id}")
-    @ResponseStatus(HttpStatus.NO_CONTENT)
-    @PreAuthorize("hasRole('ADMIN')")
-    public void delete(@PathVariable Long id) {
-        incidentService.delete(id);
+    @PostMapping("/{id}/start")
+    public IncidentResponse start(@PathVariable Long id) {
+        return incidentService.start(id);
     }
 
     @PostMapping("/{id}/end")
