@@ -1,9 +1,10 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { Plus, Radio as RadioIcon } from 'lucide-react'
 import { toast } from 'sonner'
 import { api } from '@/lib/api'
+import { useAuth } from '@/lib/auth-context'
 import type { CommunicationPlan } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -35,14 +36,23 @@ const emptyForm: FormState = {
 }
 
 export function CommsPlans() {
+  const { user } = useAuth()
+  const isAdmin = user?.accessLevel === 'ADMIN'
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [dialogOpen, setDialogOpen] = useState(false)
   const [form, setForm] = useState<FormState>(emptyForm)
 
+  useEffect(() => {
+    if (!isAdmin) {
+      navigate('/', { replace: true })
+    }
+  }, [isAdmin, navigate])
+
   const { data: plans, isLoading } = useQuery({
     queryKey: ['comms-plans'],
     queryFn: async () => (await api.get<CommunicationPlan[]>('/api/comms-plans')).data,
+    enabled: isAdmin,
   })
 
   const createMutation = useMutation({
@@ -67,6 +77,8 @@ export function CommsPlans() {
     e.preventDefault()
     createMutation.mutate()
   }
+
+  if (!isAdmin) return null
 
   return (
     <div className="flex flex-col gap-6">

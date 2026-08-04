@@ -1,9 +1,10 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Plus, Pencil, Trash2, Link as LinkIcon, X, Download, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { api } from '@/lib/api'
+import { useAuth } from '@/lib/auth-context'
 import type { ChannelMode, CommunicationChannel, CommunicationPlan, Incident } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -62,6 +63,8 @@ const modeLabel: Record<ChannelMode, string> = {
 }
 
 export function CommsPlanDetail() {
+  const { user } = useAuth()
+  const isAdmin = user?.accessLevel === 'ADMIN'
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -71,14 +74,22 @@ export function CommsPlanDetail() {
   const [linkIncidentId, setLinkIncidentId] = useState('')
   const [downloadingPdf, setDownloadingPdf] = useState(false)
 
+  useEffect(() => {
+    if (!isAdmin) {
+      navigate('/', { replace: true })
+    }
+  }, [isAdmin, navigate])
+
   const { data: plan } = useQuery({
     queryKey: ['comms-plans', id],
     queryFn: async () => (await api.get<CommunicationPlan>(`/api/comms-plans/${id}`)).data,
+    enabled: isAdmin,
   })
 
   const { data: channels, isLoading: channelsLoading } = useQuery({
     queryKey: ['comms-plans', id, 'channels'],
     queryFn: async () => (await api.get<CommunicationChannel[]>(`/api/comms-plans/${id}/channels`)).data,
+    enabled: isAdmin,
   })
 
   const { data: incidents } = useQuery({

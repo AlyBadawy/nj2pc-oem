@@ -27,12 +27,12 @@ const navItems = [
   { to: '/operators', label: 'Operators', icon: Users },
   { to: '/incidents', label: 'Incidents', icon: Siren },
   { to: '/resources', label: 'Resources', icon: Boxes },
-  { to: '/comms-plans', label: 'Comms Plans', icon: RadioTower },
 ]
 
 const settingsNavItems = [
   { to: '/roles', label: 'Operator Roles', icon: ShieldCheck },
   { to: '/incidents/new', label: 'Create Incident', icon: FilePlus2 },
+  { to: '/comms-plans', label: 'Comms Plans', icon: RadioTower },
 ]
 
 export function AppLayout() {
@@ -50,7 +50,7 @@ export function AppLayout() {
             <div className="text-xs text-muted-foreground leading-tight">Incident Management</div>
           </div>
         </div>
-        <nav className="flex-1 px-2 py-3 flex flex-col gap-1">
+        <nav className="flex-1 px-2 py-3 flex flex-col gap-1 overflow-y-auto">
           {navItems.map(({ to, label, icon: Icon }) => (
             <NavLink
               key={to}
@@ -68,31 +68,31 @@ export function AppLayout() {
               {label}
             </NavLink>
           ))}
-          {isAdmin && (
-            <>
-              <div className="px-3 pt-4 pb-1 text-xs font-semibold uppercase tracking-wide text-sidebar-foreground/50">
-                Settings
-              </div>
-              {settingsNavItems.map(({ to, label, icon: Icon }) => (
-                <NavLink
-                  key={to}
-                  to={to}
-                  className={({ isActive }) =>
-                    cn(
-                      'flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors',
-                      isActive
-                        ? 'bg-sidebar-accent text-sidebar-accent-foreground'
-                        : 'text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
-                    )
-                  }
-                >
-                  <Icon className="size-4" />
-                  {label}
-                </NavLink>
-              ))}
-            </>
-          )}
         </nav>
+        {isAdmin && (
+          <div className="px-2 py-3 border-t flex flex-col gap-1">
+            <div className="px-3 pb-1 text-xs font-semibold uppercase tracking-wide text-sidebar-foreground/50">
+              Settings
+            </div>
+            {settingsNavItems.map(({ to, label, icon: Icon }) => (
+              <NavLink
+                key={to}
+                to={to}
+                className={({ isActive }) =>
+                  cn(
+                    'flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors',
+                    isActive
+                      ? 'bg-sidebar-accent text-sidebar-accent-foreground'
+                      : 'text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
+                  )
+                }
+              >
+                <Icon className="size-4" />
+                {label}
+              </NavLink>
+            ))}
+          </div>
+        )}
       </aside>
       <div className="flex flex-col min-h-svh">
         <header className="flex items-center justify-end px-6 py-3 border-b">

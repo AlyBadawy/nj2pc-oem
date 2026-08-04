@@ -14,6 +14,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { api } from '@/lib/api'
+import { useAuth } from '@/lib/auth-context'
 import type {
   CommunicationPlan,
   Incident,
@@ -77,6 +78,8 @@ const emptyLogForm: LogFormState = {
 }
 
 export function IncidentDetail() {
+  const { user } = useAuth()
+  const isAdmin = user?.accessLevel === 'ADMIN'
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -121,11 +124,13 @@ export function IncidentDetail() {
   const { data: commsPlans } = useQuery({
     queryKey: ['incidents', id, 'comms-plans'],
     queryFn: async () => (await api.get<CommunicationPlan[]>(`/api/incidents/${id}/comms-plans`)).data,
+    enabled: isAdmin,
   })
 
   const { data: allCommsPlans } = useQuery({
     queryKey: ['comms-plans'],
     queryFn: async () => (await api.get<CommunicationPlan[]>('/api/comms-plans')).data,
+    enabled: isAdmin,
   })
 
   const { data: operatorCheckIns } = useQuery({
@@ -478,61 +483,63 @@ export function IncidentDetail() {
         </CardContent>
       </Card>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Communications Plans</CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-3">
-          {commsPlans && commsPlans.length > 0 ? (
-            <ul className="flex flex-col gap-2">
-              {commsPlans.map((plan) => (
-                <li key={plan.id} className="flex items-center justify-between">
-                  <Link
-                    to={`/comms-plans/${plan.id}`}
-                    className="flex items-center gap-2 text-sm font-medium hover:underline"
-                  >
-                    <RadioTower className="size-4 text-muted-foreground" />
-                    {plan.name}
-                  </Link>
-                  <Button
-                    variant="ghost"
-                    size="icon-sm"
-                    onClick={() => unlinkPlanMutation.mutate(plan.id)}
-                    aria-label={`Unlink ${plan.name}`}
-                  >
-                    <X className="size-4" />
-                  </Button>
-                </li>
-              ))}
-            </ul>
-          ) : (
-            <p className="text-sm text-muted-foreground">No communications plans linked yet.</p>
-          )}
-          <div className="flex items-center gap-2">
-            <Select value={linkPlanId} onValueChange={setLinkPlanId}>
-              <SelectTrigger className="w-64">
-                <SelectValue placeholder="Select a plan to link" />
-              </SelectTrigger>
-              <SelectContent>
-                {availablePlans.map((plan) => (
-                  <SelectItem key={plan.id} value={String(plan.id)}>
-                    {plan.name}
-                  </SelectItem>
+      {isAdmin && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Communications Plans</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-3">
+            {commsPlans && commsPlans.length > 0 ? (
+              <ul className="flex flex-col gap-2">
+                {commsPlans.map((plan) => (
+                  <li key={plan.id} className="flex items-center justify-between">
+                    <Link
+                      to={`/comms-plans/${plan.id}`}
+                      className="flex items-center gap-2 text-sm font-medium hover:underline"
+                    >
+                      <RadioTower className="size-4 text-muted-foreground" />
+                      {plan.name}
+                    </Link>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      onClick={() => unlinkPlanMutation.mutate(plan.id)}
+                      aria-label={`Unlink ${plan.name}`}
+                    >
+                      <X className="size-4" />
+                    </Button>
+                  </li>
                 ))}
-              </SelectContent>
-            </Select>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={!linkPlanId || linkPlanMutation.isPending}
-              onClick={() => linkPlanMutation.mutate(Number(linkPlanId))}
-            >
-              <LinkIcon className="size-4" />
-              Link
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
+              </ul>
+            ) : (
+              <p className="text-sm text-muted-foreground">No communications plans linked yet.</p>
+            )}
+            <div className="flex items-center gap-2">
+              <Select value={linkPlanId} onValueChange={setLinkPlanId}>
+                <SelectTrigger className="w-64">
+                  <SelectValue placeholder="Select a plan to link" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availablePlans.map((plan) => (
+                    <SelectItem key={plan.id} value={String(plan.id)}>
+                      {plan.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={!linkPlanId || linkPlanMutation.isPending}
+                onClick={() => linkPlanMutation.mutate(Number(linkPlanId))}
+              >
+                <LinkIcon className="size-4" />
+                Link
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">

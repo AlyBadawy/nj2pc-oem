@@ -12,6 +12,7 @@ import java.util.List;
 
 @RestController
 @RequestMapping("/api/comms-plans")
+@PreAuthorize("hasRole('ADMIN')")
 public class CommunicationPlanController {
 
     private final CommunicationPlanService communicationPlanService;
@@ -52,7 +53,6 @@ public class CommunicationPlanController {
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    @PreAuthorize("hasRole('ADMIN')")
     public void delete(@PathVariable Long id) {
         communicationPlanService.delete(id);
     }

@@ -59,7 +59,7 @@ export function Roles() {
         <CardHeader>
           <CardTitle className="text-base">All Roles</CardTitle>
         </CardHeader>
-        <CardContent className="flex flex-col gap-4">
+        <CardContent>
           <Table>
             <TableHeader>
               <TableRow>
@@ -93,8 +93,15 @@ export function Roles() {
               ))}
             </TableBody>
           </Table>
+        </CardContent>
+      </Card>
 
-          {isAdmin && (
+      {isAdmin && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Add Role</CardTitle>
+          </CardHeader>
+          <CardContent>
             <form onSubmit={handleSubmit} className="flex items-end gap-2">
               <div className="flex flex-col gap-1.5">
                 <Label htmlFor="roleName">New role</Label>
@@ -111,9 +118,9 @@ export function Roles() {
                 Add Role
               </Button>
             </form>
-          )}
-        </CardContent>
-      </Card>
+          </CardContent>
+        </Card>
+      )}
     </div>
   )
 }

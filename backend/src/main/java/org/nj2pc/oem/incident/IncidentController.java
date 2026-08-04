@@ -81,6 +81,7 @@ public class IncidentController {
     }
 
     @GetMapping("/{id}/comms-plans")
+    @PreAuthorize("hasRole('ADMIN')")
     public List<CommunicationPlanResponse> findCommsPlans(@PathVariable Long id) {
         return communicationPlanService.findByIncident(id);
     }
