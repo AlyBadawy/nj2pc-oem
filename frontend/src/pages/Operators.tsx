@@ -29,8 +29,7 @@ import {
 
 type FormState = {
   callsign: string
-  firstName: string
-  lastName: string
+  name: string
   licenseClass: string
   phone: string
   email: string
@@ -40,8 +39,7 @@ type FormState = {
 
 const emptyForm: FormState = {
   callsign: '',
-  firstName: '',
-  lastName: '',
+  name: '',
   licenseClass: '',
   phone: '',
   email: '',
@@ -96,8 +94,7 @@ export function Operators() {
     setEditing(operator)
     setForm({
       callsign: operator.callsign,
-      firstName: operator.firstName,
-      lastName: operator.lastName,
+      name: operator.name,
       licenseClass: operator.licenseClass ?? '',
       phone: operator.phone ?? '',
       email: operator.email ?? '',
@@ -154,9 +151,7 @@ export function Operators() {
               {operators?.map((op) => (
                 <TableRow key={op.id}>
                   <TableCell className="font-medium">{op.callsign}</TableCell>
-                  <TableCell>
-                    {op.firstName} {op.lastName}
-                  </TableCell>
+                  <TableCell>{op.name}</TableCell>
                   <TableCell>{op.licenseClass || '—'}</TableCell>
                   <TableCell className="text-muted-foreground text-sm">
                     {op.phone || op.email || '—'}
@@ -212,25 +207,14 @@ export function Operators() {
                 />
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-3">
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="firstName">First Name</Label>
-                <Input
-                  id="firstName"
-                  value={form.firstName}
-                  onChange={(e) => setForm({ ...form, firstName: e.target.value })}
-                  required
-                />
-              </div>
-              <div className="flex flex-col gap-1.5">
-                <Label htmlFor="lastName">Last Name</Label>
-                <Input
-                  id="lastName"
-                  value={form.lastName}
-                  onChange={(e) => setForm({ ...form, lastName: e.target.value })}
-                  required
-                />
-              </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="name">Name</Label>
+              <Input
+                id="name"
+                value={form.name}
+                onChange={(e) => setForm({ ...form, name: e.target.value })}
+                required
+              />
             </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="flex flex-col gap-1.5">

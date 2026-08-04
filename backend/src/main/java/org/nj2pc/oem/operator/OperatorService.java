@@ -55,8 +55,7 @@ public class OperatorService {
 
     private void applyRequest(Operator operator, OperatorRequest request) {
         operator.setCallsign(request.callsign());
-        operator.setFirstName(request.firstName());
-        operator.setLastName(request.lastName());
+        operator.setName(request.name());
         operator.setLicenseClass(request.licenseClass());
         operator.setPhone(request.phone());
         operator.setEmail(request.email());

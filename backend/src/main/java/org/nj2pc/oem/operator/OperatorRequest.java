@@ -6,8 +6,7 @@ import jakarta.validation.constraints.NotNull;
 
 public record OperatorRequest(
         @NotBlank String callsign,
-        @NotBlank String firstName,
-        @NotBlank String lastName,
+        @NotBlank String name,
         String licenseClass,
         String phone,
         @Email String email,

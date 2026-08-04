@@ -11,8 +11,7 @@ export type OperatorStatus = 'ACTIVE' | 'INACTIVE'
 export interface Operator {
   id: number
   callsign: string
-  firstName: string
-  lastName: string
+  name: string
   licenseClass: string | null
   phone: string | null
   email: string | null
