@@ -4,11 +4,13 @@ import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 
+import java.util.List;
+
 public record OperatorRequest(
         @NotBlank String callsign,
         @NotBlank String name,
         String licenseClass,
-        String dmrId,
+        List<String> dmrIds,
         String phone,
         @Email String email,
         @NotNull OperatorStatus status,

@@ -15,10 +15,12 @@ public class OperatorService {
         this.operatorRepository = operatorRepository;
     }
 
+    @Transactional(readOnly = true)
     public List<OperatorResponse> findAll() {
         return operatorRepository.findAll().stream().map(OperatorResponse::from).toList();
     }
 
+    @Transactional(readOnly = true)
     public OperatorResponse findById(Long id) {
         return OperatorResponse.from(getOperatorOrThrow(id));
     }
@@ -57,7 +59,10 @@ public class OperatorService {
         operator.setCallsign(request.callsign());
         operator.setName(request.name());
         operator.setLicenseClass(request.licenseClass());
-        operator.setDmrId(request.dmrId());
+        operator.getDmrIds().clear();
+        if (request.dmrIds() != null) {
+            operator.getDmrIds().addAll(request.dmrIds());
+        }
         operator.setPhone(request.phone());
         operator.setEmail(request.email());
         operator.setStatus(request.status());

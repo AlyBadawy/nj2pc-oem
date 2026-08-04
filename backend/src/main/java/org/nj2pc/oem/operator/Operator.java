@@ -3,6 +3,8 @@ package org.nj2pc.oem.operator;
 import jakarta.persistence.*;
 
 import java.time.Instant;
+import java.util.ArrayList;
+import java.util.List;
 
 @Entity
 @Table(name = "operators")
@@ -21,8 +23,11 @@ public class Operator {
     @Column(name = "license_class")
     private String licenseClass;
 
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = "operator_dmr_ids", joinColumns = @JoinColumn(name = "operator_id"))
+    @OrderColumn(name = "sort_order")
     @Column(name = "dmr_id")
-    private String dmrId;
+    private List<String> dmrIds = new ArrayList<>();
 
     private String phone;
 
@@ -81,12 +86,12 @@ public class Operator {
         this.licenseClass = licenseClass;
     }
 
-    public String getDmrId() {
-        return dmrId;
+    public List<String> getDmrIds() {
+        return dmrIds;
     }
 
-    public void setDmrId(String dmrId) {
-        this.dmrId = dmrId;
+    public void setDmrIds(List<String> dmrIds) {
+        this.dmrIds = dmrIds;
     }
 
     public String getPhone() {

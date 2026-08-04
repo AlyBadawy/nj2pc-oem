@@ -1,6 +1,6 @@
 import { useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Plus, Pencil, Trash2, Loader2 } from 'lucide-react'
+import { Plus, Pencil, Trash2, Loader2, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { api } from '@/lib/api'
 import { useAuth } from '@/lib/auth-context'
@@ -32,7 +32,7 @@ type FormState = {
   callsign: string
   name: string
   licenseClass: string
-  dmrId: string
+  dmrIds: string[]
   phone: string
   email: string
   status: OperatorStatus
@@ -49,7 +49,7 @@ const emptyForm: FormState = {
   callsign: '',
   name: '',
   licenseClass: '',
-  dmrId: '',
+  dmrIds: [],
   phone: '',
   email: '',
   status: 'ACTIVE',
@@ -78,10 +78,11 @@ export function Operators() {
 
   const saveMutation = useMutation({
     mutationFn: async () => {
+      const payload = { ...form, dmrIds: form.dmrIds.map((d) => d.trim()).filter(Boolean) }
       if (editing) {
-        return api.put(`/api/operators/${editing.id}`, form)
+        return api.put(`/api/operators/${editing.id}`, payload)
       }
-      return api.post('/api/operators', form)
+      return api.post('/api/operators', payload)
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['operators'] })
@@ -112,7 +113,7 @@ export function Operators() {
       callsign: operator.callsign,
       name: operator.name,
       licenseClass: operator.licenseClass ?? '',
-      dmrId: operator.dmrId ?? '',
+      dmrIds: operator.dmrIds.length > 0 ? operator.dmrIds : [],
       phone: operator.phone ?? '',
       email: operator.email ?? '',
       status: operator.status,
@@ -206,7 +207,7 @@ export function Operators() {
                   <TableCell className="font-medium">{op.callsign}</TableCell>
                   <TableCell>{op.name}</TableCell>
                   <TableCell>{op.licenseClass || '—'}</TableCell>
-                  <TableCell>{op.dmrId || '—'}</TableCell>
+                  <TableCell>{op.dmrIds.length > 0 ? op.dmrIds.join(', ') : '—'}</TableCell>
                   <TableCell className="text-muted-foreground text-sm">
                     {op.phone || op.email || '—'}
                   </TableCell>
@@ -266,13 +267,41 @@ export function Operators() {
               </div>
             </div>
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="dmrId">DMR ID</Label>
-              <Input
-                id="dmrId"
-                value={form.dmrId}
-                onChange={(e) => setForm({ ...form, dmrId: e.target.value })}
-                placeholder="3123456"
-              />
+              <Label>DMR ID{form.dmrIds.length > 1 ? 's' : ''}</Label>
+              {form.dmrIds.length === 0 && (
+                <p className="text-sm text-muted-foreground">No DMR IDs added yet.</p>
+              )}
+              {form.dmrIds.map((dmrId, index) => (
+                <div key={index} className="flex items-center gap-2">
+                  <Input
+                    value={dmrId}
+                    onChange={(e) => {
+                      const next = [...form.dmrIds]
+                      next[index] = e.target.value
+                      setForm({ ...form, dmrIds: next })
+                    }}
+                    placeholder="3123456"
+                  />
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="icon-sm"
+                    onClick={() => setForm({ ...form, dmrIds: form.dmrIds.filter((_, i) => i !== index) })}
+                  >
+                    <X className="size-4" />
+                  </Button>
+                </div>
+              ))}
+              <Button
+                type="button"
+                variant="outline"
+                size="sm"
+                className="self-start"
+                onClick={() => setForm({ ...form, dmrIds: [...form.dmrIds, ''] })}
+              >
+                <Plus className="size-4" />
+                Add DMR ID
+              </Button>
             </div>
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="name">Name</Label>

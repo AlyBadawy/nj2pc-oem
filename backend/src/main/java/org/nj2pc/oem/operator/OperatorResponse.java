@@ -1,13 +1,14 @@
 package org.nj2pc.oem.operator;
 
 import java.time.Instant;
+import java.util.List;
 
 public record OperatorResponse(
         Long id,
         String callsign,
         String name,
         String licenseClass,
-        String dmrId,
+        List<String> dmrIds,
         String phone,
         String email,
         OperatorStatus status,
@@ -23,7 +24,7 @@ public record OperatorResponse(
     public static OperatorResponse from(Operator o) {
         return new OperatorResponse(
                 o.getId(), o.getCallsign(), o.getName(),
-                o.getLicenseClass(), o.getDmrId(), o.getPhone(), o.getEmail(), o.getStatus(),
+                o.getLicenseClass(), o.getDmrIds(), o.getPhone(), o.getEmail(), o.getStatus(),
                 o.getNotes(), o.getAddressLine1(), o.getAddressLine2(), o.getAddressAttn(),
                 o.getLatitude(), o.getLongitude(), o.getGridSquare(), o.getCreatedAt()
         );

@@ -13,7 +13,7 @@ export interface Operator {
   callsign: string
   name: string
   licenseClass: string | null
-  dmrId: string | null
+  dmrIds: string[]
   phone: string | null
   email: string | null
   status: OperatorStatus
