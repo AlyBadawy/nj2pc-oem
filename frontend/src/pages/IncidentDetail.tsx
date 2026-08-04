@@ -1,7 +1,17 @@
 import { useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Plus, RadioTower, LogIn, LogOut, Flag, Play } from 'lucide-react'
+import {
+  ArrowLeft,
+  Plus,
+  RadioTower,
+  LogIn,
+  LogOut,
+  Flag,
+  Play,
+  X,
+  Link as LinkIcon,
+} from 'lucide-react'
 import { toast } from 'sonner'
 import { api } from '@/lib/api'
 import type {
@@ -78,6 +88,7 @@ export function IncidentDetail() {
   const [resourceCheckInOpen, setResourceCheckInOpen] = useState(false)
   const [resourceCheckInId, setResourceCheckInId] = useState('')
   const [resourceCheckInNotes, setResourceCheckInNotes] = useState('')
+  const [linkPlanId, setLinkPlanId] = useState('')
 
   const { data: incident } = useQuery({
     queryKey: ['incidents', id],
@@ -102,6 +113,11 @@ export function IncidentDetail() {
   const { data: commsPlans } = useQuery({
     queryKey: ['incidents', id, 'comms-plans'],
     queryFn: async () => (await api.get<CommunicationPlan[]>(`/api/incidents/${id}/comms-plans`)).data,
+  })
+
+  const { data: allCommsPlans } = useQuery({
+    queryKey: ['comms-plans'],
+    queryFn: async () => (await api.get<CommunicationPlan[]>('/api/comms-plans')).data,
   })
 
   const { data: operatorCheckIns } = useQuery({
@@ -196,6 +212,25 @@ export function IncidentDetail() {
     onError: () => toast.error('Failed to check out resource'),
   })
 
+  const linkPlanMutation = useMutation({
+    mutationFn: async (planId: number) => api.post(`/api/comms-plans/${planId}/incidents/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['incidents', id, 'comms-plans'] })
+      toast.success('Communications plan linked')
+      setLinkPlanId('')
+    },
+    onError: () => toast.error('Failed to link communications plan'),
+  })
+
+  const unlinkPlanMutation = useMutation({
+    mutationFn: async (planId: number) => api.delete(`/api/comms-plans/${planId}/incidents/${id}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['incidents', id, 'comms-plans'] })
+      toast.success('Communications plan unlinked')
+    },
+    onError: () => toast.error('Failed to unlink communications plan'),
+  })
+
   const startIncidentMutation = useMutation({
     mutationFn: async () => api.post(`/api/incidents/${id}/start`),
     onSuccess: () => {
@@ -233,6 +268,8 @@ export function IncidentDetail() {
   const checkedInResourceIds = new Set(openResourceCheckIns.map((c) => c.resourceId))
   const availableOperators = operators?.filter((o) => !checkedInOperatorIds.has(o.id)) ?? []
   const availableResources = resources?.filter((r) => !checkedInResourceIds.has(r.id)) ?? []
+  const linkedPlanIds = new Set(commsPlans?.map((p) => p.id) ?? [])
+  const availablePlans = allCommsPlans?.filter((p) => !linkedPlanIds.has(p.id)) ?? []
   const isClosed = incident.status === 'CLOSED'
   const isPlanned = incident.status === 'PLANNED'
   const isActive = incident.status === 'ACTIVE'
@@ -272,12 +309,6 @@ export function IncidentDetail() {
                 End Incident
               </Button>
             )}
-            {!isClosed && (
-              <Button onClick={() => setDialogOpen(true)}>
-                <Plus className="size-4" />
-                Log Entry
-              </Button>
-            )}
           </div>
         </div>
         {incident.description && <p className="mt-3 text-sm max-w-2xl">{incident.description}</p>}
@@ -290,49 +321,6 @@ export function IncidentDetail() {
           </span>
         </div>
       </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Message Log (ICS-213)</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Time</TableHead>
-                <TableHead>From</TableHead>
-                <TableHead>To</TableHead>
-                <TableHead>Subject</TableHead>
-                <TableHead>Message</TableHead>
-                <TableHead>Priority</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {logsLoading && (
-                <TableRow>
-                  <TableCell colSpan={6} className="text-center text-muted-foreground">
-                    Loading…
-                  </TableCell>
-                </TableRow>
-              )}
-              {logs?.map((log) => (
-                <TableRow key={log.id}>
-                  <TableCell className="text-muted-foreground text-sm whitespace-nowrap">
-                    {new Date(log.loggedAt).toLocaleString()}
-                  </TableCell>
-                  <TableCell>{log.operatorCallsign || '—'}</TableCell>
-                  <TableCell>{log.toOperatorCallsign || '—'}</TableCell>
-                  <TableCell className="font-medium">{log.subject}</TableCell>
-                  <TableCell className="max-w-xs truncate">{log.message}</TableCell>
-                  <TableCell>
-                    <Badge variant={priorityVariant[log.priority]}>{log.priority}</Badge>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
@@ -478,11 +466,11 @@ export function IncidentDetail() {
         <CardHeader>
           <CardTitle className="text-base">Communications Plans</CardTitle>
         </CardHeader>
-        <CardContent>
+        <CardContent className="flex flex-col gap-3">
           {commsPlans && commsPlans.length > 0 ? (
             <ul className="flex flex-col gap-2">
               {commsPlans.map((plan) => (
-                <li key={plan.id}>
+                <li key={plan.id} className="flex items-center justify-between">
                   <Link
                     to={`/comms-plans/${plan.id}`}
                     className="flex items-center gap-2 text-sm font-medium hover:underline"
@@ -490,18 +478,92 @@ export function IncidentDetail() {
                     <RadioTower className="size-4 text-muted-foreground" />
                     {plan.name}
                   </Link>
+                  <Button
+                    variant="ghost"
+                    size="icon-sm"
+                    onClick={() => unlinkPlanMutation.mutate(plan.id)}
+                    aria-label={`Unlink ${plan.name}`}
+                  >
+                    <X className="size-4" />
+                  </Button>
                 </li>
               ))}
             </ul>
           ) : (
-            <p className="text-sm text-muted-foreground">
-              No communications plans linked. Link one from the{' '}
-              <Link to="/comms-plans" className="underline">
-                Communications Plans
-              </Link>{' '}
-              page.
-            </p>
+            <p className="text-sm text-muted-foreground">No communications plans linked yet.</p>
           )}
+          <div className="flex items-center gap-2">
+            <Select value={linkPlanId} onValueChange={setLinkPlanId}>
+              <SelectTrigger className="w-64">
+                <SelectValue placeholder="Select a plan to link" />
+              </SelectTrigger>
+              <SelectContent>
+                {availablePlans.map((plan) => (
+                  <SelectItem key={plan.id} value={String(plan.id)}>
+                    {plan.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Button
+              variant="outline"
+              size="sm"
+              disabled={!linkPlanId || linkPlanMutation.isPending}
+              onClick={() => linkPlanMutation.mutate(Number(linkPlanId))}
+            >
+              <LinkIcon className="size-4" />
+              Link
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle className="text-base">Message Log (ICS-213)</CardTitle>
+          {!isClosed && (
+            <Button size="sm" onClick={() => setDialogOpen(true)}>
+              <Plus className="size-4" />
+              Log Entry
+            </Button>
+          )}
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Time</TableHead>
+                <TableHead>From</TableHead>
+                <TableHead>To</TableHead>
+                <TableHead>Subject</TableHead>
+                <TableHead>Message</TableHead>
+                <TableHead>Priority</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {logsLoading && (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center text-muted-foreground">
+                    Loading…
+                  </TableCell>
+                </TableRow>
+              )}
+              {logs?.map((log) => (
+                <TableRow key={log.id}>
+                  <TableCell className="text-muted-foreground text-sm whitespace-nowrap">
+                    {new Date(log.loggedAt).toLocaleString()}
+                  </TableCell>
+                  <TableCell>{log.operatorCallsign || '—'}</TableCell>
+                  <TableCell>{log.toOperatorCallsign || '—'}</TableCell>
+                  <TableCell className="font-medium">{log.subject}</TableCell>
+                  <TableCell className="max-w-xs truncate">{log.message}</TableCell>
+                  <TableCell>
+                    <Badge variant={priorityVariant[log.priority]}>{log.priority}</Badge>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
         </CardContent>
       </Card>
 
