@@ -1,20 +1,18 @@
-import { NavLink, Outlet } from 'react-router-dom'
-import {
-  Radio,
-  UserCog,
-  Users,
-  Siren,
-  Boxes,
-  RadioTower,
-  ShieldCheck,
-  LogOut,
-} from 'lucide-react'
+import { NavLink, Outlet, useNavigate } from 'react-router-dom'
+import { Radio, Users, Siren, Boxes, RadioTower, ShieldCheck, User, UserCog, LogOut } from 'lucide-react'
 import { useAuth } from '@/lib/auth-context'
 import { Button } from '@/components/ui/button'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuLabel,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu'
 import { cn } from '@/lib/utils'
 
 const navItems = [
-  { to: '/', label: 'Account Settings', icon: UserCog, end: true },
   { to: '/operators', label: 'Operators', icon: Users },
   { to: '/incidents', label: 'Incidents', icon: Siren },
   { to: '/resources', label: 'Resources', icon: Boxes },
@@ -25,6 +23,7 @@ const adminNavItems = [{ to: '/roles', label: 'Roles', icon: ShieldCheck }]
 
 export function AppLayout() {
   const { user, logout } = useAuth()
+  const navigate = useNavigate()
   const isAdmin = user?.accessLevel === 'ADMIN'
 
   return (
@@ -38,11 +37,10 @@ export function AppLayout() {
           </div>
         </div>
         <nav className="flex-1 px-2 py-3 flex flex-col gap-1">
-          {navItems.map(({ to, label, icon: Icon, end }) => (
+          {navItems.map(({ to, label, icon: Icon }) => (
             <NavLink
               key={to}
               to={to}
-              end={end}
               className={({ isActive }) =>
                 cn(
                   'flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors',
@@ -75,18 +73,36 @@ export function AppLayout() {
               </NavLink>
             ))}
         </nav>
-        <div className="px-4 py-3 border-t text-sm">
-          <div className="font-medium">{user?.callsign}</div>
-          <div className="text-xs text-muted-foreground mb-2">{user?.accessLevel}</div>
-          <Button variant="outline" size="sm" className="w-full" onClick={logout}>
-            <LogOut className="size-4" />
-            Log out
-          </Button>
-        </div>
       </aside>
-      <main className="p-6 overflow-y-auto">
-        <Outlet />
-      </main>
+      <div className="flex flex-col min-h-svh">
+        <header className="flex items-center justify-end px-6 py-3 border-b">
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="icon">
+                <User className="size-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuLabel>
+                <div className="font-medium">{user?.callsign}</div>
+                <div className="text-xs text-muted-foreground font-normal">{user?.accessLevel}</div>
+              </DropdownMenuLabel>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => navigate('/')}>
+                <UserCog className="size-4" />
+                Account Settings
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={logout}>
+                <LogOut className="size-4" />
+                Logout
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
+        </header>
+        <main className="flex-1 p-6 overflow-y-auto">
+          <Outlet />
+        </main>
+      </div>
     </div>
   )
 }
