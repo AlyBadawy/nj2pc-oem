@@ -20,6 +20,7 @@ import type {
   IncidentLog,
   Operator,
   OperatorCheckIn,
+  OperatorRole,
   Priority,
   Resource,
   ResourceCheckIn,
@@ -84,6 +85,8 @@ export function IncidentDetail() {
   const [endDialogOpen, setEndDialogOpen] = useState(false)
   const [operatorCheckInOpen, setOperatorCheckInOpen] = useState(false)
   const [operatorCheckInId, setOperatorCheckInId] = useState('')
+  const [operatorCheckInRoleId, setOperatorCheckInRoleId] = useState('')
+  const [operatorCheckInPost, setOperatorCheckInPost] = useState('')
   const [operatorCheckInNotes, setOperatorCheckInNotes] = useState('')
   const [resourceCheckInOpen, setResourceCheckInOpen] = useState(false)
   const [resourceCheckInId, setResourceCheckInId] = useState('')
@@ -108,6 +111,11 @@ export function IncidentDetail() {
   const { data: resources } = useQuery({
     queryKey: ['resources'],
     queryFn: async () => (await api.get<Resource[]>('/api/resources')).data,
+  })
+
+  const { data: operatorRoles } = useQuery({
+    queryKey: ['operator-roles'],
+    queryFn: async () => (await api.get<OperatorRole[]>('/api/operator-roles')).data,
   })
 
   const { data: commsPlans } = useQuery({
@@ -152,6 +160,8 @@ export function IncidentDetail() {
     mutationFn: async () =>
       api.post(`/api/incidents/${id}/operator-checkins`, {
         operatorId: Number(operatorCheckInId),
+        roleId: operatorCheckInRoleId ? Number(operatorCheckInRoleId) : null,
+        post: operatorCheckInPost || null,
         notes: operatorCheckInNotes || null,
       }),
     onSuccess: () => {
@@ -159,6 +169,8 @@ export function IncidentDetail() {
       toast.success('Operator checked in')
       setOperatorCheckInOpen(false)
       setOperatorCheckInId('')
+      setOperatorCheckInRoleId('')
+      setOperatorCheckInPost('')
       setOperatorCheckInNotes('')
     },
     onError: (err: unknown) => {
@@ -342,6 +354,8 @@ export function IncidentDetail() {
             <TableHeader>
               <TableRow>
                 <TableHead>Callsign</TableHead>
+                <TableHead>Role</TableHead>
+                <TableHead>Post</TableHead>
                 <TableHead>Checked In</TableHead>
                 <TableHead>Checked Out</TableHead>
                 <TableHead>Notes</TableHead>
@@ -351,7 +365,7 @@ export function IncidentDetail() {
             <TableBody>
               {(!operatorCheckIns || operatorCheckIns.length === 0) && (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center text-muted-foreground">
+                  <TableCell colSpan={7} className="text-center text-muted-foreground">
                     No operators checked in yet.
                   </TableCell>
                 </TableRow>
@@ -359,6 +373,8 @@ export function IncidentDetail() {
               {operatorCheckIns?.map((c) => (
                 <TableRow key={c.id}>
                   <TableCell className="font-medium">{c.operatorCallsign}</TableCell>
+                  <TableCell>{c.roleName || '—'}</TableCell>
+                  <TableCell>{c.post || '—'}</TableCell>
                   <TableCell className="text-sm whitespace-nowrap">
                     {new Date(c.checkedInAt).toLocaleString()}
                   </TableCell>
@@ -680,6 +696,32 @@ export function IncidentDetail() {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="checkInOperatorRole">Role</Label>
+                <Select value={operatorCheckInRoleId} onValueChange={setOperatorCheckInRoleId}>
+                  <SelectTrigger id="checkInOperatorRole">
+                    <SelectValue placeholder="Select role" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {operatorRoles?.map((role) => (
+                      <SelectItem key={role.id} value={String(role.id)}>
+                        {role.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="checkInOperatorPost">Post</Label>
+                <Input
+                  id="checkInOperatorPost"
+                  value={operatorCheckInPost}
+                  onChange={(e) => setOperatorCheckInPost(e.target.value)}
+                  placeholder="Where this operator is deployed"
+                />
+              </div>
             </div>
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="checkInOperatorNotes">Notes</Label>

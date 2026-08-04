@@ -28,6 +28,12 @@ public class OperatorCheckIn {
     @Column(name = "checked_out_at")
     private Instant checkedOutAt;
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "role_id")
+    private OperatorRole role;
+
+    private String post;
+
     private String notes;
 
     public Long getId() {
@@ -64,6 +70,22 @@ public class OperatorCheckIn {
 
     public void setCheckedOutAt(Instant checkedOutAt) {
         this.checkedOutAt = checkedOutAt;
+    }
+
+    public OperatorRole getRole() {
+        return role;
+    }
+
+    public void setRole(OperatorRole role) {
+        this.role = role;
+    }
+
+    public String getPost() {
+        return post;
+    }
+
+    public void setPost(String post) {
+        this.post = post;
     }
 
     public String getNotes() {

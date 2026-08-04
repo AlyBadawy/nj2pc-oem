@@ -7,6 +7,9 @@ public record OperatorCheckInResponse(
         Long incidentId,
         Long operatorId,
         String operatorCallsign,
+        Long roleId,
+        String roleName,
+        String post,
         Instant checkedInAt,
         Instant checkedOutAt,
         String notes
@@ -14,7 +17,9 @@ public record OperatorCheckInResponse(
     public static OperatorCheckInResponse from(OperatorCheckIn c) {
         return new OperatorCheckInResponse(
                 c.getId(), c.getIncident().getId(), c.getOperator().getId(), c.getOperator().getCallsign(),
-                c.getCheckedInAt(), c.getCheckedOutAt(), c.getNotes()
+                c.getRole() != null ? c.getRole().getId() : null,
+                c.getRole() != null ? c.getRole().getName() : null,
+                c.getPost(), c.getCheckedInAt(), c.getCheckedOutAt(), c.getNotes()
         );
     }
 }

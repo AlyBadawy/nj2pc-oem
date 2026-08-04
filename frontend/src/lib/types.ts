@@ -112,11 +112,20 @@ export interface CommunicationPlan {
   incidents: CommunicationPlanIncidentSummary[]
 }
 
+export interface OperatorRole {
+  id: number
+  name: string
+  createdAt: string
+}
+
 export interface OperatorCheckIn {
   id: number
   incidentId: number
   operatorId: number
   operatorCallsign: string
+  roleId: number | null
+  roleName: string | null
+  post: string | null
   checkedInAt: string
   checkedOutAt: string | null
   notes: string | null

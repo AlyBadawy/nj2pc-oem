@@ -10,6 +10,7 @@ import { IncidentDetail } from '@/pages/IncidentDetail'
 import { Resources } from '@/pages/Resources'
 import { CommsPlans } from '@/pages/CommsPlans'
 import { CommsPlanDetail } from '@/pages/CommsPlanDetail'
+import { Roles } from '@/pages/Roles'
 
 function App() {
   return (
@@ -25,6 +26,7 @@ function App() {
             <Route path="resources" element={<Resources />} />
             <Route path="comms-plans" element={<CommsPlans />} />
             <Route path="comms-plans/:id" element={<CommsPlanDetail />} />
+            <Route path="roles" element={<Roles />} />
           </Route>
         </Route>
       </Routes>

@@ -18,13 +18,16 @@ public class OperatorCheckInService {
     private final OperatorCheckInRepository operatorCheckInRepository;
     private final IncidentRepository incidentRepository;
     private final OperatorRepository operatorRepository;
+    private final OperatorRoleRepository operatorRoleRepository;
 
     public OperatorCheckInService(OperatorCheckInRepository operatorCheckInRepository,
                                    IncidentRepository incidentRepository,
-                                   OperatorRepository operatorRepository) {
+                                   OperatorRepository operatorRepository,
+                                   OperatorRoleRepository operatorRoleRepository) {
         this.operatorCheckInRepository = operatorCheckInRepository;
         this.incidentRepository = incidentRepository;
         this.operatorRepository = operatorRepository;
+        this.operatorRoleRepository = operatorRoleRepository;
     }
 
     @Transactional(readOnly = true)
@@ -61,6 +64,12 @@ public class OperatorCheckInService {
         checkIn.setIncident(incident);
         checkIn.setOperator(operator);
         checkIn.setCheckedInAt(Instant.now());
+        if (request.roleId() != null) {
+            OperatorRole role = operatorRoleRepository.findById(request.roleId())
+                    .orElseThrow(() -> ApiException.notFound("Role not found: " + request.roleId()));
+            checkIn.setRole(role);
+        }
+        checkIn.setPost(request.post());
         checkIn.setNotes(request.notes());
         return OperatorCheckInResponse.from(operatorCheckInRepository.save(checkIn));
     }
