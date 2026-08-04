@@ -1,7 +1,7 @@
 import { NavLink, Outlet } from 'react-router-dom'
 import {
   Radio,
-  LayoutDashboard,
+  UserCog,
   Users,
   Siren,
   Boxes,
@@ -14,7 +14,7 @@ import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
 const navItems = [
-  { to: '/', label: 'Dashboard', icon: LayoutDashboard, end: true },
+  { to: '/', label: 'Account Settings', icon: UserCog, end: true },
   { to: '/operators', label: 'Operators', icon: Users },
   { to: '/incidents', label: 'Incidents', icon: Siren },
   { to: '/resources', label: 'Resources', icon: Boxes },
@@ -25,7 +25,7 @@ const adminNavItems = [{ to: '/roles', label: 'Roles', icon: ShieldCheck }]
 
 export function AppLayout() {
   const { user, logout } = useAuth()
-  const isAdmin = user?.role === 'ADMIN'
+  const isAdmin = user?.accessLevel === 'ADMIN'
 
   return (
     <div className="min-h-svh grid grid-cols-[220px_1fr]">
@@ -76,8 +76,8 @@ export function AppLayout() {
             ))}
         </nav>
         <div className="px-4 py-3 border-t text-sm">
-          <div className="font-medium">{user?.username}</div>
-          <div className="text-xs text-muted-foreground mb-2">{user?.role}</div>
+          <div className="font-medium">{user?.callsign}</div>
+          <div className="text-xs text-muted-foreground mb-2">{user?.accessLevel}</div>
           <Button variant="outline" size="sm" className="w-full" onClick={logout}>
             <LogOut className="size-4" />
             Log out

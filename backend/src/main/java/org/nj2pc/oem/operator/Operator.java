@@ -55,6 +55,13 @@ public class Operator {
     @Column(name = "grid_square")
     private String gridSquare;
 
+    @Column(name = "password_hash")
+    private String passwordHash;
+
+    @Enumerated(EnumType.STRING)
+    @Column(name = "access_level", nullable = false)
+    private AccessLevel accessLevel = AccessLevel.STANDARD;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
 
@@ -172,6 +179,22 @@ public class Operator {
 
     public void setGridSquare(String gridSquare) {
         this.gridSquare = gridSquare;
+    }
+
+    public String getPasswordHash() {
+        return passwordHash;
+    }
+
+    public void setPasswordHash(String passwordHash) {
+        this.passwordHash = passwordHash;
+    }
+
+    public AccessLevel getAccessLevel() {
+        return accessLevel;
+    }
+
+    public void setAccessLevel(AccessLevel accessLevel) {
+        this.accessLevel = accessLevel;
     }
 
     public Instant getCreatedAt() {

@@ -38,12 +38,21 @@ GRANT ALL PRIVILEGES ON DATABASE nj2pc_oem TO nj2pc_oem;
 ```
 
 On first backend startup, Flyway runs `backend/src/main/resources/db/migration/V1__init_schema.sql`
-(creates all tables) and `V2__seed_admin.sql` (seeds a bootstrap admin account).
+(creates all tables) and `V2__seed_data.sql` (seeds the default operator roles and a bootstrap
+admin operator).
 
-**Bootstrap login**: username `admin`, password `ChangeMe123!`. Log in as this account first, then
-use it (JWT with `ADMIN` role) to call `POST /api/auth/register` and create real operator/admin
-accounts. There is no self-service password change endpoint yet — rotate the seeded admin's
-password directly in the database once you've created your own admin account.
+**Authentication**: operators sign in with **callsign + password** — no email verification, no
+self-service sign-up, no password-reset flow. Only an ADMIN can create operators or grant login
+access (by setting a password and access level when creating/editing an operator); everyone can
+change their own password from **Account Settings** once logged in.
+
+**Bootstrap login**: callsign `ADMIN` (case-insensitive), password `ChangeMe!23`. Log in, then
+change that password from Account Settings and create real operator accounts from the Operators
+page (Register Operator → set access level + password).
+
+Access levels: `RESTRICTED`, `STANDARD`, `ADMIN`. Only `ADMIN` is currently enforced on specific
+endpoints (operator create/update/delete, role management); `RESTRICTED` vs `STANDARD` is tracked
+but not yet differentiated in authorization — extend as needed.
 
 ## Local Development
 
@@ -81,8 +90,9 @@ npm run dev
 
 All endpoints under `/api/**` except `/api/auth/**` require a `Bearer` JWT.
 
-- `POST /api/auth/login`, `POST /api/auth/register` (ADMIN only)
-- `GET/POST/PUT/DELETE /api/operators[/:id]` (write/delete: ADMIN only)
+- `POST /api/auth/login`, `GET /api/auth/me`, `POST /api/auth/change-password`
+- `GET/POST/PUT/DELETE /api/operators[/:id]` (write/delete: ADMIN only; `password`/`accessLevel` set login access)
+- `GET/POST/DELETE /api/operator-roles[/:id]` (write/delete: ADMIN only)
 - `GET/POST/PUT /api/incidents[/:id]` (incidents cannot be deleted; `PUT` is rejected once CLOSED)
 - `POST /api/incidents/:id/start`, `POST /api/incidents/:id/end`
 - `GET/POST /api/incidents/:id/logs` (ICS-213-style message log)

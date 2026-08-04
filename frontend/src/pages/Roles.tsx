@@ -13,7 +13,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 
 export function Roles() {
   const { user } = useAuth()
-  const isAdmin = user?.role === 'ADMIN'
+  const isAdmin = user?.accessLevel === 'ADMIN'
   const queryClient = useQueryClient()
   const [name, setName] = useState('')
 

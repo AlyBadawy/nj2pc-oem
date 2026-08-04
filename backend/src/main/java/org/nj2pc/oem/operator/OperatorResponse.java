@@ -19,6 +19,8 @@ public record OperatorResponse(
         String latitude,
         String longitude,
         String gridSquare,
+        AccessLevel accessLevel,
+        boolean hasLoginAccess,
         Instant createdAt
 ) {
     public static OperatorResponse from(Operator o) {
@@ -26,7 +28,8 @@ public record OperatorResponse(
                 o.getId(), o.getCallsign(), o.getName(),
                 o.getLicenseClass(), o.getDmrIds(), o.getPhone(), o.getEmail(), o.getStatus(),
                 o.getNotes(), o.getAddressLine1(), o.getAddressLine2(), o.getAddressAttn(),
-                o.getLatitude(), o.getLongitude(), o.getGridSquare(), o.getCreatedAt()
+                o.getLatitude(), o.getLongitude(), o.getGridSquare(),
+                o.getAccessLevel(), o.getPasswordHash() != null, o.getCreatedAt()
         );
     }
 }

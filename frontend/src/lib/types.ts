@@ -1,9 +1,10 @@
-export type Role = 'ADMIN' | 'OPERATOR'
+export type AccessLevel = 'RESTRICTED' | 'STANDARD' | 'ADMIN'
 
 export interface AuthResponse {
   token: string
-  username: string
-  role: Role
+  callsign: string
+  name: string
+  accessLevel: AccessLevel
 }
 
 export type OperatorStatus = 'ACTIVE' | 'INACTIVE'
@@ -24,6 +25,8 @@ export interface Operator {
   latitude: string | null
   longitude: string | null
   gridSquare: string | null
+  accessLevel: AccessLevel
+  hasLoginAccess: boolean
   createdAt: string
 }
 

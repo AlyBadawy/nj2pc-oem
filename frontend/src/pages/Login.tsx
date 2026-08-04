@@ -10,7 +10,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 export function Login() {
   const { login } = useAuth()
   const navigate = useNavigate()
-  const [username, setUsername] = useState('')
+  const [callsign, setCallsign] = useState('')
   const [password, setPassword] = useState('')
   const [error, setError] = useState<string | null>(null)
   const [loading, setLoading] = useState(false)
@@ -20,10 +20,10 @@ export function Login() {
     setError(null)
     setLoading(true)
     try {
-      await login(username, password)
+      await login(callsign, password)
       navigate('/', { replace: true })
     } catch {
-      setError('Invalid username or password.')
+      setError('Invalid callsign or password.')
     } finally {
       setLoading(false)
     }
@@ -42,12 +42,13 @@ export function Login() {
         <CardContent>
           <form onSubmit={handleSubmit} className="flex flex-col gap-4">
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="username">Username</Label>
+              <Label htmlFor="callsign">Callsign</Label>
               <Input
-                id="username"
-                value={username}
-                onChange={(e) => setUsername(e.target.value)}
+                id="callsign"
+                value={callsign}
+                onChange={(e) => setCallsign(e.target.value.toUpperCase())}
                 autoComplete="username"
+                autoCapitalize="characters"
                 required
               />
             </div>

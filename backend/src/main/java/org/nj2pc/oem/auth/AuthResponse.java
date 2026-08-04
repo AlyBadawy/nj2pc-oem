@@ -1,10 +1,11 @@
 package org.nj2pc.oem.auth;
 
-import org.nj2pc.oem.user.Role;
+import org.nj2pc.oem.operator.AccessLevel;
 
 public record AuthResponse(
         String token,
-        String username,
-        Role role
+        String callsign,
+        String name,
+        AccessLevel accessLevel
 ) {
 }

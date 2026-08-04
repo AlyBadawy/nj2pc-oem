@@ -57,7 +57,7 @@ const NONE = '__none__'
 
 export function Resources() {
   const { user } = useAuth()
-  const isAdmin = user?.role === 'ADMIN'
+  const isAdmin = user?.accessLevel === 'ADMIN'
   const queryClient = useQueryClient()
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editing, setEditing] = useState<Resource | null>(null)

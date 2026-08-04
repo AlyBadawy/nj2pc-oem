@@ -1,6 +1,7 @@
 package org.nj2pc.oem.operator;
 
 import org.nj2pc.oem.common.ApiException;
+import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -10,9 +11,11 @@ import java.util.List;
 public class OperatorService {
 
     private final OperatorRepository operatorRepository;
+    private final PasswordEncoder passwordEncoder;
 
-    public OperatorService(OperatorRepository operatorRepository) {
+    public OperatorService(OperatorRepository operatorRepository, PasswordEncoder passwordEncoder) {
         this.operatorRepository = operatorRepository;
+        this.passwordEncoder = passwordEncoder;
     }
 
     @Transactional(readOnly = true)
@@ -27,7 +30,7 @@ public class OperatorService {
 
     @Transactional
     public OperatorResponse create(OperatorRequest request) {
-        if (operatorRepository.existsByCallsign(request.callsign())) {
+        if (operatorRepository.existsByCallsignIgnoreCase(request.callsign())) {
             throw ApiException.conflict("Callsign already registered: " + request.callsign());
         }
         Operator operator = new Operator();
@@ -38,6 +41,10 @@ public class OperatorService {
     @Transactional
     public OperatorResponse update(Long id, OperatorRequest request) {
         Operator operator = getOperatorOrThrow(id);
+        if (!operator.getCallsign().equalsIgnoreCase(request.callsign())
+                && operatorRepository.existsByCallsignIgnoreCase(request.callsign())) {
+            throw ApiException.conflict("Callsign already registered: " + request.callsign());
+        }
         applyRequest(operator, request);
         return OperatorResponse.from(operatorRepository.save(operator));
     }
@@ -73,5 +80,9 @@ public class OperatorService {
         operator.setLatitude(request.latitude());
         operator.setLongitude(request.longitude());
         operator.setGridSquare(request.gridSquare());
+        operator.setAccessLevel(request.accessLevel());
+        if (request.password() != null && !request.password().isBlank()) {
+            operator.setPasswordHash(passwordEncoder.encode(request.password()));
+        }
     }
 }

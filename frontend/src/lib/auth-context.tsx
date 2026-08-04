@@ -1,15 +1,16 @@
 import { createContext, useContext, useState, type ReactNode } from 'react'
 import { api, TOKEN_STORAGE_KEY } from '@/lib/api'
-import type { AuthResponse, Role } from '@/lib/types'
+import type { AccessLevel, AuthResponse } from '@/lib/types'
 
 interface AuthUser {
-  username: string
-  role: Role
+  callsign: string
+  name: string
+  accessLevel: AccessLevel
 }
 
 interface AuthContextValue {
   user: AuthUser | null
-  login: (username: string, password: string) => Promise<void>
+  login: (callsign: string, password: string) => Promise<void>
   logout: () => void
 }
 
@@ -30,10 +31,10 @@ function loadStoredUser(): AuthUser | null {
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<AuthUser | null>(loadStoredUser)
 
-  async function login(username: string, password: string) {
-    const { data } = await api.post<AuthResponse>('/api/auth/login', { username, password })
+  async function login(callsign: string, password: string) {
+    const { data } = await api.post<AuthResponse>('/api/auth/login', { callsign, password })
     localStorage.setItem(TOKEN_STORAGE_KEY, data.token)
-    const authUser: AuthUser = { username: data.username, role: data.role }
+    const authUser: AuthUser = { callsign: data.callsign, name: data.name, accessLevel: data.accessLevel }
     localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(authUser))
     setUser(authUser)
   }

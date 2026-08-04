@@ -3,6 +3,7 @@ package org.nj2pc.oem.operator;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
+import jakarta.validation.constraints.Size;
 
 import java.util.List;
 
@@ -20,6 +21,8 @@ public record OperatorRequest(
         String addressAttn,
         String latitude,
         String longitude,
-        String gridSquare
+        String gridSquare,
+        @NotNull AccessLevel accessLevel,
+        @Size(min = 8) String password
 ) {
 }

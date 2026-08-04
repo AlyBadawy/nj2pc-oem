@@ -5,7 +5,7 @@ import { toast } from 'sonner'
 import { api } from '@/lib/api'
 import { useAuth } from '@/lib/auth-context'
 import { formatCallookLicenseClass, formatCallookName, lookupCallsign } from '@/lib/callook'
-import type { Operator, OperatorStatus } from '@/lib/types'
+import type { AccessLevel, Operator, OperatorStatus } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -43,6 +43,8 @@ type FormState = {
   latitude: string
   longitude: string
   gridSquare: string
+  accessLevel: AccessLevel
+  password: string
 }
 
 const emptyForm: FormState = {
@@ -60,11 +62,13 @@ const emptyForm: FormState = {
   latitude: '',
   longitude: '',
   gridSquare: '',
+  accessLevel: 'STANDARD',
+  password: '',
 }
 
 export function Operators() {
   const { user } = useAuth()
-  const isAdmin = user?.role === 'ADMIN'
+  const isAdmin = user?.accessLevel === 'ADMIN'
   const queryClient = useQueryClient()
   const [dialogOpen, setDialogOpen] = useState(false)
   const [editing, setEditing] = useState<Operator | null>(null)
@@ -78,7 +82,11 @@ export function Operators() {
 
   const saveMutation = useMutation({
     mutationFn: async () => {
-      const payload = { ...form, dmrIds: form.dmrIds.map((d) => d.trim()).filter(Boolean) }
+      const payload = {
+        ...form,
+        dmrIds: form.dmrIds.map((d) => d.trim()).filter(Boolean),
+        password: form.password.trim() ? form.password : null,
+      }
       if (editing) {
         return api.put(`/api/operators/${editing.id}`, payload)
       }
@@ -124,6 +132,8 @@ export function Operators() {
       latitude: operator.latitude ?? '',
       longitude: operator.longitude ?? '',
       gridSquare: operator.gridSquare ?? '',
+      accessLevel: operator.accessLevel,
+      password: '',
     })
     setDialogOpen(true)
   }
@@ -191,13 +201,14 @@ export function Operators() {
                 <TableHead>DMR ID</TableHead>
                 <TableHead>Contact</TableHead>
                 <TableHead>Status</TableHead>
+                <TableHead>Access</TableHead>
                 {isAdmin && <TableHead className="text-right">Actions</TableHead>}
               </TableRow>
             </TableHeader>
             <TableBody>
               {isLoading && (
                 <TableRow>
-                  <TableCell colSpan={7} className="text-center text-muted-foreground">
+                  <TableCell colSpan={8} className="text-center text-muted-foreground">
                     Loading…
                   </TableCell>
                 </TableRow>
@@ -215,6 +226,15 @@ export function Operators() {
                     <Badge variant={op.status === 'ACTIVE' ? 'default' : 'secondary'}>
                       {op.status}
                     </Badge>
+                  </TableCell>
+                  <TableCell>
+                    {op.hasLoginAccess ? (
+                      <Badge variant={op.accessLevel === 'ADMIN' ? 'default' : 'secondary'}>
+                        {op.accessLevel}
+                      </Badge>
+                    ) : (
+                      <span className="text-muted-foreground text-sm">No login</span>
+                    )}
                   </TableCell>
                   {isAdmin && (
                     <TableCell className="text-right space-x-1">
@@ -414,6 +434,39 @@ export function Operators() {
                   value={form.gridSquare}
                   onChange={(e) => setForm({ ...form, gridSquare: e.target.value })}
                   placeholder="FN20vv"
+                />
+              </div>
+            </div>
+
+            <div className="pt-1 border-t">
+              <p className="text-sm font-medium pt-3 pb-1">Account Access</p>
+            </div>
+            <div className="grid grid-cols-2 gap-3">
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="accessLevel">Access Level</Label>
+                <Select
+                  value={form.accessLevel}
+                  onValueChange={(value: AccessLevel) => setForm({ ...form, accessLevel: value })}
+                >
+                  <SelectTrigger id="accessLevel">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="RESTRICTED">Restricted</SelectItem>
+                    <SelectItem value="STANDARD">Standard</SelectItem>
+                    <SelectItem value="ADMIN">Admin</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="password">Password</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  value={form.password}
+                  onChange={(e) => setForm({ ...form, password: e.target.value })}
+                  placeholder={editing ? 'Leave blank to keep current' : 'Optional — sets login access'}
+                  autoComplete="new-password"
                 />
               </div>
             </div>
