@@ -28,6 +28,13 @@ export interface Operator {
   accessLevel: AccessLevel
   hasLoginAccess: boolean
   createdAt: string
+  createdByCallsign: string | null
+}
+
+export interface OperatorSummary {
+  id: number
+  callsign: string
+  name: string
 }
 
 export type IncidentStatus = 'PLANNED' | 'ACTIVE' | 'CLOSED'
@@ -43,6 +50,7 @@ export interface Incident {
   actualEndTime: string | null
   description: string | null
   createdAt: string
+  createdByCallsign: string | null
 }
 
 export type Priority = 'ROUTINE' | 'PRIORITY' | 'EMERGENCY'

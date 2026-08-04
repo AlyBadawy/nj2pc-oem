@@ -336,6 +336,12 @@ export function IncidentDetail() {
           <span>
             Actual: {fmt(incident.actualStartTime)} – {fmt(incident.actualEndTime)}
           </span>
+          {isAdmin && (
+            <span>
+              Created by {incident.createdByCallsign ?? 'System'} at{' '}
+              {new Date(incident.createdAt).toLocaleString()}
+            </span>
+          )}
         </div>
       </div>
 

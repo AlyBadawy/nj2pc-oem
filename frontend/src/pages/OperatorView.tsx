@@ -1,3 +1,4 @@
+import { useEffect } from 'react'
 import { useQuery } from '@tanstack/react-query'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Pencil } from 'lucide-react'
@@ -20,15 +21,23 @@ function Field({ label, value }: { label: string; value: string }) {
 export function OperatorView() {
   const { user } = useAuth()
   const isAdmin = user?.accessLevel === 'ADMIN'
+  const isRestricted = user?.accessLevel === 'RESTRICTED'
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
+
+  useEffect(() => {
+    if (isRestricted) {
+      navigate('/operators', { replace: true })
+    }
+  }, [isRestricted, navigate])
 
   const { data: operator } = useQuery({
     queryKey: ['operators', id],
     queryFn: async () => (await api.get<Operator>(`/api/operators/${id}`)).data,
+    enabled: !isRestricted,
   })
 
-  if (!operator) return null
+  if (isRestricted || !operator) return null
 
   return (
     <div className="flex flex-col gap-6">
@@ -65,16 +74,22 @@ export function OperatorView() {
                 {operator.status}
               </Badge>
             </div>
-            <div>
-              <div className="text-xs text-muted-foreground">Access Level</div>
-              {operator.hasLoginAccess ? (
-                <Badge variant={operator.accessLevel === 'ADMIN' ? 'default' : 'secondary'}>
-                  {operator.accessLevel}
-                </Badge>
-              ) : (
-                <span className="text-sm text-muted-foreground">No login access</span>
-              )}
-            </div>
+            {isAdmin && (
+              <div>
+                <div className="text-xs text-muted-foreground">Access Level</div>
+                {operator.hasLoginAccess ? (
+                  <Badge variant={operator.accessLevel === 'ADMIN' ? 'default' : 'secondary'}>
+                    {operator.accessLevel}
+                  </Badge>
+                ) : (
+                  <span className="text-sm text-muted-foreground">No login access</span>
+                )}
+              </div>
+            )}
+            {isAdmin && <Field label="Created By" value={operator.createdByCallsign ?? 'System'} />}
+            {isAdmin && (
+              <Field label="Created At" value={new Date(operator.createdAt).toLocaleString()} />
+            )}
           </div>
         </CardContent>
       </Card>

@@ -65,6 +65,10 @@ public class Operator {
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
 
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "created_by_id")
+    private Operator createdBy;
+
     public Long getId() {
         return id;
     }
@@ -199,5 +203,13 @@ public class Operator {
 
     public Instant getCreatedAt() {
         return createdAt;
+    }
+
+    public Operator getCreatedBy() {
+        return createdBy;
+    }
+
+    public void setCreatedBy(Operator createdBy) {
+        this.createdBy = createdBy;
     }
 }

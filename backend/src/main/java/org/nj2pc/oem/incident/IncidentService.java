@@ -3,6 +3,8 @@ package org.nj2pc.oem.incident;
 import org.nj2pc.oem.checkin.OperatorCheckInService;
 import org.nj2pc.oem.checkin.ResourceCheckInService;
 import org.nj2pc.oem.common.ApiException;
+import org.nj2pc.oem.operator.Operator;
+import org.nj2pc.oem.operator.OperatorRepository;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -13,29 +15,37 @@ import java.util.List;
 public class IncidentService {
 
     private final IncidentRepository incidentRepository;
+    private final OperatorRepository operatorRepository;
     private final OperatorCheckInService operatorCheckInService;
     private final ResourceCheckInService resourceCheckInService;
 
     public IncidentService(IncidentRepository incidentRepository,
+                            OperatorRepository operatorRepository,
                             OperatorCheckInService operatorCheckInService,
                             ResourceCheckInService resourceCheckInService) {
         this.incidentRepository = incidentRepository;
+        this.operatorRepository = operatorRepository;
         this.operatorCheckInService = operatorCheckInService;
         this.resourceCheckInService = resourceCheckInService;
     }
 
+    @Transactional(readOnly = true)
     public List<IncidentResponse> findAll() {
         return incidentRepository.findAll().stream().map(IncidentResponse::from).toList();
     }
 
+    @Transactional(readOnly = true)
     public IncidentResponse findById(Long id) {
         return IncidentResponse.from(getIncidentOrThrow(id));
     }
 
     @Transactional
-    public IncidentResponse create(IncidentRequest request) {
+    public IncidentResponse create(IncidentRequest request, String creatorCallsign) {
         Incident incident = new Incident();
         applyRequest(incident, request);
+        if (creatorCallsign != null) {
+            operatorRepository.findByCallsignIgnoreCase(creatorCallsign).ifPresent(incident::setCreatedBy);
+        }
         return IncidentResponse.from(incidentRepository.save(incident));
     }
 

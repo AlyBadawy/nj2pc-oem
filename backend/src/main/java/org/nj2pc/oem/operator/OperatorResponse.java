@@ -21,7 +21,8 @@ public record OperatorResponse(
         String gridSquare,
         AccessLevel accessLevel,
         boolean hasLoginAccess,
-        Instant createdAt
+        Instant createdAt,
+        String createdByCallsign
 ) {
     public static OperatorResponse from(Operator o) {
         return new OperatorResponse(
@@ -29,7 +30,8 @@ public record OperatorResponse(
                 o.getLicenseClass(), o.getDmrIds(), o.getPhone(), o.getEmail(), o.getStatus(),
                 o.getNotes(), o.getAddressLine1(), o.getAddressLine2(), o.getAddressAttn(),
                 o.getLatitude(), o.getLongitude(), o.getGridSquare(),
-                o.getAccessLevel(), o.getPasswordHash() != null, o.getCreatedAt()
+                o.getAccessLevel(), o.getPasswordHash() != null, o.getCreatedAt(),
+                o.getCreatedBy() != null ? o.getCreatedBy().getCallsign() : null
         );
     }
 }

@@ -11,6 +11,7 @@ import org.nj2pc.oem.commsplan.CommunicationPlanResponse;
 import org.nj2pc.oem.commsplan.CommunicationPlanService;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -50,8 +51,8 @@ public class IncidentController {
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     @PreAuthorize("hasRole('ADMIN')")
-    public IncidentResponse create(@Valid @RequestBody IncidentRequest request) {
-        return incidentService.create(request);
+    public IncidentResponse create(Authentication authentication, @Valid @RequestBody IncidentRequest request) {
+        return incidentService.create(request, authentication.getName());
     }
 
     @PutMapping("/{id}")

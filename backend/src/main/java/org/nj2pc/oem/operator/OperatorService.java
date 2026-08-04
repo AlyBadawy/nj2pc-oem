@@ -28,8 +28,13 @@ public class OperatorService {
         return OperatorResponse.from(getOperatorOrThrow(id));
     }
 
+    @Transactional(readOnly = true)
+    public List<OperatorSummaryResponse> findAllSummary() {
+        return operatorRepository.findAll().stream().map(OperatorSummaryResponse::from).toList();
+    }
+
     @Transactional
-    public OperatorResponse create(OperatorRequest request) {
+    public OperatorResponse create(OperatorRequest request, String creatorCallsign) {
         if (operatorRepository.existsByCallsignIgnoreCase(request.callsign())) {
             throw ApiException.conflict("Callsign already registered: " + request.callsign());
         }
@@ -38,6 +43,9 @@ public class OperatorService {
         }
         Operator operator = new Operator();
         applyRequest(operator, request);
+        if (creatorCallsign != null) {
+            operatorRepository.findByCallsignIgnoreCase(creatorCallsign).ifPresent(operator::setCreatedBy);
+        }
         return OperatorResponse.from(operatorRepository.save(operator));
     }
 

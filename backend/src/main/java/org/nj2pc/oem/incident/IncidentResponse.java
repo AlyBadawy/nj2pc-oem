@@ -12,14 +12,16 @@ public record IncidentResponse(
         Instant actualStartTime,
         Instant actualEndTime,
         String description,
-        Instant createdAt
+        Instant createdAt,
+        String createdByCallsign
 ) {
     public static IncidentResponse from(Incident i) {
         return new IncidentResponse(
                 i.getId(), i.getName(), i.getLocation(), i.getStatus(),
                 i.getPlannedStartTime(), i.getPlannedEndTime(),
                 i.getActualStartTime(), i.getActualEndTime(),
-                i.getDescription(), i.getCreatedAt()
+                i.getDescription(), i.getCreatedAt(),
+                i.getCreatedBy() != null ? i.getCreatedBy().getCallsign() : null
         );
     }
 }

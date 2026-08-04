@@ -1,6 +1,7 @@
 package org.nj2pc.oem.incident;
 
 import jakarta.persistence.*;
+import org.nj2pc.oem.operator.Operator;
 
 import java.time.Instant;
 
@@ -37,6 +38,10 @@ public class Incident {
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "created_by_id")
+    private Operator createdBy;
 
     public Long getId() {
         return id;
@@ -108,5 +113,13 @@ public class Incident {
 
     public Instant getCreatedAt() {
         return createdAt;
+    }
+
+    public Operator getCreatedBy() {
+        return createdBy;
+    }
+
+    public void setCreatedBy(Operator createdBy) {
+        this.createdBy = createdBy;
     }
 }
