@@ -1,7 +1,5 @@
 package org.nj2pc.oem.checkin;
 
-import org.nj2pc.oem.resource.ResourceType;
-
 import java.time.Instant;
 
 public record ResourceCheckInResponse(
@@ -9,7 +7,7 @@ public record ResourceCheckInResponse(
         Long incidentId,
         Long resourceId,
         String resourceIdentifier,
-        ResourceType resourceType,
+        String resourceTypeName,
         Instant checkedInAt,
         Instant checkedOutAt,
         String notes
@@ -17,7 +15,7 @@ public record ResourceCheckInResponse(
     public static ResourceCheckInResponse from(ResourceCheckIn c) {
         return new ResourceCheckInResponse(
                 c.getId(), c.getIncident().getId(), c.getResource().getId(), c.getResource().getIdentifier(),
-                c.getResource().getType(), c.getCheckedInAt(), c.getCheckedOutAt(), c.getNotes()
+                c.getResource().getType().getName(), c.getCheckedInAt(), c.getCheckedOutAt(), c.getNotes()
         );
     }
 }

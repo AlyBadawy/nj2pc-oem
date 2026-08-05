@@ -6,7 +6,6 @@ import org.nj2pc.oem.incident.IncidentRepository;
 import org.nj2pc.oem.incident.IncidentStatus;
 import org.nj2pc.oem.resource.Resource;
 import org.nj2pc.oem.resource.ResourceRepository;
-import org.nj2pc.oem.resource.ResourceStatus;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -58,11 +57,6 @@ public class ResourceCheckInService {
         checkIn.setCheckedInAt(Instant.now());
         checkIn.setNotes(request.notes());
         ResourceCheckIn saved = resourceCheckInRepository.save(checkIn);
-
-        resource.setStatus(ResourceStatus.ASSIGNED);
-        resource.setAssignedIncident(incident);
-        resourceRepository.save(resource);
-
         return ResourceCheckInResponse.from(saved);
     }
 
@@ -74,7 +68,6 @@ public class ResourceCheckInService {
         }
         checkIn.setCheckedOutAt(Instant.now());
         ResourceCheckIn saved = resourceCheckInRepository.save(checkIn);
-        releaseResourceIfAssignedHere(checkIn.getResource(), incidentId);
         return ResourceCheckInResponse.from(saved);
     }
 
@@ -82,19 +75,8 @@ public class ResourceCheckInService {
     public void checkOutAllOpen(Long incidentId) {
         Instant now = Instant.now();
         List<ResourceCheckIn> open = resourceCheckInRepository.findByIncidentIdAndCheckedOutAtIsNull(incidentId);
-        open.forEach(c -> {
-            c.setCheckedOutAt(now);
-            releaseResourceIfAssignedHere(c.getResource(), incidentId);
-        });
+        open.forEach(c -> c.setCheckedOutAt(now));
         resourceCheckInRepository.saveAll(open);
-    }
-
-    private void releaseResourceIfAssignedHere(Resource resource, Long incidentId) {
-        if (resource.getAssignedIncident() != null && resource.getAssignedIncident().getId().equals(incidentId)) {
-            resource.setStatus(ResourceStatus.AVAILABLE);
-            resource.setAssignedIncident(null);
-            resourceRepository.save(resource);
-        }
     }
 
     private ResourceCheckIn getCheckInOrThrow(Long incidentId, Long checkInId) {

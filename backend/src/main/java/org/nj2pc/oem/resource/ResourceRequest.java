@@ -4,12 +4,10 @@ import jakarta.validation.constraints.NotBlank;
 import jakarta.validation.constraints.NotNull;
 
 public record ResourceRequest(
-        @NotNull ResourceType type,
+        @NotNull Long resourceTypeId,
         @NotBlank String identifier,
-        String frequency,
-        @NotNull ResourceStatus status,
-        Long assignedOperatorId,
-        Long assignedIncidentId,
+        String serialNumber,
+        Long ownerId,
         String notes
 ) {
 }

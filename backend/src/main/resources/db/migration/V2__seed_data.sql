@@ -6,6 +6,11 @@ INSERT INTO operator_roles (name) VALUES
     ('Radio Operator'),
     ('Logistics');
 
+INSERT INTO resource_types (name) VALUES
+    ('Radio'),
+    ('Repeater'),
+    ('Equipment');
+
 -- Bootstrap admin account. Callsign: ADMIN (case-insensitive) / Password: ChangeMe!23
 -- Change this password immediately after first login via Account Settings.
 INSERT INTO operators (callsign, name, status, password_hash, access_level)

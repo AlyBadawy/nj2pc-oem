@@ -31,6 +31,12 @@ CREATE TABLE operator_roles (
     created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+CREATE TABLE resource_types (
+    id          BIGSERIAL PRIMARY KEY,
+    name        VARCHAR(50) NOT NULL UNIQUE,
+    created_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 CREATE TABLE incidents (
     id                          BIGSERIAL PRIMARY KEY,
     name                        VARCHAR(200) NOT NULL,
@@ -57,12 +63,10 @@ CREATE TABLE incident_logs (
 
 CREATE TABLE resources (
     id                      BIGSERIAL PRIMARY KEY,
-    type                    VARCHAR(20) NOT NULL,
+    resource_type_id        BIGINT NOT NULL REFERENCES resource_types(id),
     identifier              VARCHAR(100) NOT NULL,
-    frequency               VARCHAR(50),
-    status                  VARCHAR(20) NOT NULL DEFAULT 'AVAILABLE',
-    assigned_operator_id    BIGINT REFERENCES operators(id) ON DELETE SET NULL,
-    assigned_incident_id    BIGINT REFERENCES incidents(id) ON DELETE SET NULL,
+    serial_number           VARCHAR(100),
+    owner_operator_id       BIGINT REFERENCES operators(id) ON DELETE SET NULL,
     notes                   TEXT
 );
 
@@ -126,7 +130,6 @@ CREATE TABLE incident_communication_plans (
 CREATE UNIQUE INDEX uq_operators_callsign_ci ON operators (UPPER(callsign));
 
 CREATE INDEX idx_incident_logs_incident_id ON incident_logs(incident_id);
-CREATE INDEX idx_resources_assigned_incident_id ON resources(assigned_incident_id);
 CREATE INDEX idx_op_checkins_incident ON incident_operator_checkins(incident_id);
 CREATE INDEX idx_op_checkins_operator ON incident_operator_checkins(operator_id);
 CREATE INDEX idx_res_checkins_incident ON incident_resource_checkins(incident_id);

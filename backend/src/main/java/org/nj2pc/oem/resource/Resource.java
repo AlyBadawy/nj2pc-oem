@@ -1,7 +1,6 @@
 package org.nj2pc.oem.resource;
 
 import jakarta.persistence.*;
-import org.nj2pc.oem.incident.Incident;
 import org.nj2pc.oem.operator.Operator;
 
 @Entity
@@ -12,26 +11,19 @@ public class Resource {
     @GeneratedValue(strategy = GenerationType.IDENTITY)
     private Long id;
 
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "resource_type_id", nullable = false)
     private ResourceType type;
 
     @Column(nullable = false)
     private String identifier;
 
-    private String frequency;
-
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
-    private ResourceStatus status = ResourceStatus.AVAILABLE;
+    @Column(name = "serial_number")
+    private String serialNumber;
 
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "assigned_operator_id")
-    private Operator assignedOperator;
-
-    @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "assigned_incident_id")
-    private Incident assignedIncident;
+    @JoinColumn(name = "owner_operator_id")
+    private Operator owner;
 
     private String notes;
 
@@ -55,36 +47,20 @@ public class Resource {
         this.identifier = identifier;
     }
 
-    public String getFrequency() {
-        return frequency;
+    public String getSerialNumber() {
+        return serialNumber;
     }
 
-    public void setFrequency(String frequency) {
-        this.frequency = frequency;
+    public void setSerialNumber(String serialNumber) {
+        this.serialNumber = serialNumber;
     }
 
-    public ResourceStatus getStatus() {
-        return status;
+    public Operator getOwner() {
+        return owner;
     }
 
-    public void setStatus(ResourceStatus status) {
-        this.status = status;
-    }
-
-    public Operator getAssignedOperator() {
-        return assignedOperator;
-    }
-
-    public void setAssignedOperator(Operator assignedOperator) {
-        this.assignedOperator = assignedOperator;
-    }
-
-    public Incident getAssignedIncident() {
-        return assignedIncident;
-    }
-
-    public void setAssignedIncident(Incident assignedIncident) {
-        this.assignedIncident = assignedIncident;
+    public void setOwner(Operator owner) {
+        this.owner = owner;
     }
 
     public String getNotes() {

@@ -68,19 +68,20 @@ export interface IncidentLog {
   loggedAt: string
 }
 
-export type ResourceType = 'RADIO' | 'REPEATER' | 'EQUIPMENT'
-export type ResourceStatus = 'AVAILABLE' | 'ASSIGNED' | 'OUT_OF_SERVICE'
+export interface ResourceType {
+  id: number
+  name: string
+  createdAt: string
+}
 
 export interface Resource {
   id: number
-  type: ResourceType
+  resourceTypeId: number
+  resourceTypeName: string
   identifier: string
-  frequency: string | null
-  status: ResourceStatus
-  assignedOperatorId: number | null
-  assignedOperatorCallsign: string | null
-  assignedIncidentId: number | null
-  assignedIncidentName: string | null
+  serialNumber: string | null
+  ownerId: number | null
+  ownerCallsign: string | null
   notes: string | null
 }
 
@@ -147,7 +148,7 @@ export interface ResourceCheckIn {
   incidentId: number
   resourceId: number
   resourceIdentifier: string
-  resourceType: ResourceType
+  resourceTypeName: string
   checkedInAt: string
   checkedOutAt: string | null
   notes: string | null

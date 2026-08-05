@@ -34,6 +34,7 @@ const settingsNavItems = [
   { to: '/incidents/new', label: 'Create Incident', icon: FilePlus2 },
   { to: '/operators/new', label: 'Register Operator', icon: UserPlus },
   { to: '/roles', label: 'Operator Roles', icon: ShieldCheck },
+  { to: '/resource-types', label: 'Resource Types', icon: Boxes },
   { to: '/comms-plans', label: 'Comms Plans', icon: RadioTower },
 ]
 

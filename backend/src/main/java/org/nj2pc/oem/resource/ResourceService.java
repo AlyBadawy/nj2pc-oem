@@ -1,8 +1,6 @@
 package org.nj2pc.oem.resource;
 
 import org.nj2pc.oem.common.ApiException;
-import org.nj2pc.oem.incident.Incident;
-import org.nj2pc.oem.incident.IncidentRepository;
 import org.nj2pc.oem.operator.Operator;
 import org.nj2pc.oem.operator.OperatorRepository;
 import org.springframework.stereotype.Service;
@@ -14,15 +12,15 @@ import java.util.List;
 public class ResourceService {
 
     private final ResourceRepository resourceRepository;
+    private final ResourceTypeRepository resourceTypeRepository;
     private final OperatorRepository operatorRepository;
-    private final IncidentRepository incidentRepository;
 
     public ResourceService(ResourceRepository resourceRepository,
-                            OperatorRepository operatorRepository,
-                            IncidentRepository incidentRepository) {
+                            ResourceTypeRepository resourceTypeRepository,
+                            OperatorRepository operatorRepository) {
         this.resourceRepository = resourceRepository;
+        this.resourceTypeRepository = resourceTypeRepository;
         this.operatorRepository = operatorRepository;
-        this.incidentRepository = incidentRepository;
     }
 
     @Transactional(readOnly = true)
@@ -63,26 +61,19 @@ public class ResourceService {
     }
 
     private void applyRequest(Resource resource, ResourceRequest request) {
-        resource.setType(request.type());
+        ResourceType type = resourceTypeRepository.findById(request.resourceTypeId())
+                .orElseThrow(() -> ApiException.notFound("Resource type not found: " + request.resourceTypeId()));
+        resource.setType(type);
         resource.setIdentifier(request.identifier());
-        resource.setFrequency(request.frequency());
-        resource.setStatus(request.status());
+        resource.setSerialNumber(request.serialNumber());
         resource.setNotes(request.notes());
 
-        if (request.assignedOperatorId() != null) {
-            Operator operator = operatorRepository.findById(request.assignedOperatorId())
-                    .orElseThrow(() -> ApiException.notFound("Operator not found: " + request.assignedOperatorId()));
-            resource.setAssignedOperator(operator);
+        if (request.ownerId() != null) {
+            Operator owner = operatorRepository.findById(request.ownerId())
+                    .orElseThrow(() -> ApiException.notFound("Operator not found: " + request.ownerId()));
+            resource.setOwner(owner);
         } else {
-            resource.setAssignedOperator(null);
-        }
-
-        if (request.assignedIncidentId() != null) {
-            Incident incident = incidentRepository.findById(request.assignedIncidentId())
-                    .orElseThrow(() -> ApiException.notFound("Incident not found: " + request.assignedIncidentId()));
-            resource.setAssignedIncident(incident);
-        } else {
-            resource.setAssignedIncident(null);
+            resource.setOwner(null);
         }
     }
 }
