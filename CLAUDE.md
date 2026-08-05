@@ -32,7 +32,16 @@ No frontend test suite exists either — `npm run build` is the correctness chec
 
 Full stack via Docker Compose: `cp .env.example .env` (fill in DB_HOST/DB_USER/DB_PASSWORD/JWT_SECRET), then `docker compose up --build`.
 
-K8s manifests: `kubectl apply --dry-run=client -f k8s/` to validate without a live cluster.
+K8s manifests: `k8s/` is a Kustomize root (matches the [hl-beta](https://github.com/alybadawy/hl-beta) GitOps
+cluster's per-app component layout) — validate with `kubectl apply --dry-run=client -k k8s/`, not
+`-f k8s/` (that treats `kustomization.yaml` as a raw resource and fails). Deploys to the shared
+Postgres server already running in the cluster (`postgres.db.svc.cluster.local`, database
+`nj2pc_oem`) rather than provisioning its own; DB credentials and `JWT_SECRET` come from Vault via
+an `ExternalSecret` (`external-secret.yaml`), not a checked-in `Secret`. The app is exposed at
+`emcomms.in.alybadawy.com`. Onboarding this app into the cluster (the ArgoCD `Application`
+pointing at this repo, the Postgres role/database creation, and the Vault entries it reads from)
+lives in the hl-beta repo, not here — see that repo's `k8s/apps/` for the pattern external repos
+use (e.g. `twoofus.yaml`).
 
 ## Architecture
 

@@ -2,11 +2,13 @@ apiVersion: v1
 kind: Service
 metadata:
   name: backend
-  namespace: nj2pc-oem
+  namespace: hams
+  labels:
+    app.kubernetes.io/name: nj2pc-oem-backend
+    homelab/stack: nj2pc-oem
 spec:
   selector:
-    app: nj2pc-oem
-    component: backend
+    app.kubernetes.io/name: nj2pc-oem-backend
   ports:
     - port: 8080
       targetPort: 8080

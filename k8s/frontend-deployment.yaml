@@ -2,27 +2,38 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: frontend
-  namespace: nj2pc-oem
+  namespace: hams
   labels:
-    app: nj2pc-oem
-    component: frontend
+    app.kubernetes.io/name: nj2pc-oem-frontend
+    homelab/stack: nj2pc-oem
 spec:
   replicas: 1
+  revisionHistoryLimit: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
   selector:
     matchLabels:
-      app: nj2pc-oem
-      component: frontend
+      app.kubernetes.io/name: nj2pc-oem-frontend
   template:
     metadata:
       labels:
-        app: nj2pc-oem
-        component: frontend
+        app.kubernetes.io/name: nj2pc-oem-frontend
     spec:
       containers:
         - name: frontend
-          image: nj2pc-oem/frontend:latest
+          image: ghcr.io/alybadawy/nj2pc-oem-frontend:latest
           ports:
             - containerPort: 80
+          resources:
+            requests:
+              cpu: 10m
+              memory: 32Mi
+            limits:
+              cpu: 100m
+              memory: 64Mi
           readinessProbe:
             httpGet:
               path: /

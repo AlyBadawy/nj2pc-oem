@@ -2,30 +2,48 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: backend
-  namespace: nj2pc-oem
+  namespace: hams
   labels:
-    app: nj2pc-oem
-    component: backend
+    app.kubernetes.io/name: nj2pc-oem-backend
+    homelab/stack: nj2pc-oem
 spec:
   replicas: 1
+  revisionHistoryLimit: 2
+  strategy:
+    type: RollingUpdate
+    rollingUpdate:
+      maxSurge: 1
+      maxUnavailable: 0
   selector:
     matchLabels:
-      app: nj2pc-oem
-      component: backend
+      app.kubernetes.io/name: nj2pc-oem-backend
   template:
     metadata:
       labels:
-        app: nj2pc-oem
-        component: backend
+        app.kubernetes.io/name: nj2pc-oem-backend
     spec:
       containers:
         - name: backend
-          image: nj2pc-oem/backend:latest
+          image: ghcr.io/alybadawy/nj2pc-oem-backend:latest
           ports:
             - containerPort: 8080
           envFrom:
             - secretRef:
-                name: nj2pc-oem-db
+                name: nj2pc-oem-secret
+          env:
+            - name: DB_HOST
+              value: postgres.db.svc.cluster.local
+            - name: DB_PORT
+              value: "5432"
+            - name: DB_NAME
+              value: nj2pc_oem
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi
           readinessProbe:
             httpGet:
               path: /actuator/health

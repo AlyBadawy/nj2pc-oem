@@ -2,11 +2,18 @@ apiVersion: networking.k8s.io/v1
 kind: Ingress
 metadata:
   name: nj2pc-oem
-  namespace: nj2pc-oem
+  namespace: hams
+  labels:
+    app.kubernetes.io/name: nj2pc-oem
+    homelab/stack: nj2pc-oem
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "true"
+    nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
 spec:
   ingressClassName: nginx
   rules:
-    - http:
+    - host: emcomms.in.alybadawy.com
+      http:
         paths:
           - path: /api
             pathType: Prefix
