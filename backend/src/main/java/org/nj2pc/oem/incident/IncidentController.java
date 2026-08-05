@@ -39,13 +39,13 @@ public class IncidentController {
     }
 
     @GetMapping
-    public List<IncidentResponse> findAll() {
-        return incidentService.findAll();
+    public List<IncidentResponse> findAll(Authentication authentication) {
+        return incidentService.findAll(authentication);
     }
 
     @GetMapping("/{id}")
-    public IncidentResponse findById(@PathVariable Long id) {
-        return incidentService.findById(id);
+    public IncidentResponse findById(Authentication authentication, @PathVariable Long id) {
+        return incidentService.findById(authentication, id);
     }
 
     @PostMapping
@@ -56,16 +56,19 @@ public class IncidentController {
     }
 
     @PutMapping("/{id}")
+    @PreAuthorize("hasRole('ADMIN')")
     public IncidentResponse update(@PathVariable Long id, @Valid @RequestBody IncidentRequest request) {
         return incidentService.update(id, request);
     }
 
     @PostMapping("/{id}/start")
+    @PreAuthorize("hasRole('ADMIN')")
     public IncidentResponse start(@PathVariable Long id) {
         return incidentService.start(id);
     }
 
     @PostMapping("/{id}/end")
+    @PreAuthorize("hasRole('ADMIN')")
     public IncidentResponse end(@PathVariable Long id) {
         return incidentService.end(id);
     }
@@ -94,14 +97,16 @@ public class IncidentController {
 
     @PostMapping("/{id}/operator-checkins")
     @ResponseStatus(HttpStatus.CREATED)
+    @PreAuthorize("hasAnyRole('STANDARD', 'ADMIN')")
     public OperatorCheckInResponse checkInOperator(@PathVariable Long id,
                                                      @Valid @RequestBody OperatorCheckInRequest request) {
         return operatorCheckInService.checkIn(id, request);
     }
 
     @PostMapping("/{id}/operator-checkins/{checkInId}/checkout")
-    public OperatorCheckInResponse checkOutOperator(@PathVariable Long id, @PathVariable Long checkInId) {
-        return operatorCheckInService.checkOut(id, checkInId);
+    public OperatorCheckInResponse checkOutOperator(Authentication authentication, @PathVariable Long id,
+                                                      @PathVariable Long checkInId) {
+        return operatorCheckInService.checkOut(authentication, id, checkInId);
     }
 
     @GetMapping("/{id}/resource-checkins")

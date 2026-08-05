@@ -9,6 +9,7 @@ import {
   LogOut,
   Flag,
   Play,
+  Pencil,
   X,
   Link as LinkIcon,
 } from 'lucide-react'
@@ -80,6 +81,8 @@ const emptyLogForm: LogFormState = {
 export function IncidentDetail() {
   const { user } = useAuth()
   const isAdmin = user?.accessLevel === 'ADMIN'
+  const isRestricted = user?.accessLevel === 'RESTRICTED'
+  const canCheckIn = user?.accessLevel === 'STANDARD' || isAdmin
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -310,7 +313,13 @@ export function IncidentDetail() {
             <p className="text-muted-foreground text-sm">{incident.location}</p>
           </div>
           <div className="flex items-center gap-2">
-            {isPlanned && (
+            {isAdmin && !isClosed && (
+              <Button variant="outline" onClick={() => navigate(`/incidents/${id}/edit`)}>
+                <Pencil className="size-4" />
+                Edit
+              </Button>
+            )}
+            {isAdmin && isPlanned && (
               <Button
                 variant="outline"
                 disabled={startIncidentMutation.isPending}
@@ -320,7 +329,7 @@ export function IncidentDetail() {
                 Start Incident
               </Button>
             )}
-            {isActive && (
+            {isAdmin && isActive && (
               <Button variant="outline" onClick={() => setEndDialogOpen(true)}>
                 <Flag className="size-4" />
                 End Incident
@@ -353,7 +362,7 @@ export function IncidentDetail() {
               ({openOperatorCheckIns.length} on scene)
             </span>
           </CardTitle>
-          {!isClosed && (
+          {!isClosed && canCheckIn && (
             <Button size="sm" onClick={() => setOperatorCheckInOpen(true)}>
               <LogIn className="size-4" />
               Check In
@@ -400,16 +409,17 @@ export function IncidentDetail() {
                     {c.notes || '—'}
                   </TableCell>
                   <TableCell className="text-right">
-                    {!c.checkedOutAt && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => checkOutOperatorMutation.mutate(c.id)}
-                      >
-                        <LogOut className="size-4" />
-                        Check Out
-                      </Button>
-                    )}
+                    {!c.checkedOutAt &&
+                      (canCheckIn || (isRestricted && c.operatorCallsign === user?.callsign)) && (
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => checkOutOperatorMutation.mutate(c.id)}
+                        >
+                          <LogOut className="size-4" />
+                          Check Out
+                        </Button>
+                      )}
                   </TableCell>
                 </TableRow>
               ))}
@@ -456,7 +466,7 @@ export function IncidentDetail() {
               {resourceCheckIns?.map((c) => (
                 <TableRow key={c.id}>
                   <TableCell className="font-medium">{c.resourceIdentifier}</TableCell>
-                  <TableCell>{c.resourceType}</TableCell>
+                  <TableCell>{c.resourceTypeName}</TableCell>
                   <TableCell className="text-sm whitespace-nowrap">
                     {new Date(c.checkedInAt).toLocaleString()}
                   </TableCell>
@@ -777,7 +787,7 @@ export function IncidentDetail() {
                 <SelectContent>
                   {availableResources.map((r) => (
                     <SelectItem key={r.id} value={String(r.id)}>
-                      {r.identifier} ({r.type})
+                      {r.identifier} ({r.resourceTypeName})
                     </SelectItem>
                   ))}
                 </SelectContent>

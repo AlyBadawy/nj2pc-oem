@@ -6,6 +6,8 @@ import org.nj2pc.oem.incident.IncidentRepository;
 import org.nj2pc.oem.incident.IncidentStatus;
 import org.nj2pc.oem.operator.Operator;
 import org.nj2pc.oem.operator.OperatorRepository;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.GrantedAuthority;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -75,13 +77,26 @@ public class OperatorCheckInService {
     }
 
     @Transactional
-    public OperatorCheckInResponse checkOut(Long incidentId, Long checkInId) {
+    public OperatorCheckInResponse checkOut(Authentication authentication, Long incidentId, Long checkInId) {
         OperatorCheckIn checkIn = getCheckInOrThrow(incidentId, checkInId);
+        if (isRestricted(authentication)) {
+            Operator caller = operatorRepository.findByCallsignIgnoreCase(authentication.getName())
+                    .orElseThrow(() -> ApiException.forbidden("You may only check yourself out"));
+            if (!checkIn.getOperator().getId().equals(caller.getId())) {
+                throw ApiException.forbidden("You may only check yourself out");
+            }
+        }
         if (checkIn.getCheckedOutAt() != null) {
             throw ApiException.badRequest("Already checked out");
         }
         checkIn.setCheckedOutAt(Instant.now());
         return OperatorCheckInResponse.from(operatorCheckInRepository.save(checkIn));
+    }
+
+    private static boolean isRestricted(Authentication authentication) {
+        return authentication.getAuthorities().stream()
+                .map(GrantedAuthority::getAuthority)
+                .anyMatch("ROLE_RESTRICTED"::equals);
     }
 
     @Transactional
