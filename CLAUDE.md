@@ -63,6 +63,12 @@ controller + request/response DTOs), not a horizontal layer:
 - `commsplan` — CommunicationPlan/CommunicationChannel (ICS-205), many-to-many with Incident via
   `incident_communication_plans`, plus `Ics205PdfService` which renders a plan to a PDF (OpenPDF)
   matching the real ICS-205 layout
+- `vehicle` — Vehicle, many-to-one to Operator (zero-to-many vehicles per operator, `ON DELETE
+  CASCADE`). Nested under `/api/operators/{operatorId}/vehicles`; every endpoint is self-or-ADMIN
+  (an operator manages their own vehicles, ADMIN manages anyone's) via `VehicleService`, not
+  `@PreAuthorize`, following the same `Authentication`-param pattern as
+  `OperatorCheckInService.checkOut`. This is a placeholder authorization model — website-wide
+  per-operator permissions (distinct from deployment/check-in roles) haven't been designed yet.
 - `auth` — login, `/me`, self-service password change (no registration endpoint — operators are
   created via `operator`'s admin-only create/update)
 - `config` — JWT issuing/parsing (`JwtService`, `JwtAuthFilter`) and `SecurityConfig`
@@ -101,12 +107,15 @@ pattern). When adding a new lazy relation to an entity, grep for where its ownin
 `*Response.from()` is called and check every call site is transactional.
 
 ### Migrations
-Flyway migrations in `backend/src/main/resources/db/migration/`, currently `V1` (full schema),
-`V2` (seed: default operator roles + bootstrap `ADMIN`/`ChangeMe!23` operator), `V3` (adds
-`created_by_id` to operators/incidents). Since this app isn't deployed anywhere yet, past
-migrations have been **squashed into V1 rather than accumulating patch-on-patch** — if asked to
-make a significant schema change, prefer editing V1 directly and dropping/recreating the local dev
-database over bolting on `V4__...sql`, unless the user asks to preserve existing data.
+Flyway migrations in `backend/src/main/resources/db/migration/`, currently `V1` (full schema,
+including `created_by_id` and `vehicles`) and `V2` (seed: default operator roles + bootstrap
+`ADMIN`/`ChangeMe!23` operator). Past migrations have been **squashed into V1 rather than
+accumulating patch-on-patch** — if asked to make a significant schema change, prefer editing V1
+directly over bolting on `V3__...sql`, unless the user asks to preserve existing data. Any
+squash invalidates Flyway's checksum for everyone who already applied the old V1 (including a
+deployed environment's `flyway_schema_history`), so it must be paired with dropping/recreating
+that database's tables (kept the DB role/credentials, just the tables) before the next deploy —
+this is a deliberate, user-directed reset, not something to automate into the deploy pipeline.
 
 ### Frontend structure
 - `src/pages/` — one component per route, wired up in `src/App.tsx`
@@ -140,6 +149,8 @@ create/edit flows on these; that pattern was explicitly replaced with standalone
   (partial unique index enforces at most one open check-in per operator/resource per incident, but
   multiple closed ones accumulate across shifts/days). Checking a resource in/out also updates its
   `status`/`assignedIncident` for consistency.
+- **Vehicles**: purely owned by one `Operator` (`vehicles.operator_id NOT NULL`, no incident/resource
+  tie-in) — year/make/model/color/plate number/plate state/notes. Not yet surfaced in the frontend.
 - **created_by**: `Operator` and `Incident` both have a self-referencing (to `Operator`)
   `created_by_id`, populated from the authenticated caller's callsign at creation time
   (`*Controller.create(Authentication authentication, ...)` → `*Service.create(request,

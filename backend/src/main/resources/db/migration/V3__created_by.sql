@@ -1,2 +1,0 @@
-ALTER TABLE operators ADD COLUMN created_by_id BIGINT REFERENCES operators(id) ON DELETE SET NULL;
-ALTER TABLE incidents ADD COLUMN created_by_id BIGINT REFERENCES operators(id) ON DELETE SET NULL;

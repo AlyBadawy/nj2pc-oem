@@ -15,6 +15,7 @@ CREATE TABLE operators (
     grid_square             VARCHAR(10),
     password_hash           VARCHAR(255),
     access_level            VARCHAR(20) NOT NULL DEFAULT 'STANDARD',
+    created_by_id           BIGINT REFERENCES operators(id) ON DELETE SET NULL,
     created_at              TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
@@ -47,7 +48,21 @@ CREATE TABLE incidents (
     actual_start_time           TIMESTAMPTZ,
     actual_end_time             TIMESTAMPTZ,
     description                 TEXT,
+    created_by_id               BIGINT REFERENCES operators(id) ON DELETE SET NULL,
     created_at                  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
+CREATE TABLE vehicles (
+    id                      BIGSERIAL PRIMARY KEY,
+    operator_id             BIGINT NOT NULL REFERENCES operators(id) ON DELETE CASCADE,
+    year                    INT NOT NULL,
+    make                    VARCHAR(100) NOT NULL,
+    model                   VARCHAR(100) NOT NULL,
+    color                   VARCHAR(50),
+    license_plate_number    VARCHAR(20) NOT NULL,
+    license_plate_state     VARCHAR(20) NOT NULL,
+    notes                   TEXT,
+    created_at              TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
 CREATE TABLE incident_logs (
@@ -129,6 +144,7 @@ CREATE TABLE incident_communication_plans (
 
 CREATE UNIQUE INDEX uq_operators_callsign_ci ON operators (UPPER(callsign));
 
+CREATE INDEX idx_vehicles_operator_id ON vehicles(operator_id);
 CREATE INDEX idx_incident_logs_incident_id ON incident_logs(incident_id);
 CREATE INDEX idx_op_checkins_incident ON incident_operator_checkins(incident_id);
 CREATE INDEX idx_op_checkins_operator ON incident_operator_checkins(operator_id);
