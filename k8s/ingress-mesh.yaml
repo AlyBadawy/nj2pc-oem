@@ -1,0 +1,41 @@
+# Separate Ingress object (not a second rule on ingress.yaml) because
+# nginx.ingress.kubernetes.io annotations apply to the whole Ingress
+# resource, not per-host-rule — sharing one Ingress would force
+# ssl-redirect: "false" onto emcomms.in.alybadawy.com too. This host has
+# no tls: block: .local.mesh is an AREDN mesh hostname, not real/routable
+# DNS, so no public CA can issue a browser-trusted cert for it — the mesh
+# network itself is the trust boundary, and we're serving plain HTTP
+# rather than standing up a private CA. ssl-redirect must be explicitly
+# disabled here because the cluster sets a global default-ssl-certificate,
+# which would otherwise force an HTTPS redirect and present the
+# in.alybadawy.com wildcard cert to mesh clients.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: nj2pc-oem-mesh
+  namespace: hams
+  labels:
+    app.kubernetes.io/name: nj2pc-oem
+    homelab/stack: nj2pc-oem
+  annotations:
+    nginx.ingress.kubernetes.io/ssl-redirect: "false"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: al0y-emcomms.local.mesh
+      http:
+        paths:
+          - path: /api
+            pathType: Prefix
+            backend:
+              service:
+                name: backend
+                port:
+                  number: 8080
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: frontend
+                port:
+                  number: 80
