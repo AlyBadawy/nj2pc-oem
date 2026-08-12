@@ -120,15 +120,13 @@ pattern). When adding a new lazy relation to an entity, grep for where its ownin
 `*Response.from()` is called and check every call site is transactional.
 
 ### Migrations
-Flyway migrations in `backend/src/main/resources/db/migration/`, currently `V1` (full schema,
-including `created_by_id` and `vehicles`) and `V2` (seed: default operator roles + bootstrap
-`ADMIN`/`ChangeMe!23` operator). Past migrations have been **squashed into V1 rather than
-accumulating patch-on-patch** — if asked to make a significant schema change, prefer editing V1
-directly over bolting on `V3__...sql`, unless the user asks to preserve existing data. Any
-squash invalidates Flyway's checksum for everyone who already applied the old V1 (including a
-deployed environment's `flyway_schema_history`), so it must be paired with dropping/recreating
-that database's tables (kept the DB role/credentials, just the tables) before the next deploy —
-this is a deliberate, user-directed reset, not something to automate into the deploy pipeline.
+Flyway migrations in `backend/src/main/resources/db/migration/`, currently `V1` (full schema) and
+`V2` (seed: default operator roles + bootstrap `ADMIN`/`ChangeMe!23` operator). Earlier in this
+app's life, while it was still pre-deployment, schema changes were squashed back into `V1` instead
+of accumulating — **that phase is over.** The app is now live in the cluster, so from here on,
+every schema change is a new versioned migration (`V3__...sql`, `V4__...sql`, ...), never an edit
+to `V1`/`V2` themselves. Don't drop/recreate the deployed database as part of a routine change
+anymore either — that was only ever appropriate for the pre-deployment squash-and-reset workflow.
 
 ### Frontend structure
 The UI was intentionally stripped down to just the operator/permission model while it's being
