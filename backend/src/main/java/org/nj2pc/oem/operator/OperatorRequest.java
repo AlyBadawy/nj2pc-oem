@@ -6,6 +6,7 @@ import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Size;
 
 import java.util.List;
+import java.util.Set;
 
 public record OperatorRequest(
         @NotBlank String callsign,
@@ -22,7 +23,7 @@ public record OperatorRequest(
         String latitude,
         String longitude,
         String gridSquare,
-        @NotNull AccessLevel accessLevel,
-        @Size(min = 8) String password
+        @Size(min = 8) String password,
+        Set<Permission> permissions
 ) {
 }

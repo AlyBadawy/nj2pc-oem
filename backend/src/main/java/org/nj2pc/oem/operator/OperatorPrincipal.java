@@ -21,7 +21,7 @@ public class OperatorPrincipal implements UserDetails {
 
     @Override
     public Collection<? extends GrantedAuthority> getAuthorities() {
-        return List.of(new SimpleGrantedAuthority("ROLE_" + operator.getAccessLevel().name()));
+        return operator.isAdmin() ? List.of(new SimpleGrantedAuthority("ROLE_ADMIN")) : List.of();
     }
 
     @Override

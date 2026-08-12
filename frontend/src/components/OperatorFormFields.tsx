@@ -1,11 +1,20 @@
 import { Plus, X, Loader2 } from 'lucide-react'
 import type { OperatorFormState } from '@/lib/operatorForm'
-import type { AccessLevel, OperatorStatus } from '@/lib/types'
+import type { OperatorStatus, Permission } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+
+const permissionOptions: { value: Permission; label: string; description: string }[] = [
+  { value: 'OPERATOR_LIST', label: 'List Operators', description: 'View the operator roster.' },
+  {
+    value: 'OPERATOR_MANAGE_PERMISSIONS',
+    label: 'Manage Permissions',
+    description: "Grant or revoke other operators' permissions.",
+  },
+]
 
 function SectionHeading({ children }: { children: string }) {
   return (
@@ -205,38 +214,45 @@ export function OperatorFormFields({
       </div>
 
       <SectionHeading>Account Access</SectionHeading>
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="accessLevel">Access Level</Label>
-          <Select
-            value={form.accessLevel}
-            onValueChange={(value: AccessLevel) => setForm({ ...form, accessLevel: value })}
-          >
-            <SelectTrigger id="accessLevel">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="RESTRICTED">Restricted</SelectItem>
-              <SelectItem value="STANDARD">Standard</SelectItem>
-              <SelectItem value="ADMIN">Admin</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-        <div className="flex flex-col gap-1.5">
-          <Label htmlFor="password">
-            Password{mode === 'create' && <span className="text-destructive"> *</span>}
-          </Label>
-          <Input
-            id="password"
-            type="password"
-            value={form.password}
-            onChange={(e) => setForm({ ...form, password: e.target.value })}
-            placeholder={mode === 'edit' ? 'Leave blank to keep current' : 'Required'}
-            autoComplete="new-password"
-            required={mode === 'create'}
-            minLength={8}
-          />
-        </div>
+      <div className="flex flex-col gap-1.5 max-w-sm">
+        <Label htmlFor="password">
+          Password{mode === 'create' && <span className="text-destructive"> *</span>}
+        </Label>
+        <Input
+          id="password"
+          type="password"
+          value={form.password}
+          onChange={(e) => setForm({ ...form, password: e.target.value })}
+          placeholder={mode === 'edit' ? 'Leave blank to keep current' : 'Required'}
+          autoComplete="new-password"
+          required={mode === 'create'}
+          minLength={8}
+        />
+      </div>
+
+      <div className="flex flex-col gap-2">
+        <Label>Permissions</Label>
+        {permissionOptions.map((option) => (
+          <label key={option.value} className="flex items-start gap-2 text-sm">
+            <input
+              type="checkbox"
+              className="mt-0.5"
+              checked={form.permissions.includes(option.value)}
+              onChange={(e) =>
+                setForm({
+                  ...form,
+                  permissions: e.target.checked
+                    ? [...form.permissions, option.value]
+                    : form.permissions.filter((p) => p !== option.value),
+                })
+              }
+            />
+            <span>
+              <span className="font-medium">{option.label}</span>{' '}
+              <span className="text-muted-foreground">{option.description}</span>
+            </span>
+          </label>
+        ))}
       </div>
     </div>
   )

@@ -1,4 +1,4 @@
-import type { AccessLevel, OperatorStatus } from '@/lib/types'
+import type { OperatorStatus, Permission } from '@/lib/types'
 
 export type OperatorFormState = {
   callsign: string
@@ -15,8 +15,8 @@ export type OperatorFormState = {
   latitude: string
   longitude: string
   gridSquare: string
-  accessLevel: AccessLevel
   password: string
+  permissions: Permission[]
 }
 
 export const emptyOperatorForm: OperatorFormState = {
@@ -34,6 +34,6 @@ export const emptyOperatorForm: OperatorFormState = {
   latitude: '',
   longitude: '',
   gridSquare: '',
-  accessLevel: 'STANDARD',
   password: '',
+  permissions: [],
 }

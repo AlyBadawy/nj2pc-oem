@@ -3,7 +3,7 @@ import { useQuery } from '@tanstack/react-query'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Pencil } from 'lucide-react'
 import { api } from '@/lib/api'
-import { useAuth } from '@/lib/auth-context'
+import { hasPermission, useAuth } from '@/lib/auth-context'
 import type { Operator } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -18,26 +18,31 @@ function Field({ label, value }: { label: string; value: string }) {
   )
 }
 
+const permissionLabels: Record<string, string> = {
+  OPERATOR_LIST: 'List Operators',
+  OPERATOR_MANAGE_PERMISSIONS: 'Manage Permissions',
+}
+
 export function OperatorView() {
   const { user } = useAuth()
-  const isAdmin = user?.accessLevel === 'ADMIN'
-  const isRestricted = user?.accessLevel === 'RESTRICTED'
+  const isAdmin = user?.admin ?? false
+  const canList = hasPermission(user, 'OPERATOR_LIST')
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
 
   useEffect(() => {
-    if (isRestricted) {
-      navigate('/operators', { replace: true })
+    if (!canList) {
+      navigate('/', { replace: true })
     }
-  }, [isRestricted, navigate])
+  }, [canList, navigate])
 
   const { data: operator } = useQuery({
     queryKey: ['operators', id],
     queryFn: async () => (await api.get<Operator>(`/api/operators/${id}`)).data,
-    enabled: !isRestricted,
+    enabled: canList,
   })
 
-  if (isRestricted || !operator) return null
+  if (!canList || !operator) return null
 
   return (
     <div className="flex flex-col gap-6">
@@ -74,18 +79,20 @@ export function OperatorView() {
                 {operator.status}
               </Badge>
             </div>
-            {isAdmin && (
-              <div>
-                <div className="text-xs text-muted-foreground">Access Level</div>
-                {operator.hasLoginAccess ? (
-                  <Badge variant={operator.accessLevel === 'ADMIN' ? 'default' : 'secondary'}>
-                    {operator.accessLevel}
+            <div>
+              <div className="text-xs text-muted-foreground">Permissions</div>
+              <div className="flex flex-wrap gap-1 mt-0.5">
+                {operator.admin && <Badge>Admin</Badge>}
+                {operator.permissions.map((p) => (
+                  <Badge key={p} variant="secondary">
+                    {permissionLabels[p] ?? p}
                   </Badge>
-                ) : (
-                  <span className="text-sm text-muted-foreground">No login access</span>
+                ))}
+                {!operator.admin && operator.permissions.length === 0 && (
+                  <span className="text-sm text-muted-foreground">None</span>
                 )}
               </div>
-            )}
+            </div>
             {isAdmin && <Field label="Created By" value={operator.createdByCallsign ?? 'System'} />}
             {isAdmin && (
               <Field label="Created At" value={new Date(operator.createdAt).toLocaleString()} />

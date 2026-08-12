@@ -2,6 +2,7 @@ package org.nj2pc.oem.operator;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Set;
 
 public record OperatorResponse(
         Long id,
@@ -19,10 +20,11 @@ public record OperatorResponse(
         String latitude,
         String longitude,
         String gridSquare,
-        AccessLevel accessLevel,
+        boolean admin,
         boolean hasLoginAccess,
         Instant createdAt,
-        String createdByCallsign
+        String createdByCallsign,
+        Set<Permission> permissions
 ) {
     public static OperatorResponse from(Operator o) {
         return new OperatorResponse(
@@ -30,8 +32,9 @@ public record OperatorResponse(
                 o.getLicenseClass(), o.getDmrIds(), o.getPhone(), o.getEmail(), o.getStatus(),
                 o.getNotes(), o.getAddressLine1(), o.getAddressLine2(), o.getAddressAttn(),
                 o.getLatitude(), o.getLongitude(), o.getGridSquare(),
-                o.getAccessLevel(), o.getPasswordHash() != null, o.getCreatedAt(),
-                o.getCreatedBy() != null ? o.getCreatedBy().getCallsign() : null
+                o.isAdmin(), o.getPasswordHash() != null, o.getCreatedAt(),
+                o.getCreatedBy() != null ? o.getCreatedBy().getCallsign() : null,
+                o.getPermissions()
         );
     }
 }

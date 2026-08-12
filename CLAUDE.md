@@ -80,20 +80,33 @@ There is no separate `User` table. Operators sign in with **callsign + password*
 (`OperatorPrincipal`/`OperatorDetailsService` implement Spring Security's `UserDetails`/
 `UserDetailsService` directly against `Operator`). Callsign lookups are case-insensitive both in
 the repository (`findByCallsignIgnoreCase`) and via a functional unique index in the schema
-(`UPPER(callsign)`), since login must work regardless of case.
+(`UPPER(callsign)`), since login must work regardless of case. An operator with no `password_hash`
+set simply can't log in (`OperatorPrincipal.isEnabled()` returns false).
 
-Three access levels stored on the operator (`AccessLevel`: `RESTRICTED`, `STANDARD`, `ADMIN`) map
-directly to Spring authorities as `ROLE_<level>` (see `OperatorPrincipal.getAuthorities()`), so
-`@PreAuthorize("hasRole('ADMIN')")` works normally. An operator with no `password_hash` set simply
-can't log in (`OperatorPrincipal.isEnabled()` returns false) — only an ADMIN creating/editing an
-operator can grant login access by setting a password + access level.
+There is no tiered `AccessLevel` enum anymore (it was removed in favor of the model below) — just
+two orthogonal things on `Operator`:
+- **`admin` (boolean)** — a superuser flag, not a permission grant. `OperatorPrincipal.getAuthorities()`
+  grants `ROLE_ADMIN` only when this is true, so `@PreAuthorize("hasRole('ADMIN')")` still works
+  everywhere it's used. The bootstrap operator (callsign `ADMIN`, seeded in `V2`) is the initial
+  one with `admin = TRUE`; further operators can only be promoted by an existing admin (there's no
+  API path to self-promote). Every permission check in `OperatorService.requirePermission` treats
+  `admin = TRUE` as an unconditional bypass — "has all permissions all the time."
+- **`permissions` (`Set<Permission>`, table `operator_permissions`)** — fine-grained, per-operator
+  capability grants, checked explicitly per action rather than via Spring authorities (see
+  `OperatorService.requirePermission`, which loads the caller's `Operator` row by callsign and
+  checks `admin` or `permissions.contains(...)`). `Permission` (`org.nj2pc.oem.operator.Permission`)
+  is a fixed, developer-defined enum — currently `OPERATOR_LIST` and `OPERATOR_MANAGE_PERMISSIONS`
+  — not an admin-editable catalog. Only an admin can create operators or edit their full profile
+  (`POST`/`PUT /api/operators/{id}`, still `hasRole('ADMIN')`); `PUT /api/operators/{id}/permissions`
+  is the narrower endpoint an operator holding `OPERATOR_MANAGE_PERMISSIONS` (without being a full
+  admin) can also use, since it only ever touches the permission set, not the rest of the profile.
 
-Visibility below ADMIN is enforced **server-side**, not just hidden in the UI — e.g.
-`OperatorController.findAll` returns a different, reduced DTO (`OperatorSummaryResponse`:
-callsign + name only) when the caller's JWT authority is `ROLE_RESTRICTED`, and
-`GET /api/operators/{id}` is a hard 403 for that tier. Keep this pattern (check the caller's own
-authorities in the controller, branch response type/content) when adding new tiered visibility
-rather than filtering only in React.
+Other feature areas (`incident`, `resource`, `resource-type`, `commsplan`, `checkin`,
+`operator-role`) still gate their admin-only endpoints with `@PreAuthorize("hasRole('ADMIN')")` —
+that continues to work unchanged since `ROLE_ADMIN` is still granted the same way. Their frontend
+pages were removed when the UI was rebuilt around the new permission model (see Frontend structure
+below) and haven't been rebuilt on `Permission` yet; the backend endpoints for them still exist and
+still work, they're just unreachable from the current nav.
 
 ### The recurring lazy-loading bug — watch for this
 Several past incidents in this codebase were the same root cause: a service method touches a
@@ -118,24 +131,31 @@ that database's tables (kept the DB role/credentials, just the tables) before th
 this is a deliberate, user-directed reset, not something to automate into the deploy pipeline.
 
 ### Frontend structure
-- `src/pages/` — one component per route, wired up in `src/App.tsx`
+The UI was intentionally stripped down to just the operator/permission model while it's being
+rebuilt — `src/pages/` currently has only `Login`, `AccountSettings`, `Operators`, `OperatorView`,
+`OperatorCreate`, `OperatorEdit`, wired up in `src/App.tsx`. The old Incidents/Resources/CommsPlans/
+Roles/ResourceTypes pages were deleted (their backend endpoints still exist, see Auth model above)
+and will come back rebuilt against `Permission` rather than `AccessLevel` once that's designed.
 - `src/components/` — shared components (`AppLayout` is the shell: sidebar nav + top-right user
-  menu; `OperatorFormFields` is the shared create/edit form used by both `OperatorCreate` and
-  `OperatorEdit` to avoid duplicating the large operator form)
-- `src/lib/auth-context.tsx` — `useAuth()` exposes `{ callsign, name, accessLevel }`; gate
-  admin-only UI with `user?.accessLevel === 'ADMIN'`, and pair it with an actual backend check —
-  this app's convention is to enforce sensitive operations server-side and only use the frontend
-  check to avoid flashing UI the user can't actually use (see any `useEffect` that redirects away
-  when `!isAdmin` in `OperatorCreate`/`IncidentCreate`/`CommsPlans`)
+  menu, both built from `hasPermission(user, ...)` / `user?.admin`; `OperatorFormFields` is the
+  shared create/edit form used by both `OperatorCreate` and `OperatorEdit`, including the
+  permission checkboxes)
+- `src/lib/auth-context.tsx` — `useAuth()` exposes `{ callsign, name, admin, permissions }`; use the
+  exported `hasPermission(user, permission)` helper rather than checking `user.permissions`
+  directly, since it also accounts for `admin` bypassing every check. Gate admin-only UI with
+  `user?.admin`, and pair it with an actual backend check — this app's convention is to enforce
+  sensitive operations server-side and only use the frontend check to avoid flashing UI the user
+  can't actually use (see the `useEffect` redirects in `OperatorCreate`/`OperatorEdit`/`Operators`)
 - `src/lib/api.ts` — the shared axios instance; attaches the JWT and redirects to `/login` on 401
 - `src/lib/callook.ts` — client-side lookup against `callook.info` (public FCC callsign database,
   permissive CORS) used to auto-fill name/license/address on operator registration; not called
   from the backend
 
-Admin-only pages (`OperatorCreate`, `OperatorEdit`, `IncidentCreate`, `CommsPlans`,
-`CommsPlanDetail`, `Roles`) are full-width — no `Card`/max-width wrapper — by deliberate choice, to
-read as dedicated pages rather than a modal-in-disguise. Don't reintroduce a dialog for
-create/edit flows on these; that pattern was explicitly replaced with standalone routed pages.
+Admin-only pages (`OperatorCreate`, `OperatorEdit`) are full-width — no `Card`/max-width wrapper —
+by deliberate choice, to read as dedicated pages rather than a modal-in-disguise. Don't reintroduce
+a dialog for create/edit flows on these; that pattern was explicitly replaced with standalone
+routed pages. (The permission-management dialog on `Operators` is an exception — it's a narrow,
+single-field action, not a create/edit flow.)
 
 ### Domain model notes
 - **Incident lifecycle**: `PLANNED → ACTIVE → CLOSED` via dedicated `POST /start` and `POST /end`

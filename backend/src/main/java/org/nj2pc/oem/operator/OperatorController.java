@@ -1,11 +1,9 @@
 package org.nj2pc.oem.operator;
 
 import jakarta.validation.Valid;
-import org.nj2pc.oem.common.ApiException;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
-import org.springframework.security.core.GrantedAuthority;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -21,19 +19,13 @@ public class OperatorController {
     }
 
     @GetMapping
-    public List<?> findAll(Authentication authentication) {
-        if (isRestricted(authentication)) {
-            return operatorService.findAllSummary();
-        }
-        return operatorService.findAll();
+    public List<OperatorResponse> findAll(Authentication authentication) {
+        return operatorService.findAll(authentication);
     }
 
     @GetMapping("/{id}")
     public OperatorResponse findById(Authentication authentication, @PathVariable Long id) {
-        if (isRestricted(authentication)) {
-            throw ApiException.forbidden("You do not have permission to view operator details");
-        }
-        return operatorService.findById(id);
+        return operatorService.findById(authentication, id);
     }
 
     @PostMapping
@@ -49,16 +41,16 @@ public class OperatorController {
         return operatorService.update(id, request);
     }
 
+    @PutMapping("/{id}/permissions")
+    public OperatorResponse updatePermissions(Authentication authentication, @PathVariable Long id,
+                                               @Valid @RequestBody OperatorPermissionsRequest request) {
+        return operatorService.updatePermissions(authentication, id, request);
+    }
+
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     @PreAuthorize("hasRole('ADMIN')")
     public void delete(@PathVariable Long id) {
         operatorService.delete(id);
-    }
-
-    private boolean isRestricted(Authentication authentication) {
-        return authentication.getAuthorities().stream()
-                .map(GrantedAuthority::getAuthority)
-                .anyMatch("ROLE_RESTRICTED"::equals);
     }
 }

@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button'
 
 export function OperatorCreate() {
   const { user } = useAuth()
-  const isAdmin = user?.accessLevel === 'ADMIN'
+  const isAdmin = user?.admin ?? false
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [form, setForm] = useState<OperatorFormState>(emptyOperatorForm)

@@ -97,7 +97,7 @@ public class IncidentController {
 
     @PostMapping("/{id}/operator-checkins")
     @ResponseStatus(HttpStatus.CREATED)
-    @PreAuthorize("hasAnyRole('STANDARD', 'ADMIN')")
+    @PreAuthorize("hasRole('ADMIN')")
     public OperatorCheckInResponse checkInOperator(@PathVariable Long id,
                                                      @Valid @RequestBody OperatorCheckInRequest request) {
         return operatorCheckInService.checkIn(id, request);

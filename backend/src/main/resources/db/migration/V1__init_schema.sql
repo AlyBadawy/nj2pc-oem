@@ -14,7 +14,7 @@ CREATE TABLE operators (
     longitude               VARCHAR(20),
     grid_square             VARCHAR(10),
     password_hash           VARCHAR(255),
-    access_level            VARCHAR(20) NOT NULL DEFAULT 'STANDARD',
+    admin                   BOOLEAN NOT NULL DEFAULT FALSE,
     created_by_id           BIGINT REFERENCES operators(id) ON DELETE SET NULL,
     created_at              TIMESTAMPTZ NOT NULL DEFAULT now()
 );
@@ -24,6 +24,12 @@ CREATE TABLE operator_dmr_ids (
     sort_order  INT NOT NULL,
     dmr_id      VARCHAR(20) NOT NULL,
     PRIMARY KEY (operator_id, sort_order)
+);
+
+CREATE TABLE operator_permissions (
+    operator_id BIGINT NOT NULL REFERENCES operators(id) ON DELETE CASCADE,
+    permission  VARCHAR(50) NOT NULL,
+    PRIMARY KEY (operator_id, permission)
 );
 
 CREATE TABLE operator_roles (

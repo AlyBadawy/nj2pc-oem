@@ -1,11 +1,14 @@
 package org.nj2pc.oem.auth;
 
-import org.nj2pc.oem.operator.AccessLevel;
+import org.nj2pc.oem.operator.Permission;
+
+import java.util.Set;
 
 public record AuthResponse(
         String token,
         String callsign,
         String name,
-        AccessLevel accessLevel
+        boolean admin,
+        Set<Permission> permissions
 ) {
 }

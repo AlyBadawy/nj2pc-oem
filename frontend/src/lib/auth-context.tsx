@@ -1,11 +1,12 @@
 import { createContext, useContext, useState, type ReactNode } from 'react'
 import { api, TOKEN_STORAGE_KEY } from '@/lib/api'
-import type { AccessLevel, AuthResponse } from '@/lib/types'
+import type { AuthResponse, Permission } from '@/lib/types'
 
 interface AuthUser {
   callsign: string
   name: string
-  accessLevel: AccessLevel
+  admin: boolean
+  permissions: Permission[]
 }
 
 interface AuthContextValue {
@@ -34,7 +35,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   async function login(callsign: string, password: string) {
     const { data } = await api.post<AuthResponse>('/api/auth/login', { callsign, password })
     localStorage.setItem(TOKEN_STORAGE_KEY, data.token)
-    const authUser: AuthUser = { callsign: data.callsign, name: data.name, accessLevel: data.accessLevel }
+    const authUser: AuthUser = {
+      callsign: data.callsign,
+      name: data.name,
+      admin: data.admin,
+      permissions: data.permissions,
+    }
     localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(authUser))
     setUser(authUser)
   }
@@ -52,4 +58,9 @@ export function useAuth() {
   const ctx = useContext(AuthContext)
   if (!ctx) throw new Error('useAuth must be used within an AuthProvider')
   return ctx
+}
+
+export function hasPermission(user: AuthUser | null, permission: Permission): boolean {
+  if (!user) return false
+  return user.admin || user.permissions.includes(permission)
 }

@@ -1,10 +1,12 @@
 package org.nj2pc.oem.operator;
 
 import org.nj2pc.oem.common.ApiException;
+import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.HashSet;
 import java.util.List;
 
 @Service
@@ -19,18 +21,15 @@ public class OperatorService {
     }
 
     @Transactional(readOnly = true)
-    public List<OperatorResponse> findAll() {
+    public List<OperatorResponse> findAll(Authentication authentication) {
+        requirePermission(authentication, Permission.OPERATOR_LIST);
         return operatorRepository.findAll().stream().map(OperatorResponse::from).toList();
     }
 
     @Transactional(readOnly = true)
-    public OperatorResponse findById(Long id) {
+    public OperatorResponse findById(Authentication authentication, Long id) {
+        requirePermission(authentication, Permission.OPERATOR_LIST);
         return OperatorResponse.from(getOperatorOrThrow(id));
-    }
-
-    @Transactional(readOnly = true)
-    public List<OperatorSummaryResponse> findAllSummary() {
-        return operatorRepository.findAll().stream().map(OperatorSummaryResponse::from).toList();
     }
 
     @Transactional
@@ -57,6 +56,14 @@ public class OperatorService {
             throw ApiException.conflict("Callsign already registered: " + request.callsign());
         }
         applyRequest(operator, request);
+        return OperatorResponse.from(operatorRepository.save(operator));
+    }
+
+    @Transactional
+    public OperatorResponse updatePermissions(Authentication authentication, Long id, OperatorPermissionsRequest request) {
+        requirePermission(authentication, Permission.OPERATOR_MANAGE_PERMISSIONS);
+        Operator operator = getOperatorOrThrow(id);
+        operator.setPermissions(new HashSet<>(request.permissions()));
         return OperatorResponse.from(operatorRepository.save(operator));
     }
 
@@ -91,9 +98,20 @@ public class OperatorService {
         operator.setLatitude(request.latitude());
         operator.setLongitude(request.longitude());
         operator.setGridSquare(request.gridSquare());
-        operator.setAccessLevel(request.accessLevel());
+        operator.setPermissions(request.permissions() != null ? new HashSet<>(request.permissions()) : new HashSet<>());
         if (request.password() != null && !request.password().isBlank()) {
             operator.setPasswordHash(passwordEncoder.encode(request.password()));
+        }
+    }
+
+    private void requirePermission(Authentication authentication, Permission permission) {
+        Operator caller = operatorRepository.findByCallsignIgnoreCase(authentication.getName())
+                .orElseThrow(() -> ApiException.forbidden("You do not have permission to perform this action"));
+        if (caller.isAdmin()) {
+            return;
+        }
+        if (!caller.getPermissions().contains(permission)) {
+            throw ApiException.forbidden("You do not have permission to perform this action");
         }
     }
 }

@@ -38,7 +38,8 @@ public class AuthService {
         OperatorPrincipal principal = (OperatorPrincipal) authentication.getPrincipal();
         Operator operator = principal.getOperator();
         String token = jwtService.generateToken(principal);
-        return new AuthResponse(token, operator.getCallsign(), operator.getName(), operator.getAccessLevel());
+        return new AuthResponse(token, operator.getCallsign(), operator.getName(), operator.isAdmin(),
+                operator.getPermissions());
     }
 
     @Transactional(readOnly = true)

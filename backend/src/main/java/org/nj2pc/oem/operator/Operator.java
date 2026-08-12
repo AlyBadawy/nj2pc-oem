@@ -4,7 +4,9 @@ import jakarta.persistence.*;
 
 import java.time.Instant;
 import java.util.ArrayList;
+import java.util.HashSet;
 import java.util.List;
+import java.util.Set;
 
 @Entity
 @Table(name = "operators")
@@ -58,9 +60,14 @@ public class Operator {
     @Column(name = "password_hash")
     private String passwordHash;
 
+    @Column(nullable = false)
+    private boolean admin = false;
+
+    @ElementCollection(fetch = FetchType.EAGER)
+    @CollectionTable(name = "operator_permissions", joinColumns = @JoinColumn(name = "operator_id"))
     @Enumerated(EnumType.STRING)
-    @Column(name = "access_level", nullable = false)
-    private AccessLevel accessLevel = AccessLevel.STANDARD;
+    @Column(name = "permission")
+    private Set<Permission> permissions = new HashSet<>();
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
@@ -193,12 +200,20 @@ public class Operator {
         this.passwordHash = passwordHash;
     }
 
-    public AccessLevel getAccessLevel() {
-        return accessLevel;
+    public boolean isAdmin() {
+        return admin;
     }
 
-    public void setAccessLevel(AccessLevel accessLevel) {
-        this.accessLevel = accessLevel;
+    public void setAdmin(boolean admin) {
+        this.admin = admin;
+    }
+
+    public Set<Permission> getPermissions() {
+        return permissions;
+    }
+
+    public void setPermissions(Set<Permission> permissions) {
+        this.permissions = permissions;
     }
 
     public Instant getCreatedAt() {

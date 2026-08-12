@@ -10,10 +10,9 @@ import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 
-const accessLevelLabel: Record<Operator['accessLevel'], string> = {
-  RESTRICTED: 'Restricted',
-  STANDARD: 'Standard',
-  ADMIN: 'Admin',
+const permissionLabels: Record<string, string> = {
+  OPERATOR_LIST: 'List Operators',
+  OPERATOR_MANAGE_PERMISSIONS: 'Manage Permissions',
 }
 
 function Field({ label, value }: { label: string; value: string }) {
@@ -84,10 +83,18 @@ export function AccountSettings() {
               <Field label="Callsign" value={me.callsign} />
               <Field label="Name" value={me.name} />
               <div>
-                <div className="text-xs text-muted-foreground">Access Level</div>
-                <Badge variant={me.accessLevel === 'ADMIN' ? 'default' : 'secondary'}>
-                  {accessLevelLabel[me.accessLevel]}
-                </Badge>
+                <div className="text-xs text-muted-foreground">Permissions</div>
+                <div className="flex flex-wrap gap-1 mt-0.5">
+                  {me.admin && <Badge>Admin</Badge>}
+                  {me.permissions.map((p) => (
+                    <Badge key={p} variant="secondary">
+                      {permissionLabels[p] ?? p}
+                    </Badge>
+                  ))}
+                  {!me.admin && me.permissions.length === 0 && (
+                    <span className="text-sm text-muted-foreground">None</span>
+                  )}
+                </div>
               </div>
               <Field label="License Class" value={me.licenseClass ?? ''} />
               <Field label="DMR IDs" value={me.dmrIds.join(', ')} />

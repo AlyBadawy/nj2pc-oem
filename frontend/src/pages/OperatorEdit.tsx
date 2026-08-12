@@ -11,7 +11,7 @@ import { Button } from '@/components/ui/button'
 
 export function OperatorEdit() {
   const { user } = useAuth()
-  const isAdmin = user?.accessLevel === 'ADMIN'
+  const isAdmin = user?.admin ?? false
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -43,8 +43,8 @@ export function OperatorEdit() {
         latitude: data.latitude ?? '',
         longitude: data.longitude ?? '',
         gridSquare: data.gridSquare ?? '',
-        accessLevel: data.accessLevel,
         password: '',
+        permissions: data.permissions,
       })
       setLoaded(true)
       return data

@@ -79,7 +79,7 @@ public class OperatorCheckInService {
     @Transactional
     public OperatorCheckInResponse checkOut(Authentication authentication, Long incidentId, Long checkInId) {
         OperatorCheckIn checkIn = getCheckInOrThrow(incidentId, checkInId);
-        if (isRestricted(authentication)) {
+        if (!isAdmin(authentication)) {
             Operator caller = operatorRepository.findByCallsignIgnoreCase(authentication.getName())
                     .orElseThrow(() -> ApiException.forbidden("You may only check yourself out"));
             if (!checkIn.getOperator().getId().equals(caller.getId())) {
@@ -93,10 +93,10 @@ public class OperatorCheckInService {
         return OperatorCheckInResponse.from(operatorCheckInRepository.save(checkIn));
     }
 
-    private static boolean isRestricted(Authentication authentication) {
+    private static boolean isAdmin(Authentication authentication) {
         return authentication.getAuthorities().stream()
                 .map(GrantedAuthority::getAuthority)
-                .anyMatch("ROLE_RESTRICTED"::equals);
+                .anyMatch("ROLE_ADMIN"::equals);
     }
 
     @Transactional
