@@ -50,27 +50,35 @@ public class IncidentController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    @PreAuthorize("hasRole('ADMIN')")
     public IncidentResponse create(Authentication authentication, @Valid @RequestBody IncidentRequest request) {
-        return incidentService.create(request, authentication.getName());
+        return incidentService.create(authentication, request);
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
-    public IncidentResponse update(@PathVariable Long id, @Valid @RequestBody IncidentRequest request) {
-        return incidentService.update(id, request);
+    public IncidentResponse update(Authentication authentication, @PathVariable Long id,
+                                    @Valid @RequestBody IncidentRequest request) {
+        return incidentService.update(authentication, id, request);
     }
 
     @PostMapping("/{id}/start")
-    @PreAuthorize("hasRole('ADMIN')")
-    public IncidentResponse start(@PathVariable Long id) {
-        return incidentService.start(id);
+    public IncidentResponse start(Authentication authentication, @PathVariable Long id) {
+        return incidentService.start(authentication, id);
     }
 
     @PostMapping("/{id}/end")
-    @PreAuthorize("hasRole('ADMIN')")
-    public IncidentResponse end(@PathVariable Long id) {
-        return incidentService.end(id);
+    public IncidentResponse end(Authentication authentication, @PathVariable Long id) {
+        return incidentService.end(authentication, id);
+    }
+
+    @GetMapping("/{id}/permissions")
+    public List<IncidentPermissionGrantResponse> findPermissions(Authentication authentication, @PathVariable Long id) {
+        return incidentService.findPermissions(authentication, id);
+    }
+
+    @PutMapping("/{id}/permissions")
+    public List<IncidentPermissionGrantResponse> updatePermissions(Authentication authentication, @PathVariable Long id,
+                                                                      @Valid @RequestBody IncidentPermissionsRequest request) {
+        return incidentService.updatePermissions(authentication, id, request);
     }
 
     @GetMapping("/{id}/logs")
@@ -97,10 +105,10 @@ public class IncidentController {
 
     @PostMapping("/{id}/operator-checkins")
     @ResponseStatus(HttpStatus.CREATED)
-    @PreAuthorize("hasRole('ADMIN')")
-    public OperatorCheckInResponse checkInOperator(@PathVariable Long id,
+    public OperatorCheckInResponse checkInOperator(Authentication authentication, @PathVariable Long id,
                                                      @Valid @RequestBody OperatorCheckInRequest request) {
-        return operatorCheckInService.checkIn(id, request);
+        incidentService.requireEditAccess(authentication, id);
+        return operatorCheckInService.checkIn(authentication, id, request);
     }
 
     @PostMapping("/{id}/operator-checkins/{checkInId}/checkout")
@@ -116,13 +124,14 @@ public class IncidentController {
 
     @PostMapping("/{id}/resource-checkins")
     @ResponseStatus(HttpStatus.CREATED)
-    public ResourceCheckInResponse checkInResource(@PathVariable Long id,
+    public ResourceCheckInResponse checkInResource(Authentication authentication, @PathVariable Long id,
                                                      @Valid @RequestBody ResourceCheckInRequest request) {
-        return resourceCheckInService.checkIn(id, request);
+        return resourceCheckInService.checkIn(authentication, id, request);
     }
 
     @PostMapping("/{id}/resource-checkins/{checkInId}/checkout")
-    public ResourceCheckInResponse checkOutResource(@PathVariable Long id, @PathVariable Long checkInId) {
-        return resourceCheckInService.checkOut(id, checkInId);
+    public ResourceCheckInResponse checkOutResource(Authentication authentication, @PathVariable Long id,
+                                                       @PathVariable Long checkInId) {
+        return resourceCheckInService.checkOut(authentication, id, checkInId);
     }
 }

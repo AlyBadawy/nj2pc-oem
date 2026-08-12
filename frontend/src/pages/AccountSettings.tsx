@@ -3,17 +3,13 @@ import { useMutation, useQuery } from '@tanstack/react-query'
 import { KeyRound } from 'lucide-react'
 import { toast } from 'sonner'
 import { api } from '@/lib/api'
+import { permissionLabels } from '@/lib/permissions'
 import type { Operator } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-
-const permissionLabels: Record<string, string> = {
-  OPERATOR_LIST: 'List Operators',
-  OPERATOR_MANAGE_PERMISSIONS: 'Manage Permissions',
-}
 
 function Field({ label, value }: { label: string; value: string }) {
   return (

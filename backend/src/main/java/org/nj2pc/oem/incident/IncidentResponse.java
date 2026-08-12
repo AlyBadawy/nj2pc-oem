@@ -13,15 +13,17 @@ public record IncidentResponse(
         Instant actualEndTime,
         String description,
         Instant createdAt,
-        String createdByCallsign
+        String createdByCallsign,
+        boolean canEdit
 ) {
-    public static IncidentResponse from(Incident i) {
+    public static IncidentResponse from(Incident i, boolean canEdit) {
         return new IncidentResponse(
                 i.getId(), i.getName(), i.getLocation(), i.getStatus(),
                 i.getPlannedStartTime(), i.getPlannedEndTime(),
                 i.getActualStartTime(), i.getActualEndTime(),
                 i.getDescription(), i.getCreatedAt(),
-                i.getCreatedBy() != null ? i.getCreatedBy().getCallsign() : null
+                i.getCreatedBy() != null ? i.getCreatedBy().getCallsign() : null,
+                canEdit
         );
     }
 }

@@ -1,8 +1,13 @@
 package org.nj2pc.oem.resource;
 
+import org.nj2pc.oem.auditlog.AuditLogService;
+import org.nj2pc.oem.auditlog.EntityType;
 import org.nj2pc.oem.common.ApiException;
 import org.nj2pc.oem.operator.Operator;
 import org.nj2pc.oem.operator.OperatorRepository;
+import org.nj2pc.oem.operator.Permission;
+import org.nj2pc.oem.operator.PermissionGuard;
+import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -14,13 +19,19 @@ public class ResourceService {
     private final ResourceRepository resourceRepository;
     private final ResourceTypeRepository resourceTypeRepository;
     private final OperatorRepository operatorRepository;
+    private final PermissionGuard permissionGuard;
+    private final AuditLogService auditLogService;
 
     public ResourceService(ResourceRepository resourceRepository,
                             ResourceTypeRepository resourceTypeRepository,
-                            OperatorRepository operatorRepository) {
+                            OperatorRepository operatorRepository,
+                            PermissionGuard permissionGuard,
+                            AuditLogService auditLogService) {
         this.resourceRepository = resourceRepository;
         this.resourceTypeRepository = resourceTypeRepository;
         this.operatorRepository = operatorRepository;
+        this.permissionGuard = permissionGuard;
+        this.auditLogService = auditLogService;
     }
 
     @Transactional(readOnly = true)
@@ -34,25 +45,44 @@ public class ResourceService {
     }
 
     @Transactional
-    public ResourceResponse create(ResourceRequest request) {
+    public ResourceResponse create(Authentication authentication, ResourceRequest request) {
+        Operator caller = permissionGuard.requireCaller(authentication);
         Resource resource = new Resource();
-        applyRequest(resource, request);
-        return ResourceResponse.from(resourceRepository.save(resource));
+        applyRequest(resource, request, caller);
+        resource = resourceRepository.save(resource);
+        auditLogService.record(EntityType.RESOURCE, resource.getId(), "CREATE",
+                "Created resource " + resource.getIdentifier(), authentication.getName());
+        return ResourceResponse.from(resource);
     }
 
     @Transactional
-    public ResourceResponse update(Long id, ResourceRequest request) {
+    public ResourceResponse update(Authentication authentication, Long id, ResourceRequest request) {
         Resource resource = getResourceOrThrow(id);
-        applyRequest(resource, request);
-        return ResourceResponse.from(resourceRepository.save(resource));
+        requireManage(authentication, resource);
+        Operator caller = permissionGuard.requireCaller(authentication);
+        applyRequest(resource, request, caller);
+        resource = resourceRepository.save(resource);
+        auditLogService.record(EntityType.RESOURCE, resource.getId(), "UPDATE",
+                "Updated resource " + resource.getIdentifier(), authentication.getName());
+        return ResourceResponse.from(resource);
     }
 
     @Transactional
-    public void delete(Long id) {
-        if (!resourceRepository.existsById(id)) {
-            throw ApiException.notFound("Resource not found: " + id);
-        }
+    public void delete(Authentication authentication, Long id) {
+        Resource resource = getResourceOrThrow(id);
+        requireManage(authentication, resource);
         resourceRepository.deleteById(id);
+        auditLogService.record(EntityType.RESOURCE, id, "DELETE",
+                "Deleted resource " + resource.getIdentifier(), authentication.getName());
+    }
+
+    private void requireManage(Authentication authentication, Resource resource) {
+        if (resource.getOwner() != null) {
+            permissionGuard.requireSelfOrPermission(authentication, resource.getOwner().getId(),
+                    Permission.RESOURCE_MANAGE_ALL);
+        } else {
+            permissionGuard.require(authentication, Permission.RESOURCE_MANAGE_ALL);
+        }
     }
 
     private Resource getResourceOrThrow(Long id) {
@@ -60,13 +90,19 @@ public class ResourceService {
                 .orElseThrow(() -> ApiException.notFound("Resource not found: " + id));
     }
 
-    private void applyRequest(Resource resource, ResourceRequest request) {
+    private void applyRequest(Resource resource, ResourceRequest request, Operator caller) {
         ResourceType type = resourceTypeRepository.findById(request.resourceTypeId())
                 .orElseThrow(() -> ApiException.notFound("Resource type not found: " + request.resourceTypeId()));
         resource.setType(type);
         resource.setIdentifier(request.identifier());
         resource.setSerialNumber(request.serialNumber());
         resource.setNotes(request.notes());
+
+        boolean canAssignAnyOwner = caller.isAdmin() || caller.getPermissions().contains(Permission.RESOURCE_MANAGE_ALL);
+        if (!canAssignAnyOwner) {
+            resource.setOwner(caller);
+            return;
+        }
 
         if (request.ownerId() != null) {
             Operator owner = operatorRepository.findById(request.ownerId())

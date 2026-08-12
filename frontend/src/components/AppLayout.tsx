@@ -1,5 +1,17 @@
 import { NavLink, Outlet } from 'react-router-dom'
-import { Radio, Users, UserPlus, User, LogOut } from 'lucide-react'
+import {
+  Radio,
+  User,
+  Boxes,
+  Car,
+  Siren,
+  FilePlus2,
+  Users,
+  UserPlus,
+  Settings2,
+  ScrollText,
+  LogOut,
+} from 'lucide-react'
 import { hasPermission, useAuth } from '@/lib/auth-context'
 import { Button } from '@/components/ui/button'
 import {
@@ -12,14 +24,40 @@ import {
 } from '@/components/ui/dropdown-menu'
 import { cn } from '@/lib/utils'
 
+type NavItem = { to: string; label: string; icon: typeof User }
+
 export function AppLayout() {
   const { user, logout } = useAuth()
 
-  const navItems = [
+  const mySpaceItems: NavItem[] = [
     { to: '/', label: 'Account Settings', icon: User },
-    ...(hasPermission(user, 'OPERATOR_LIST') ? [{ to: '/operators', label: 'Operators', icon: Users }] : []),
-    ...(user?.admin ? [{ to: '/operators/new', label: 'Register Operator', icon: UserPlus }] : []),
+    { to: '/resources', label: 'Resources', icon: Boxes },
+    { to: '/vehicles', label: 'Vehicles', icon: Car },
   ]
+
+  const operationsItems: NavItem[] = [
+    { to: '/incidents', label: 'Incidents', icon: Siren },
+    ...(hasPermission(user, 'INCIDENT_CREATE')
+      ? [{ to: '/incidents/new', label: 'Create Incident', icon: FilePlus2 }]
+      : []),
+    ...(hasPermission(user, 'OPERATOR_LIST') ? [{ to: '/operators', label: 'Operators', icon: Users }] : []),
+    ...(hasPermission(user, 'OPERATOR_CREATE')
+      ? [{ to: '/operators/new', label: 'Register Operator', icon: UserPlus }]
+      : []),
+  ]
+
+  const adminItems: NavItem[] = [
+    ...(hasPermission(user, 'RESOURCE_TYPE_MANAGE')
+      ? [{ to: '/resource-types', label: 'Resource Types', icon: Settings2 }]
+      : []),
+    ...(hasPermission(user, 'LOG_VIEW') ? [{ to: '/audit-log', label: 'Audit Log', icon: ScrollText }] : []),
+  ]
+
+  const navGroups = [
+    { heading: 'My Space', items: mySpaceItems },
+    { heading: 'Operations', items: operationsItems },
+    { heading: 'Administration', items: adminItems },
+  ].filter((group) => group.items.length > 0)
 
   return (
     <div className="min-h-svh grid grid-cols-[220px_1fr]">
@@ -32,23 +70,32 @@ export function AppLayout() {
           </div>
         </div>
         <nav className="flex-1 px-2 py-3 flex flex-col gap-1 overflow-y-auto">
-          {navItems.map(({ to, label, icon: Icon }) => (
-            <NavLink
-              key={to}
-              to={to}
-              end={to === '/'}
-              className={({ isActive }) =>
-                cn(
-                  'flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors',
-                  isActive
-                    ? 'bg-sidebar-accent text-sidebar-accent-foreground'
-                    : 'text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
-                )
-              }
-            >
-              <Icon className="size-4" />
-              {label}
-            </NavLink>
+          {navGroups.map((group, index) => (
+            <div key={group.heading} className={cn('flex flex-col gap-1', index > 0 && 'pt-3 mt-2 border-t')}>
+              {index > 0 && (
+                <div className="px-3 pb-1 text-xs font-semibold uppercase tracking-wide text-sidebar-foreground/50">
+                  {group.heading}
+                </div>
+              )}
+              {group.items.map(({ to, label, icon: Icon }) => (
+                <NavLink
+                  key={to}
+                  to={to}
+                  end={to === '/'}
+                  className={({ isActive }) =>
+                    cn(
+                      'flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors',
+                      isActive
+                        ? 'bg-sidebar-accent text-sidebar-accent-foreground'
+                        : 'text-sidebar-foreground/80 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
+                    )
+                  }
+                >
+                  <Icon className="size-4" />
+                  {label}
+                </NavLink>
+              ))}
+            </div>
           ))}
         </nav>
       </aside>

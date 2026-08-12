@@ -12,21 +12,36 @@ interface AuthUser {
 interface AuthContextValue {
   user: AuthUser | null
   login: (callsign: string, password: string) => Promise<void>
-  logout: () => void
+  logout: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextValue | undefined>(undefined)
 
 const USER_STORAGE_KEY = 'nj2pc-oem-user'
 
+function isValidStoredUser(value: unknown): value is AuthUser {
+  if (typeof value !== 'object' || value === null) return false
+  const candidate = value as Partial<AuthUser>
+  return (
+    typeof candidate.callsign === 'string' &&
+    typeof candidate.name === 'string' &&
+    typeof candidate.admin === 'boolean' &&
+    Array.isArray(candidate.permissions)
+  )
+}
+
 function loadStoredUser(): AuthUser | null {
   const raw = localStorage.getItem(USER_STORAGE_KEY)
   if (!raw) return null
   try {
-    return JSON.parse(raw) as AuthUser
+    const parsed = JSON.parse(raw)
+    if (isValidStoredUser(parsed)) return parsed
   } catch {
-    return null
+    // fall through to clear the corrupt entry below
   }
+  localStorage.removeItem(USER_STORAGE_KEY)
+  localStorage.removeItem(TOKEN_STORAGE_KEY)
+  return null
 }
 
 export function AuthProvider({ children }: { children: ReactNode }) {
@@ -45,7 +60,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setUser(authUser)
   }
 
-  function logout() {
+  async function logout() {
+    try {
+      await api.post('/api/auth/logout')
+    } catch {
+      // best-effort — still clear local session even if the request fails
+    }
     localStorage.removeItem(TOKEN_STORAGE_KEY)
     localStorage.removeItem(USER_STORAGE_KEY)
     setUser(null)

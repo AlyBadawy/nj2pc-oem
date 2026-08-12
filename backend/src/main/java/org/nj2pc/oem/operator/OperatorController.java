@@ -30,15 +30,15 @@ public class OperatorController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    @PreAuthorize("hasRole('ADMIN')")
     public OperatorResponse create(Authentication authentication, @Valid @RequestBody OperatorRequest request) {
-        return operatorService.create(request, authentication.getName());
+        return operatorService.create(authentication, request);
     }
 
     @PutMapping("/{id}")
     @PreAuthorize("hasRole('ADMIN')")
-    public OperatorResponse update(@PathVariable Long id, @Valid @RequestBody OperatorRequest request) {
-        return operatorService.update(id, request);
+    public OperatorResponse update(Authentication authentication, @PathVariable Long id,
+                                    @Valid @RequestBody OperatorRequest request) {
+        return operatorService.update(authentication, id, request);
     }
 
     @PutMapping("/{id}/permissions")

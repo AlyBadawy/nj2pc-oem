@@ -2,7 +2,7 @@ package org.nj2pc.oem.resource;
 
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
-import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -29,19 +29,19 @@ public class ResourceController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public ResourceResponse create(@Valid @RequestBody ResourceRequest request) {
-        return resourceService.create(request);
+    public ResourceResponse create(Authentication authentication, @Valid @RequestBody ResourceRequest request) {
+        return resourceService.create(authentication, request);
     }
 
     @PutMapping("/{id}")
-    public ResourceResponse update(@PathVariable Long id, @Valid @RequestBody ResourceRequest request) {
-        return resourceService.update(id, request);
+    public ResourceResponse update(Authentication authentication, @PathVariable Long id,
+                                    @Valid @RequestBody ResourceRequest request) {
+        return resourceService.update(authentication, id, request);
     }
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    @PreAuthorize("hasRole('ADMIN')")
-    public void delete(@PathVariable Long id) {
-        resourceService.delete(id);
+    public void delete(Authentication authentication, @PathVariable Long id) {
+        resourceService.delete(authentication, id);
     }
 }

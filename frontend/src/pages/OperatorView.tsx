@@ -4,6 +4,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { Pencil } from 'lucide-react'
 import { api } from '@/lib/api'
 import { hasPermission, useAuth } from '@/lib/auth-context'
+import { permissionLabels } from '@/lib/permissions'
 import type { Operator } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -16,11 +17,6 @@ function Field({ label, value }: { label: string; value: string }) {
       <div className="text-sm font-medium">{value || '—'}</div>
     </div>
   )
-}
-
-const permissionLabels: Record<string, string> = {
-  OPERATOR_LIST: 'List Operators',
-  OPERATOR_MANAGE_PERMISSIONS: 'Manage Permissions',
 }
 
 export function OperatorView() {
@@ -53,12 +49,14 @@ export function OperatorView() {
           </h1>
           <p className="text-muted-foreground text-sm">Operator profile.</p>
         </div>
-        {isAdmin && (
-          <Button onClick={() => navigate(`/operators/${id}/edit`)}>
-            <Pencil className="size-4" />
-            Edit
-          </Button>
-        )}
+        <Button
+          disabled={!isAdmin}
+          title={isAdmin ? 'Edit operator' : 'Admin only'}
+          onClick={() => navigate(`/operators/${id}/edit`)}
+        >
+          <Pencil className="size-4" />
+          Edit
+        </Button>
       </div>
 
       <Card>

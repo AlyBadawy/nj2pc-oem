@@ -5,6 +5,7 @@ import { Pencil, Trash2, ShieldCheck } from 'lucide-react'
 import { toast } from 'sonner'
 import { api } from '@/lib/api'
 import { hasPermission, useAuth } from '@/lib/auth-context'
+import { permissionCatalog, permissionLabels } from '@/lib/permissions'
 import type { Operator, Permission } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -18,11 +19,6 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog'
-
-const permissionOptions: { value: Permission; label: string }[] = [
-  { value: 'OPERATOR_LIST', label: 'List Operators' },
-  { value: 'OPERATOR_MANAGE_PERMISSIONS', label: 'Manage Permissions' },
-]
 
 export function Operators() {
   const { user } = useAuth()
@@ -93,7 +89,7 @@ export function Operators() {
                 <TableHead>Contact</TableHead>
                 <TableHead>Status</TableHead>
                 <TableHead>Permissions</TableHead>
-                {(isAdmin || canManagePermissions) && <TableHead className="text-right">Actions</TableHead>}
+                <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -116,36 +112,42 @@ export function Operators() {
                     {op.admin && <Badge>Admin</Badge>}
                     {op.permissions.map((p) => (
                       <Badge key={p} variant="secondary">
-                        {permissionOptions.find((o) => o.value === p)?.label ?? p}
+                        {permissionLabels[p] ?? p}
                       </Badge>
                     ))}
                     {!op.admin && op.permissions.length === 0 && (
                       <span className="text-muted-foreground text-sm">None</span>
                     )}
                   </TableCell>
-                  {(isAdmin || canManagePermissions) && (
-                    <TableCell className="text-right space-x-1" onClick={(e) => e.stopPropagation()}>
-                      {canManagePermissions && (
-                        <Button variant="ghost" size="icon-sm" onClick={() => openPermissions(op)}>
-                          <ShieldCheck className="size-4" />
-                        </Button>
-                      )}
-                      {isAdmin && (
-                        <>
-                          <Button
-                            variant="ghost"
-                            size="icon-sm"
-                            onClick={() => navigate(`/operators/${op.id}/edit`)}
-                          >
-                            <Pencil className="size-4" />
-                          </Button>
-                          <Button variant="ghost" size="icon-sm" onClick={() => deleteMutation.mutate(op.id)}>
-                            <Trash2 className="size-4" />
-                          </Button>
-                        </>
-                      )}
-                    </TableCell>
-                  )}
+                  <TableCell className="text-right space-x-1" onClick={(e) => e.stopPropagation()}>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      disabled={!canManagePermissions}
+                      title={canManagePermissions ? 'Manage permissions' : 'Requires Manage Permissions'}
+                      onClick={() => openPermissions(op)}
+                    >
+                      <ShieldCheck className="size-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      disabled={!isAdmin}
+                      title={isAdmin ? 'Edit operator' : 'Admin only'}
+                      onClick={() => navigate(`/operators/${op.id}/edit`)}
+                    >
+                      <Pencil className="size-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="icon-sm"
+                      disabled={!isAdmin}
+                      title={isAdmin ? 'Delete operator' : 'Admin only'}
+                      onClick={() => deleteMutation.mutate(op.id)}
+                    >
+                      <Trash2 className="size-4" />
+                    </Button>
+                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -160,7 +162,7 @@ export function Operators() {
             <DialogDescription>{permissionsTarget?.callsign}</DialogDescription>
           </DialogHeader>
           <div className="flex flex-col gap-2">
-            {permissionOptions.map((option) => (
+            {permissionCatalog.map((option) => (
               <label key={option.value} className="flex items-center gap-2 text-sm">
                 <input
                   type="checkbox"

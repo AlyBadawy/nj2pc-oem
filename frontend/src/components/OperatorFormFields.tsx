@@ -1,20 +1,12 @@
 import { Plus, X, Loader2 } from 'lucide-react'
 import type { OperatorFormState } from '@/lib/operatorForm'
-import type { OperatorStatus, Permission } from '@/lib/types'
+import type { OperatorStatus } from '@/lib/types'
+import { permissionCatalog } from '@/lib/permissions'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-
-const permissionOptions: { value: Permission; label: string; description: string }[] = [
-  { value: 'OPERATOR_LIST', label: 'List Operators', description: 'View the operator roster.' },
-  {
-    value: 'OPERATOR_MANAGE_PERMISSIONS',
-    label: 'Manage Permissions',
-    description: "Grant or revoke other operators' permissions.",
-  },
-]
 
 function SectionHeading({ children }: { children: string }) {
   return (
@@ -232,7 +224,7 @@ export function OperatorFormFields({
 
       <div className="flex flex-col gap-2">
         <Label>Permissions</Label>
-        {permissionOptions.map((option) => (
+        {permissionCatalog.map((option) => (
           <label key={option.value} className="flex items-start gap-2 text-sm">
             <input
               type="checkbox"

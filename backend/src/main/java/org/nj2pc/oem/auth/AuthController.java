@@ -26,6 +26,12 @@ public class AuthController {
         return authService.me(authentication.getName());
     }
 
+    @PostMapping("/logout")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void logout(Authentication authentication) {
+        authService.logout(authentication.getName());
+    }
+
     @PostMapping("/change-password")
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void changePassword(Authentication authentication, @Valid @RequestBody ChangePasswordRequest request) {

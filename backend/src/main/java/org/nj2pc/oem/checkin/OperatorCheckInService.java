@@ -1,11 +1,17 @@
 package org.nj2pc.oem.checkin;
 
+import org.nj2pc.oem.auditlog.AuditLogService;
+import org.nj2pc.oem.auditlog.EntityType;
 import org.nj2pc.oem.common.ApiException;
 import org.nj2pc.oem.incident.Incident;
+import org.nj2pc.oem.incident.IncidentPermission;
+import org.nj2pc.oem.incident.IncidentPermissionGrantRepository;
 import org.nj2pc.oem.incident.IncidentRepository;
 import org.nj2pc.oem.incident.IncidentStatus;
 import org.nj2pc.oem.operator.Operator;
 import org.nj2pc.oem.operator.OperatorRepository;
+import org.nj2pc.oem.operator.Permission;
+import org.nj2pc.oem.operator.PermissionGuard;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.core.GrantedAuthority;
 import org.springframework.stereotype.Service;
@@ -21,15 +27,24 @@ public class OperatorCheckInService {
     private final IncidentRepository incidentRepository;
     private final OperatorRepository operatorRepository;
     private final OperatorRoleRepository operatorRoleRepository;
+    private final AuditLogService auditLogService;
+    private final IncidentPermissionGrantRepository incidentPermissionGrantRepository;
+    private final PermissionGuard permissionGuard;
 
     public OperatorCheckInService(OperatorCheckInRepository operatorCheckInRepository,
                                    IncidentRepository incidentRepository,
                                    OperatorRepository operatorRepository,
-                                   OperatorRoleRepository operatorRoleRepository) {
+                                   OperatorRoleRepository operatorRoleRepository,
+                                   AuditLogService auditLogService,
+                                   IncidentPermissionGrantRepository incidentPermissionGrantRepository,
+                                   PermissionGuard permissionGuard) {
         this.operatorCheckInRepository = operatorCheckInRepository;
         this.incidentRepository = incidentRepository;
         this.operatorRepository = operatorRepository;
         this.operatorRoleRepository = operatorRoleRepository;
+        this.auditLogService = auditLogService;
+        this.incidentPermissionGrantRepository = incidentPermissionGrantRepository;
+        this.permissionGuard = permissionGuard;
     }
 
     @Transactional(readOnly = true)
@@ -48,7 +63,7 @@ public class OperatorCheckInService {
     }
 
     @Transactional
-    public OperatorCheckInResponse checkIn(Long incidentId, OperatorCheckInRequest request) {
+    public OperatorCheckInResponse checkIn(Authentication authentication, Long incidentId, OperatorCheckInRequest request) {
         Incident incident = incidentRepository.findById(incidentId)
                 .orElseThrow(() -> ApiException.notFound("Incident not found: " + incidentId));
         if (incident.getStatus() == IncidentStatus.CLOSED) {
@@ -73,13 +88,16 @@ public class OperatorCheckInService {
         }
         checkIn.setPost(request.post());
         checkIn.setNotes(request.notes());
-        return OperatorCheckInResponse.from(operatorCheckInRepository.save(checkIn));
+        OperatorCheckInResponse response = OperatorCheckInResponse.from(operatorCheckInRepository.save(checkIn));
+        auditLogService.record(EntityType.INCIDENT, incidentId, "CHECK_IN",
+                "Checked in operator " + operator.getCallsign(), authentication.getName());
+        return response;
     }
 
     @Transactional
     public OperatorCheckInResponse checkOut(Authentication authentication, Long incidentId, Long checkInId) {
         OperatorCheckIn checkIn = getCheckInOrThrow(incidentId, checkInId);
-        if (!isAdmin(authentication)) {
+        if (!canEditIncident(authentication, incidentId)) {
             Operator caller = operatorRepository.findByCallsignIgnoreCase(authentication.getName())
                     .orElseThrow(() -> ApiException.forbidden("You may only check yourself out"));
             if (!checkIn.getOperator().getId().equals(caller.getId())) {
@@ -90,13 +108,25 @@ public class OperatorCheckInService {
             throw ApiException.badRequest("Already checked out");
         }
         checkIn.setCheckedOutAt(Instant.now());
-        return OperatorCheckInResponse.from(operatorCheckInRepository.save(checkIn));
+        OperatorCheckInResponse response = OperatorCheckInResponse.from(operatorCheckInRepository.save(checkIn));
+        auditLogService.record(EntityType.INCIDENT, incidentId, "CHECK_OUT",
+                "Checked out operator " + checkIn.getOperator().getCallsign(), authentication.getName());
+        return response;
     }
 
     private static boolean isAdmin(Authentication authentication) {
         return authentication.getAuthorities().stream()
                 .map(GrantedAuthority::getAuthority)
                 .anyMatch("ROLE_ADMIN"::equals);
+    }
+
+    private boolean canEditIncident(Authentication authentication, Long incidentId) {
+        if (isAdmin(authentication) || permissionGuard.has(authentication, Permission.INCIDENT_EDIT_ALL)) {
+            return true;
+        }
+        Operator caller = operatorRepository.findByCallsignIgnoreCase(authentication.getName()).orElse(null);
+        return caller != null && incidentPermissionGrantRepository
+                .existsByIncidentIdAndOperatorIdAndPermission(incidentId, caller.getId(), IncidentPermission.EDIT);
     }
 
     @Transactional

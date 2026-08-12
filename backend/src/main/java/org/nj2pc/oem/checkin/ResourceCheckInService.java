@@ -1,11 +1,14 @@
 package org.nj2pc.oem.checkin;
 
+import org.nj2pc.oem.auditlog.AuditLogService;
+import org.nj2pc.oem.auditlog.EntityType;
 import org.nj2pc.oem.common.ApiException;
 import org.nj2pc.oem.incident.Incident;
 import org.nj2pc.oem.incident.IncidentRepository;
 import org.nj2pc.oem.incident.IncidentStatus;
 import org.nj2pc.oem.resource.Resource;
 import org.nj2pc.oem.resource.ResourceRepository;
+import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -18,13 +21,16 @@ public class ResourceCheckInService {
     private final ResourceCheckInRepository resourceCheckInRepository;
     private final IncidentRepository incidentRepository;
     private final ResourceRepository resourceRepository;
+    private final AuditLogService auditLogService;
 
     public ResourceCheckInService(ResourceCheckInRepository resourceCheckInRepository,
                                    IncidentRepository incidentRepository,
-                                   ResourceRepository resourceRepository) {
+                                   ResourceRepository resourceRepository,
+                                   AuditLogService auditLogService) {
         this.resourceCheckInRepository = resourceCheckInRepository;
         this.incidentRepository = incidentRepository;
         this.resourceRepository = resourceRepository;
+        this.auditLogService = auditLogService;
     }
 
     @Transactional(readOnly = true)
@@ -37,7 +43,7 @@ public class ResourceCheckInService {
     }
 
     @Transactional
-    public ResourceCheckInResponse checkIn(Long incidentId, ResourceCheckInRequest request) {
+    public ResourceCheckInResponse checkIn(Authentication authentication, Long incidentId, ResourceCheckInRequest request) {
         Incident incident = incidentRepository.findById(incidentId)
                 .orElseThrow(() -> ApiException.notFound("Incident not found: " + incidentId));
         if (incident.getStatus() == IncidentStatus.CLOSED) {
@@ -57,17 +63,21 @@ public class ResourceCheckInService {
         checkIn.setCheckedInAt(Instant.now());
         checkIn.setNotes(request.notes());
         ResourceCheckIn saved = resourceCheckInRepository.save(checkIn);
+        auditLogService.record(EntityType.INCIDENT, incidentId, "CHECK_IN",
+                "Checked in resource " + resource.getIdentifier(), authentication.getName());
         return ResourceCheckInResponse.from(saved);
     }
 
     @Transactional
-    public ResourceCheckInResponse checkOut(Long incidentId, Long checkInId) {
+    public ResourceCheckInResponse checkOut(Authentication authentication, Long incidentId, Long checkInId) {
         ResourceCheckIn checkIn = getCheckInOrThrow(incidentId, checkInId);
         if (checkIn.getCheckedOutAt() != null) {
             throw ApiException.badRequest("Already checked out");
         }
         checkIn.setCheckedOutAt(Instant.now());
         ResourceCheckIn saved = resourceCheckInRepository.save(checkIn);
+        auditLogService.record(EntityType.INCIDENT, incidentId, "CHECK_OUT",
+                "Checked out resource " + checkIn.getResource().getIdentifier(), authentication.getName());
         return ResourceCheckInResponse.from(saved);
     }
 

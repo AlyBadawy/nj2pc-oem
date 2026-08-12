@@ -3,7 +3,7 @@ import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { api } from '@/lib/api'
-import { useAuth } from '@/lib/auth-context'
+import { hasPermission, useAuth } from '@/lib/auth-context'
 import { emptyOperatorForm, type OperatorFormState } from '@/lib/operatorForm'
 import { formatCallookLicenseClass, formatCallookName, lookupCallsign } from '@/lib/callook'
 import { OperatorFormFields } from '@/components/OperatorFormFields'
@@ -11,17 +11,17 @@ import { Button } from '@/components/ui/button'
 
 export function OperatorCreate() {
   const { user } = useAuth()
-  const isAdmin = user?.admin ?? false
+  const canCreate = hasPermission(user, 'OPERATOR_CREATE')
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [form, setForm] = useState<OperatorFormState>(emptyOperatorForm)
   const [lookupLoading, setLookupLoading] = useState(false)
 
   useEffect(() => {
-    if (!isAdmin) {
-      navigate('/operators', { replace: true })
+    if (!canCreate) {
+      navigate('/', { replace: true })
     }
-  }, [isAdmin, navigate])
+  }, [canCreate, navigate])
 
   const createMutation = useMutation({
     mutationFn: async () => {
@@ -78,7 +78,7 @@ export function OperatorCreate() {
     createMutation.mutate()
   }
 
-  if (!isAdmin) return null
+  if (!canCreate) return null
 
   return (
     <div className="flex flex-col gap-6">

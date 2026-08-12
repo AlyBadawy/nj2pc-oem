@@ -1,5 +1,7 @@
 package org.nj2pc.oem.operator;
 
+import org.nj2pc.oem.auditlog.AuditLogService;
+import org.nj2pc.oem.auditlog.EntityType;
 import org.nj2pc.oem.common.ApiException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -14,26 +16,32 @@ public class OperatorService {
 
     private final OperatorRepository operatorRepository;
     private final PasswordEncoder passwordEncoder;
+    private final PermissionGuard permissionGuard;
+    private final AuditLogService auditLogService;
 
-    public OperatorService(OperatorRepository operatorRepository, PasswordEncoder passwordEncoder) {
+    public OperatorService(OperatorRepository operatorRepository, PasswordEncoder passwordEncoder,
+                            PermissionGuard permissionGuard, AuditLogService auditLogService) {
         this.operatorRepository = operatorRepository;
         this.passwordEncoder = passwordEncoder;
+        this.permissionGuard = permissionGuard;
+        this.auditLogService = auditLogService;
     }
 
     @Transactional(readOnly = true)
     public List<OperatorResponse> findAll(Authentication authentication) {
-        requirePermission(authentication, Permission.OPERATOR_LIST);
+        permissionGuard.require(authentication, Permission.OPERATOR_LIST);
         return operatorRepository.findAll().stream().map(OperatorResponse::from).toList();
     }
 
     @Transactional(readOnly = true)
     public OperatorResponse findById(Authentication authentication, Long id) {
-        requirePermission(authentication, Permission.OPERATOR_LIST);
+        permissionGuard.require(authentication, Permission.OPERATOR_LIST);
         return OperatorResponse.from(getOperatorOrThrow(id));
     }
 
     @Transactional
-    public OperatorResponse create(OperatorRequest request, String creatorCallsign) {
+    public OperatorResponse create(Authentication authentication, OperatorRequest request) {
+        permissionGuard.require(authentication, Permission.OPERATOR_CREATE);
         if (operatorRepository.existsByCallsignIgnoreCase(request.callsign())) {
             throw ApiException.conflict("Callsign already registered: " + request.callsign());
         }
@@ -42,29 +50,38 @@ public class OperatorService {
         }
         Operator operator = new Operator();
         applyRequest(operator, request);
-        if (creatorCallsign != null) {
-            operatorRepository.findByCallsignIgnoreCase(creatorCallsign).ifPresent(operator::setCreatedBy);
-        }
-        return OperatorResponse.from(operatorRepository.save(operator));
+        String creatorCallsign = authentication.getName();
+        operatorRepository.findByCallsignIgnoreCase(creatorCallsign).ifPresent(operator::setCreatedBy);
+        operator = operatorRepository.save(operator);
+        auditLogService.record(EntityType.OPERATOR, operator.getId(), "CREATE",
+                "Registered operator " + operator.getCallsign(), creatorCallsign);
+        return OperatorResponse.from(operator);
     }
 
     @Transactional
-    public OperatorResponse update(Long id, OperatorRequest request) {
+    public OperatorResponse update(Authentication authentication, Long id, OperatorRequest request) {
         Operator operator = getOperatorOrThrow(id);
         if (!operator.getCallsign().equalsIgnoreCase(request.callsign())
                 && operatorRepository.existsByCallsignIgnoreCase(request.callsign())) {
             throw ApiException.conflict("Callsign already registered: " + request.callsign());
         }
         applyRequest(operator, request);
-        return OperatorResponse.from(operatorRepository.save(operator));
+        operator = operatorRepository.save(operator);
+        auditLogService.record(EntityType.OPERATOR, operator.getId(), "UPDATE",
+                "Updated operator " + operator.getCallsign(), authentication.getName());
+        return OperatorResponse.from(operator);
     }
 
     @Transactional
     public OperatorResponse updatePermissions(Authentication authentication, Long id, OperatorPermissionsRequest request) {
-        requirePermission(authentication, Permission.OPERATOR_MANAGE_PERMISSIONS);
+        permissionGuard.require(authentication, Permission.OPERATOR_MANAGE_PERMISSIONS);
         Operator operator = getOperatorOrThrow(id);
         operator.setPermissions(new HashSet<>(request.permissions()));
-        return OperatorResponse.from(operatorRepository.save(operator));
+        operator = operatorRepository.save(operator);
+        auditLogService.record(EntityType.OPERATOR, operator.getId(), "PERMISSION_GRANT",
+                "Set permissions for " + operator.getCallsign() + " to " + operator.getPermissions(),
+                authentication.getName());
+        return OperatorResponse.from(operator);
     }
 
     @Transactional
@@ -101,17 +118,6 @@ public class OperatorService {
         operator.setPermissions(request.permissions() != null ? new HashSet<>(request.permissions()) : new HashSet<>());
         if (request.password() != null && !request.password().isBlank()) {
             operator.setPasswordHash(passwordEncoder.encode(request.password()));
-        }
-    }
-
-    private void requirePermission(Authentication authentication, Permission permission) {
-        Operator caller = operatorRepository.findByCallsignIgnoreCase(authentication.getName())
-                .orElseThrow(() -> ApiException.forbidden("You do not have permission to perform this action"));
-        if (caller.isAdmin()) {
-            return;
-        }
-        if (!caller.getPermissions().contains(permission)) {
-            throw ApiException.forbidden("You do not have permission to perform this action");
         }
     }
 }

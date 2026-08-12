@@ -102,6 +102,13 @@ CREATE TABLE incident_operator_checkins (
     notes               TEXT
 );
 
+CREATE TABLE incident_permission_grants (
+    id          BIGSERIAL PRIMARY KEY,
+    incident_id BIGINT NOT NULL REFERENCES incidents(id) ON DELETE CASCADE,
+    operator_id BIGINT NOT NULL REFERENCES operators(id) ON DELETE CASCADE,
+    permission  VARCHAR(20) NOT NULL
+);
+
 CREATE TABLE incident_resource_checkins (
     id                  BIGSERIAL PRIMARY KEY,
     incident_id         BIGINT NOT NULL REFERENCES incidents(id) ON DELETE CASCADE,
@@ -148,9 +155,24 @@ CREATE TABLE incident_communication_plans (
     PRIMARY KEY (incident_id, communication_plan_id)
 );
 
+CREATE TABLE audit_log_entries (
+    id              BIGSERIAL PRIMARY KEY,
+    entity_type     VARCHAR(30) NOT NULL,
+    entity_id       BIGINT NOT NULL,
+    action          VARCHAR(50) NOT NULL,
+    summary         TEXT NOT NULL,
+    performed_by_id BIGINT REFERENCES operators(id) ON DELETE SET NULL,
+    performed_ip    VARCHAR(45),
+    performed_at    TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 CREATE UNIQUE INDEX uq_operators_callsign_ci ON operators (UPPER(callsign));
 
 CREATE INDEX idx_vehicles_operator_id ON vehicles(operator_id);
+CREATE INDEX idx_audit_log_entity ON audit_log_entries(entity_type, entity_id);
+CREATE INDEX idx_audit_log_performed_at ON audit_log_entries(performed_at DESC);
+CREATE UNIQUE INDEX uq_incident_perm_grants ON incident_permission_grants(incident_id, operator_id, permission);
+CREATE INDEX idx_incident_perm_grants_incident ON incident_permission_grants(incident_id);
 CREATE INDEX idx_incident_logs_incident_id ON incident_logs(incident_id);
 CREATE INDEX idx_op_checkins_incident ON incident_operator_checkins(incident_id);
 CREATE INDEX idx_op_checkins_operator ON incident_operator_checkins(operator_id);
