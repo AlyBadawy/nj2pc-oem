@@ -11,10 +11,19 @@ import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class CommunicationPlanService {
+
+    /** Result of cloning a plan into a new version: the new plan row, plus a map from each old
+     * channel's id to its freshly-cloned counterpart on the new plan (used by
+     * {@link CommunicationChannelService} to keep editing/deleting the "same" channel across the
+     * version bump it now triggers). */
+    record PlanClone(CommunicationPlan plan, Map<Long, CommunicationChannel> channelMapping) {
+    }
 
     private final CommunicationPlanRepository communicationPlanRepository;
     private final CommunicationChannelRepository communicationChannelRepository;
@@ -84,29 +93,31 @@ public class CommunicationPlanService {
     public CommunicationPlanResponse update(Authentication authentication, Long id, CommunicationPlanRequest request) {
         permissionGuard.require(authentication, Permission.COMMS_PLAN_MANAGE);
         CommunicationPlan old = getPlanOrThrow(id);
+        PlanClone clone = cloneAsNewVersion(authentication, old);
+        applyRequest(clone.plan(), request);
+        CommunicationPlan next = communicationPlanRepository.save(clone.plan());
+        return CommunicationPlanResponse.from(next);
+    }
 
+    /** Clones {@code old} into a new, active version (copying every channel), deactivates
+     * {@code old}, and audit-logs the version bump. Any mutation to a plan's channels goes
+     * through this too — the whole plan gets a new version, not just the touched channel. */
+    @Transactional
+    PlanClone cloneAsNewVersion(Authentication authentication, CommunicationPlan old) {
         CommunicationPlan next = new CommunicationPlan();
-        applyRequest(next, request);
+        copyPlanFields(next, old);
         next.setRootPlanId(old.getRootPlanId() != null ? old.getRootPlanId() : old.getId());
         next.setVersion(old.getVersion() + 1);
         next.setActive(true);
         next = communicationPlanRepository.save(next);
 
+        Map<Long, CommunicationChannel> channelMapping = new HashMap<>();
         for (CommunicationChannel oldChannel : communicationChannelRepository.findByPlanIdOrderByChannelNumberAsc(old.getId())) {
             CommunicationChannel newChannel = new CommunicationChannel();
             newChannel.setPlan(next);
-            newChannel.setZoneGroup(oldChannel.getZoneGroup());
-            newChannel.setChannelNumber(oldChannel.getChannelNumber());
-            newChannel.setFunction(oldChannel.getFunction());
-            newChannel.setChannelName(oldChannel.getChannelName());
-            newChannel.setAssignment(oldChannel.getAssignment());
-            newChannel.setRxFrequency(oldChannel.getRxFrequency());
-            newChannel.setRxTone(oldChannel.getRxTone());
-            newChannel.setTxFrequency(oldChannel.getTxFrequency());
-            newChannel.setTxTone(oldChannel.getTxTone());
-            newChannel.setMode(oldChannel.getMode());
-            newChannel.setRemarks(oldChannel.getRemarks());
-            communicationChannelRepository.save(newChannel);
+            copyChannelFields(newChannel, oldChannel);
+            newChannel = communicationChannelRepository.save(newChannel);
+            channelMapping.put(oldChannel.getId(), newChannel);
         }
 
         old.setActive(false);
@@ -114,7 +125,34 @@ public class CommunicationPlanService {
 
         auditLogService.record(EntityType.COMMS_PLAN, next.getId(), "NEW_VERSION",
                 "Created version " + next.getVersion() + " of " + next.getName(), authentication.getName());
-        return CommunicationPlanResponse.from(next);
+        return new PlanClone(next, channelMapping);
+    }
+
+    private void copyPlanFields(CommunicationPlan target, CommunicationPlan source) {
+        target.setName(source.getName());
+        target.setOperationalPeriodStart(source.getOperationalPeriodStart());
+        target.setOperationalPeriodEnd(source.getOperationalPeriodEnd());
+        target.setSpecialInstructions(source.getSpecialInstructions());
+        target.setPreparedByName(source.getPreparedByName());
+        target.setPreparedByCallsign(source.getPreparedByCallsign());
+        target.setPreparedAt(source.getPreparedAt());
+        target.setApprovedByName(source.getApprovedByName());
+        target.setApprovedByCallsign(source.getApprovedByCallsign());
+        target.setApprovedAt(source.getApprovedAt());
+    }
+
+    private void copyChannelFields(CommunicationChannel target, CommunicationChannel source) {
+        target.setZoneGroup(source.getZoneGroup());
+        target.setChannelNumber(source.getChannelNumber());
+        target.setFunction(source.getFunction());
+        target.setChannelName(source.getChannelName());
+        target.setAssignment(source.getAssignment());
+        target.setRxFrequency(source.getRxFrequency());
+        target.setRxTone(source.getRxTone());
+        target.setTxFrequency(source.getTxFrequency());
+        target.setTxTone(source.getTxTone());
+        target.setMode(source.getMode());
+        target.setRemarks(source.getRemarks());
     }
 
     @Transactional

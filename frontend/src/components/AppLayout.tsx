@@ -72,7 +72,7 @@ export function AppLayout() {
         <div className="flex items-center gap-2 px-4 py-4 border-b">
           <Radio className="size-6 text-primary" />
           <div>
-            <div className="font-semibold leading-tight">AuxComms by AL0Y</div>
+            <div className="font-semibold leading-tight">0Y-AuxComs</div>
             <div className="text-xs text-sidebar-foreground/60 leading-tight">Incident Management</div>
           </div>
         </div>

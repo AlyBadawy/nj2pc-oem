@@ -140,7 +140,7 @@ public class Ics205PdfService {
         orgCell.setVerticalAlignment(Element.ALIGN_MIDDLE);
         orgCell.setBorderColor(BLUE_DEEP);
         Paragraph orgText = new Paragraph();
-        orgText.add(new Phrase("AuxComms by AL0Y\n", ORG_FONT));
+        orgText.add(new Phrase("0Y-AuxComs\n", ORG_FONT));
         orgText.add(new Phrase("Emergency Communications", ORG_TAGLINE_FONT));
         orgCell.addElement(orgText);
         table.addCell(orgCell);

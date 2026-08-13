@@ -125,19 +125,22 @@ export function CommsPlanDetail() {
       }
       return api.post(`/api/comms-plans/${id}/channels`, payload)
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['comms-plans', id, 'channels'] })
-      toast.success(editingChannel ? 'Channel updated' : 'Channel added')
+    onSuccess: (response) => {
+      queryClient.invalidateQueries({ queryKey: ['comms-plans'] })
+      toast.success((editingChannel ? 'Channel updated' : 'Channel added') + ' — new version created')
       setChannelDialogOpen(false)
+      navigate(`/comms-plans/${response.data.planId}`)
     },
     onError: () => toast.error('Failed to save channel'),
   })
 
   const deleteChannelMutation = useMutation({
-    mutationFn: async (channelId: number) => api.delete(`/api/comms-plans/${id}/channels/${channelId}`),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['comms-plans', id, 'channels'] })
-      toast.success('Channel removed')
+    mutationFn: async (channelId: number) =>
+      api.delete<{ planId: number }>(`/api/comms-plans/${id}/channels/${channelId}`),
+    onSuccess: (response) => {
+      queryClient.invalidateQueries({ queryKey: ['comms-plans'] })
+      toast.success('Channel removed — new version created')
+      navigate(`/comms-plans/${response.data.planId}`)
     },
     onError: () => toast.error('Failed to remove channel'),
   })
@@ -362,9 +365,9 @@ export function CommsPlanDetail() {
                 )}
                 {channels?.map((channel) => (
                   <TableRow key={channel.id}>
-                    <TableCell>{channel.zoneGroup}</TableCell>
+                    <TableCell className="whitespace-normal break-words">{channel.zoneGroup}</TableCell>
                     <TableCell>{channel.channelNumber}</TableCell>
-                    <TableCell>{channel.function}</TableCell>
+                    <TableCell className="whitespace-normal break-words">{channel.function}</TableCell>
                     <TableCell className="font-medium whitespace-normal break-words">{channel.channelName}</TableCell>
                     <TableCell className="whitespace-normal break-words">{channel.assignment || '—'}</TableCell>
                     <TableCell className="whitespace-normal break-words">

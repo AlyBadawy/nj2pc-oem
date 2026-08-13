@@ -9,6 +9,7 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
+import java.util.Map;
 
 @RestController
 @RequestMapping("/api/comms-plans")
@@ -109,8 +110,7 @@ public class CommunicationPlanController {
     }
 
     @DeleteMapping("/{id}/channels/{channelId}")
-    @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void deleteChannel(Authentication authentication, @PathVariable Long id, @PathVariable Long channelId) {
-        communicationChannelService.delete(authentication, id, channelId);
+    public Map<String, Long> deleteChannel(Authentication authentication, @PathVariable Long id, @PathVariable Long channelId) {
+        return Map.of("planId", communicationChannelService.delete(authentication, id, channelId));
     }
 }

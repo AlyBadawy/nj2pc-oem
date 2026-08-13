@@ -38,13 +38,14 @@ public class CommunicationChannelService {
     @Transactional
     public CommunicationChannelResponse create(Authentication authentication, Long planId, CommunicationChannelRequest request) {
         permissionGuard.require(authentication, Permission.COMMS_PLAN_MANAGE);
-        CommunicationPlan plan = communicationPlanService.getPlanOrThrow(planId);
+        CommunicationPlan oldPlan = communicationPlanService.getPlanOrThrow(planId);
+        CommunicationPlanService.PlanClone clone = communicationPlanService.cloneAsNewVersion(authentication, oldPlan);
         CommunicationChannel channel = new CommunicationChannel();
-        channel.setPlan(plan);
+        channel.setPlan(clone.plan());
         applyRequest(channel, request);
         channel = communicationChannelRepository.save(channel);
-        auditLogService.record(EntityType.COMMS_PLAN, planId, "CHANNEL_ADD",
-                "Added channel " + channel.getChannelName() + " to " + plan.getName(), authentication.getName());
+        auditLogService.record(EntityType.COMMS_PLAN, clone.plan().getId(), "CHANNEL_ADD",
+                "Added channel " + channel.getChannelName() + " to " + clone.plan().getName(), authentication.getName());
         return CommunicationChannelResponse.from(channel);
     }
 
@@ -52,21 +53,26 @@ public class CommunicationChannelService {
     public CommunicationChannelResponse update(Authentication authentication, Long planId, Long channelId,
                                                 CommunicationChannelRequest request) {
         permissionGuard.require(authentication, Permission.COMMS_PLAN_MANAGE);
-        CommunicationChannel channel = getChannelOrThrow(planId, channelId);
+        CommunicationChannel oldChannel = getChannelOrThrow(planId, channelId);
+        CommunicationPlanService.PlanClone clone = communicationPlanService.cloneAsNewVersion(authentication, oldChannel.getPlan());
+        CommunicationChannel channel = clone.channelMapping().get(channelId);
         applyRequest(channel, request);
         channel = communicationChannelRepository.save(channel);
-        auditLogService.record(EntityType.COMMS_PLAN, planId, "CHANNEL_UPDATE",
+        auditLogService.record(EntityType.COMMS_PLAN, clone.plan().getId(), "CHANNEL_UPDATE",
                 "Updated channel " + channel.getChannelName(), authentication.getName());
         return CommunicationChannelResponse.from(channel);
     }
 
     @Transactional
-    public void delete(Authentication authentication, Long planId, Long channelId) {
+    public Long delete(Authentication authentication, Long planId, Long channelId) {
         permissionGuard.require(authentication, Permission.COMMS_PLAN_MANAGE);
-        CommunicationChannel channel = getChannelOrThrow(planId, channelId);
+        CommunicationChannel oldChannel = getChannelOrThrow(planId, channelId);
+        CommunicationPlanService.PlanClone clone = communicationPlanService.cloneAsNewVersion(authentication, oldChannel.getPlan());
+        CommunicationChannel channel = clone.channelMapping().get(channelId);
         communicationChannelRepository.delete(channel);
-        auditLogService.record(EntityType.COMMS_PLAN, planId, "CHANNEL_DELETE",
+        auditLogService.record(EntityType.COMMS_PLAN, clone.plan().getId(), "CHANNEL_DELETE",
                 "Removed channel " + channel.getChannelName(), authentication.getName());
+        return clone.plan().getId();
     }
 
     private CommunicationChannel getChannelOrThrow(Long planId, Long channelId) {
