@@ -16,7 +16,8 @@ export function CommsPlans() {
 
   const { data: plans, isLoading } = useQuery({
     queryKey: ['comms-plans'],
-    queryFn: async () => (await api.get<CommunicationPlan[]>('/api/comms-plans')).data,
+    queryFn: async () =>
+      (await api.get<CommunicationPlan[]>('/api/comms-plans', { params: { active: true } })).data,
   })
 
   return (
@@ -74,6 +75,7 @@ export function CommsPlans() {
                   <TableCell className="font-medium flex items-center gap-2">
                     <RadioIcon className="size-4 text-muted-foreground" />
                     {plan.name}
+                    <Badge variant="outline">v{plan.version}</Badge>
                   </TableCell>
                   <TableCell>
                     {plan.preparedByCallsign

@@ -168,6 +168,8 @@ export function AccountSettings() {
         name: me.name,
         licenseClass: me.licenseClass,
         role: me.currentCheckIn?.roleName ?? null,
+        roleColor: me.currentCheckIn?.roleColor ?? null,
+        roleAccessLevel: me.currentCheckIn?.roleAccessLevel ?? null,
         canViewContact: true,
         phone: me.phone,
         email: me.email,

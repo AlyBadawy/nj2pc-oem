@@ -1,6 +1,6 @@
 import { useEffect } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Boxes, ChevronRight, Lock } from 'lucide-react'
+import { Boxes, ChevronRight, Lock, ShieldCheck, UserCog } from 'lucide-react'
 import { hasPermission, useAuth } from '@/lib/auth-context'
 import { cn } from '@/lib/utils'
 import type { Permission } from '@/lib/types'
@@ -20,6 +20,20 @@ const tiles: SettingsTile[] = [
     description: 'Manage the categories available when logging gear and equipment.',
     icon: Boxes,
     permission: 'RESOURCE_TYPE_MANAGE',
+  },
+  {
+    to: '/operator-roles',
+    title: 'Manage Roles',
+    description: 'Manage operator check-in roles, their credential color, and access level.',
+    icon: UserCog,
+    permission: 'OPERATOR_ROLE_MANAGE',
+  },
+  {
+    to: '/permission-details',
+    title: 'Permission Details',
+    description: 'See what each permission grants, and who currently has it.',
+    icon: ShieldCheck,
+    permission: 'OPERATOR_MANAGE_PERMISSIONS',
   },
 ]
 

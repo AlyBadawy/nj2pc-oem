@@ -17,6 +17,7 @@ import { AllResources } from '@/pages/AllResources'
 import { ResourceCreate } from '@/pages/ResourceCreate'
 import { ResourceEdit } from '@/pages/ResourceEdit'
 import { ResourceTypes } from '@/pages/ResourceTypes'
+import { OperatorRoles } from '@/pages/OperatorRoles'
 import { Vehicles } from '@/pages/Vehicles'
 import { AllVehicles } from '@/pages/AllVehicles'
 import { VehicleCreate } from '@/pages/VehicleCreate'
@@ -26,6 +27,7 @@ import { CommsPlans } from '@/pages/CommsPlans'
 import { CommsPlanCreate } from '@/pages/CommsPlanCreate'
 import { CommsPlanDetail } from '@/pages/CommsPlanDetail'
 import { Settings } from '@/pages/Settings'
+import { PermissionDetails } from '@/pages/PermissionDetails'
 
 function App() {
   return (
@@ -49,6 +51,7 @@ function App() {
             <Route path="all-resources/new" element={<ResourceCreate forOthers />} />
             <Route path="resources/:id/edit" element={<ResourceEdit />} />
             <Route path="resource-types" element={<ResourceTypes />} />
+            <Route path="operator-roles" element={<OperatorRoles />} />
             <Route path="vehicles" element={<Vehicles />} />
             <Route path="all-vehicles" element={<AllVehicles />} />
             <Route path="vehicles/new" element={<VehicleCreate />} />
@@ -59,6 +62,7 @@ function App() {
             <Route path="comms-plans/new" element={<CommsPlanCreate />} />
             <Route path="comms-plans/:id" element={<CommsPlanDetail />} />
             <Route path="settings" element={<Settings />} />
+            <Route path="permission-details" element={<PermissionDetails />} />
           </Route>
         </Route>
       </Routes>

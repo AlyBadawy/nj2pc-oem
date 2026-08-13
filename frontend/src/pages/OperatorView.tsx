@@ -80,6 +80,8 @@ export function OperatorView() {
     name: operator.name,
     licenseClass: operator.licenseClass,
     role: operator.currentCheckIn?.roleName ?? null,
+    roleColor: operator.currentCheckIn?.roleColor ?? null,
+    roleAccessLevel: operator.currentCheckIn?.roleAccessLevel ?? null,
     canViewContact: canViewContact || operator.callsign === user?.callsign,
     phone: operator.phone,
     email: operator.email,

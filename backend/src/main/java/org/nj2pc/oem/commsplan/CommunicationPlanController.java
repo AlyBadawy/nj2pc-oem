@@ -27,9 +27,13 @@ public class CommunicationPlanController {
     }
 
     @GetMapping
-    public List<CommunicationPlanResponse> findAll(@RequestParam(required = false) Long incidentId) {
+    public List<CommunicationPlanResponse> findAll(@RequestParam(required = false) Long incidentId,
+                                                     @RequestParam(required = false) Boolean active) {
         if (incidentId != null) {
             return communicationPlanService.findByIncident(incidentId);
+        }
+        if (active != null && active) {
+            return communicationPlanService.findAll(true);
         }
         return communicationPlanService.findAll();
     }

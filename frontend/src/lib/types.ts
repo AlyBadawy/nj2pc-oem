@@ -235,4 +235,18 @@ export interface CommunicationPlan {
   approvedAt: string | null
   createdAt: string
   incidents: CommunicationPlanIncidentSummary[]
+  version: number
+  rootPlanId: number
+  active: boolean
+}
+
+export interface IncidentCommsPlanApplication {
+  id: number
+  communicationPlanId: number
+  planName: string
+  planVersion: number
+  appliedAt: string
+  appliedByCallsign: string | null
+  revokedAt: string | null
+  revokedByCallsign: string | null
 }

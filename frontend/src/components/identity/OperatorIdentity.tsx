@@ -1,8 +1,9 @@
 import { cn } from '@/lib/utils'
-import { roleTier } from '@/lib/roleTier'
+import { roleTierFrom } from '@/lib/roleTier'
 import { formatElapsed, type OperatorIdentityData } from '@/lib/identity'
 import { RoleBadge } from '@/components/identity/RoleBadge'
 import { ContactLine } from '@/components/identity/MaskedValue'
+import { Barcode } from '@/components/identity/Barcode'
 
 function PhotoPlaceholder({ className }: { className?: string }) {
   return (
@@ -14,19 +15,6 @@ function PhotoPlaceholder({ className }: { className?: string }) {
     >
       <span className="credential-micro pb-1 !text-black/38">Operator Photo</span>
     </div>
-  )
-}
-
-function Barcode() {
-  return (
-    <div
-      className="mt-1.5 h-[30px] rounded-[2px]"
-      aria-hidden
-      style={{
-        background:
-          'repeating-linear-gradient(90deg, #14181D 0 2px, transparent 2px 3px, #14181D 3px 4px, transparent 4px 7px, #14181D 7px 8px, transparent 8px 11px)',
-      }}
-    />
   )
 }
 
@@ -53,7 +41,20 @@ function StatusDot({ active = true }: { active?: boolean }) {
 // ---------------------------------------------------------------------------
 
 function CredentialCard({ data, orgName }: { data: OperatorIdentityData; orgName: string }) {
-  const { callsign, name, licenseClass, role, phone, email, canViewContact, photoUrl, credentialNo, incident } = data
+  const {
+    callsign,
+    name,
+    licenseClass,
+    role,
+    roleColor,
+    roleAccessLevel,
+    phone,
+    email,
+    canViewContact,
+    photoUrl,
+    credentialNo,
+    incident,
+  } = data
 
   return (
     <div
@@ -85,7 +86,7 @@ function CredentialCard({ data, orgName }: { data: OperatorIdentityData; orgName
               <PhotoPlaceholder className="h-full w-full" />
             )}
           </div>
-          <Barcode />
+          <Barcode callsign={callsign} id={data.id} className="mt-1.5" />
         </div>
 
         <div className="flex min-w-0 flex-col gap-2.5">
@@ -104,7 +105,7 @@ function CredentialCard({ data, orgName }: { data: OperatorIdentityData; orgName
             </div>
             <div className="shrink-0 text-right">
               <div className="credential-micro mb-1">Access Role</div>
-              <RoleBadge role={role} variant="band" />
+              <RoleBadge role={role} roleColor={roleColor} roleAccessLevel={roleAccessLevel} variant="band" />
             </div>
           </div>
 
@@ -169,7 +170,19 @@ function RosterRow({
   expanded: boolean
   onToggle: () => void
 }) {
-  const { callsign, name, licenseClass, role, phone, email, canViewContact, photoUrl, incident } = data
+  const {
+    callsign,
+    name,
+    licenseClass,
+    role,
+    roleColor,
+    roleAccessLevel,
+    phone,
+    email,
+    canViewContact,
+    photoUrl,
+    incident,
+  } = data
   const onAir = !!incident
 
   return (
@@ -197,7 +210,7 @@ function RosterRow({
         </div>
         <div className="truncate text-[13px]">{licenseClass || '—'}</div>
         <div>
-          <RoleBadge role={role} variant="chip" />
+          <RoleBadge role={role} roleColor={roleColor} roleAccessLevel={roleAccessLevel} variant="chip" />
         </div>
         <div
           className="justify-self-end font-credential-mono text-[9px] uppercase tracking-[.1em]"
@@ -223,7 +236,7 @@ function RosterRow({
             <div className="grid grid-cols-3 gap-4">
               <div>
                 <div className="credential-micro mb-1">Access Role</div>
-                <RoleBadge role={role} variant="band" />
+                <RoleBadge role={role} roleColor={roleColor} roleAccessLevel={roleAccessLevel} variant="band" />
               </div>
               <ContactLine kind="phone" value={phone} canView={canViewContact} />
               <ContactLine kind="email" value={email} canView={canViewContact} />
@@ -253,7 +266,7 @@ function RosterRow({
 
 function OperatorTile({ data, onClick }: { data: OperatorIdentityData; onClick?: () => void }) {
   const { callsign, name, licenseClass, role, assignment, checkedInAt } = data
-  const info = roleTier(role)
+  const info = roleTierFrom(role, data.roleColor, data.roleAccessLevel)
 
   return (
     <div

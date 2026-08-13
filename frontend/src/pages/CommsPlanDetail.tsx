@@ -63,6 +63,13 @@ const modeLabel: Record<ChannelMode, string> = {
   MIXED: 'M',
 }
 
+type PlanFormState = {
+  name: string
+  preparedByName: string
+  preparedByCallsign: string
+  specialInstructions: string
+}
+
 export function CommsPlanDetail() {
   const { user } = useAuth()
   const canManage = hasPermission(user, 'COMMS_PLAN_MANAGE')
@@ -75,6 +82,13 @@ export function CommsPlanDetail() {
   const [linkIncidentId, setLinkIncidentId] = useState('')
   const [downloadingPdf, setDownloadingPdf] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
+  const [editPlanDialogOpen, setEditPlanDialogOpen] = useState(false)
+  const [planForm, setPlanForm] = useState<PlanFormState>({
+    name: '',
+    preparedByName: '',
+    preparedByCallsign: '',
+    specialInstructions: '',
+  })
 
   const { data: plan } = useQuery({
     queryKey: ['comms-plans', id],
@@ -158,6 +172,40 @@ export function CommsPlanDetail() {
     onError: () => toast.error('Failed to delete communications plan'),
   })
 
+  const updatePlanMutation = useMutation({
+    mutationFn: async () =>
+      api.put(`/api/comms-plans/${id}`, {
+        name: planForm.name,
+        preparedByName: planForm.preparedByName || null,
+        preparedByCallsign: planForm.preparedByCallsign || null,
+        preparedAt: planForm.preparedByName ? new Date().toISOString() : null,
+        specialInstructions: planForm.specialInstructions || null,
+      }),
+    onSuccess: (response) => {
+      queryClient.invalidateQueries({ queryKey: ['comms-plans'] })
+      toast.success('Communications plan updated — new version created')
+      setEditPlanDialogOpen(false)
+      navigate(`/comms-plans/${response.data.id}`)
+    },
+    onError: () => toast.error('Failed to update communications plan'),
+  })
+
+  function openEditPlan() {
+    if (!plan) return
+    setPlanForm({
+      name: plan.name,
+      preparedByName: plan.preparedByName ?? '',
+      preparedByCallsign: plan.preparedByCallsign ?? '',
+      specialInstructions: plan.specialInstructions ?? '',
+    })
+    setEditPlanDialogOpen(true)
+  }
+
+  function handlePlanSubmit(e: FormEvent) {
+    e.preventDefault()
+    updatePlanMutation.mutate()
+  }
+
   function openCreateChannel() {
     setEditingChannel(null)
     setChannelForm(emptyChannelForm)
@@ -219,8 +267,21 @@ export function CommsPlanDetail() {
           Back to Communications Plans
         </Button>
         <div className="flex items-center justify-between">
-          <h1 className="text-2xl font-semibold">{plan.name}</h1>
           <div className="flex items-center gap-2">
+            <h1 className="text-2xl font-semibold">{plan.name}</h1>
+            <Badge variant="outline">v{plan.version}</Badge>
+            {!plan.active && <Badge variant="destructive">Superseded</Badge>}
+          </div>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              disabled={!canManage}
+              title={canManage ? 'Edit plan' : 'Requires Manage Comms Plans permission'}
+              onClick={openEditPlan}
+            >
+              <Pencil className="size-4" />
+              Edit Plan
+            </Button>
             <Button variant="outline" disabled={downloadingPdf} onClick={handleDownloadPdf}>
               {downloadingPdf ? <Loader2 className="size-4 animate-spin" /> : <Download className="size-4" />}
               Download PDF
@@ -517,6 +578,61 @@ export function CommsPlanDetail() {
             <DialogFooter>
               <Button type="submit" disabled={saveChannelMutation.isPending}>
                 {editingChannel ? 'Save Changes' : 'Add Channel'}
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={editPlanDialogOpen} onOpenChange={setEditPlanDialogOpen}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Edit Communications Plan</DialogTitle>
+            <DialogDescription>
+              Saving creates a new version of this plan and marks the current version as superseded.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={handlePlanSubmit} className="flex flex-col gap-3">
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="planName">Name</Label>
+              <Input
+                id="planName"
+                value={planForm.name}
+                onChange={(e) => setPlanForm({ ...planForm, name: e.target.value })}
+                required
+              />
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="planPreparedByName">Prepared By</Label>
+                <Input
+                  id="planPreparedByName"
+                  value={planForm.preparedByName}
+                  onChange={(e) => setPlanForm({ ...planForm, preparedByName: e.target.value })}
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="planPreparedByCallsign">Callsign</Label>
+                <Input
+                  id="planPreparedByCallsign"
+                  value={planForm.preparedByCallsign}
+                  onChange={(e) =>
+                    setPlanForm({ ...planForm, preparedByCallsign: e.target.value.toUpperCase() })
+                  }
+                />
+              </div>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="planSpecialInstructions">Special Instructions</Label>
+              <Textarea
+                id="planSpecialInstructions"
+                value={planForm.specialInstructions}
+                onChange={(e) => setPlanForm({ ...planForm, specialInstructions: e.target.value })}
+              />
+            </div>
+            <DialogFooter>
+              <Button type="submit" disabled={updatePlanMutation.isPending}>
+                Save New Version
               </Button>
             </DialogFooter>
           </form>

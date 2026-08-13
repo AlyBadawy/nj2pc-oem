@@ -85,6 +85,8 @@ export function Operators() {
       name: op.name,
       licenseClass: op.licenseClass,
       role: op.currentCheckIn?.roleName ?? null,
+      roleColor: op.currentCheckIn?.roleColor ?? null,
+      roleAccessLevel: op.currentCheckIn?.roleAccessLevel ?? null,
       canViewContact: canViewContact || op.callsign === user?.callsign,
       phone: op.phone,
       email: op.email,

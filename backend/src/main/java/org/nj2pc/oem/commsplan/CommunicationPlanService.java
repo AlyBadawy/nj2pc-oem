@@ -75,12 +75,38 @@ public class CommunicationPlanService {
     @Transactional
     public CommunicationPlanResponse update(Authentication authentication, Long id, CommunicationPlanRequest request) {
         permissionGuard.require(authentication, Permission.COMMS_PLAN_MANAGE);
-        CommunicationPlan plan = getPlanOrThrow(id);
-        applyRequest(plan, request);
-        plan = communicationPlanRepository.save(plan);
-        auditLogService.record(EntityType.COMMS_PLAN, plan.getId(), "UPDATE",
-                "Updated communications plan " + plan.getName(), authentication.getName());
-        return CommunicationPlanResponse.from(plan);
+        CommunicationPlan old = getPlanOrThrow(id);
+
+        CommunicationPlan next = new CommunicationPlan();
+        applyRequest(next, request);
+        next.setRootPlanId(old.getRootPlanId() != null ? old.getRootPlanId() : old.getId());
+        next.setVersion(old.getVersion() + 1);
+        next.setActive(true);
+        next = communicationPlanRepository.save(next);
+
+        for (CommunicationChannel oldChannel : communicationChannelRepository.findByPlanIdOrderByChannelNumberAsc(old.getId())) {
+            CommunicationChannel newChannel = new CommunicationChannel();
+            newChannel.setPlan(next);
+            newChannel.setZoneGroup(oldChannel.getZoneGroup());
+            newChannel.setChannelNumber(oldChannel.getChannelNumber());
+            newChannel.setFunction(oldChannel.getFunction());
+            newChannel.setChannelName(oldChannel.getChannelName());
+            newChannel.setAssignment(oldChannel.getAssignment());
+            newChannel.setRxFrequency(oldChannel.getRxFrequency());
+            newChannel.setRxTone(oldChannel.getRxTone());
+            newChannel.setTxFrequency(oldChannel.getTxFrequency());
+            newChannel.setTxTone(oldChannel.getTxTone());
+            newChannel.setMode(oldChannel.getMode());
+            newChannel.setRemarks(oldChannel.getRemarks());
+            communicationChannelRepository.save(newChannel);
+        }
+
+        old.setActive(false);
+        communicationPlanRepository.save(old);
+
+        auditLogService.record(EntityType.COMMS_PLAN, next.getId(), "NEW_VERSION",
+                "Created version " + next.getVersion() + " of " + next.getName(), authentication.getName());
+        return CommunicationPlanResponse.from(next);
     }
 
     @Transactional
