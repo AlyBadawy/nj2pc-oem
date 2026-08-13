@@ -61,6 +61,14 @@ public class CommunicationPlanService {
         return CommunicationPlanResponse.from(getPlanOrThrow(id));
     }
 
+    @Transactional(readOnly = true)
+    public List<CommunicationPlanResponse> findVersions(Long id) {
+        CommunicationPlan plan = getPlanOrThrow(id);
+        Long rootId = plan.getRootPlanId() != null ? plan.getRootPlanId() : plan.getId();
+        return communicationPlanRepository.findAllVersions(rootId).stream()
+                .map(CommunicationPlanResponse::from).toList();
+    }
+
     @Transactional
     public CommunicationPlanResponse create(Authentication authentication, CommunicationPlanRequest request) {
         permissionGuard.require(authentication, Permission.COMMS_PLAN_MANAGE);

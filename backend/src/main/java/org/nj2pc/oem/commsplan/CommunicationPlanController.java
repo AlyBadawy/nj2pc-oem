@@ -43,6 +43,11 @@ public class CommunicationPlanController {
         return communicationPlanService.findById(id);
     }
 
+    @GetMapping("/{id}/versions")
+    public List<CommunicationPlanResponse> findVersions(@PathVariable Long id) {
+        return communicationPlanService.findVersions(id);
+    }
+
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
     public CommunicationPlanResponse create(Authentication authentication, @Valid @RequestBody CommunicationPlanRequest request) {

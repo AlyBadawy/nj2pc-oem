@@ -1,10 +1,11 @@
 import { useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Plus, Pencil, Trash2, Download, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { api } from '@/lib/api'
 import { hasPermission, useAuth } from '@/lib/auth-context'
+import { cn } from '@/lib/utils'
 import type { ChannelMode, CommunicationChannel, CommunicationPlan } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -97,6 +98,11 @@ export function CommsPlanDetail() {
   const { data: channels, isLoading: channelsLoading } = useQuery({
     queryKey: ['comms-plans', id, 'channels'],
     queryFn: async () => (await api.get<CommunicationChannel[]>(`/api/comms-plans/${id}/channels`)).data,
+  })
+
+  const { data: versions } = useQuery({
+    queryKey: ['comms-plans', id, 'versions'],
+    queryFn: async () => (await api.get<CommunicationPlan[]>(`/api/comms-plans/${id}/versions`)).data,
   })
 
   const saveChannelMutation = useMutation({
@@ -277,6 +283,37 @@ export function CommsPlanDetail() {
           <p className="mt-3 text-sm max-w-2xl whitespace-pre-wrap">{plan.specialInstructions}</p>
         )}
       </div>
+
+      {versions && versions.length > 1 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Version History</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <ul className="flex flex-col gap-2">
+              {versions.map((v) => (
+                <li key={v.id} className="flex items-center gap-2 text-sm">
+                  <Link
+                    to={`/comms-plans/${v.id}`}
+                    className={cn('hover:underline', v.id === plan.id && 'font-semibold')}
+                  >
+                    v{v.version} — {v.name}
+                  </Link>
+                  {v.active ? (
+                    <Badge variant="default">Active</Badge>
+                  ) : (
+                    <Badge variant="secondary">Superseded</Badge>
+                  )}
+                  {v.id === plan.id && <span className="text-muted-foreground">(viewing)</span>}
+                  <span className="text-muted-foreground text-xs">
+                    {new Date(v.createdAt).toLocaleString()}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
