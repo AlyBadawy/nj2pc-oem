@@ -86,6 +86,7 @@ export function OperatorView() {
     canViewContact: canViewContact || operator.callsign === user?.callsign,
     phone: operator.phone,
     email: operator.email,
+    licensePlate: operator.licensePlate,
     photoUrl: operator.photoUrl ? apiUrl(operator.photoUrl) : null,
     credentialNo: credentialNoFor(operator.id),
     incident: operator.currentCheckIn

@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Plus, LogIn, LogOut, Flag, Play, Pencil, ShieldCheck } from 'lucide-react'
+import { ArrowLeft, Plus, LogIn, LogOut, Flag, Play, Pencil, ShieldCheck, Download, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { api } from '@/lib/api'
 import { hasPermission, useAuth } from '@/lib/auth-context'
@@ -29,6 +29,7 @@ import { Badge } from '@/components/ui/badge'
 import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs'
 import {
   Select,
   SelectContent,
@@ -94,6 +95,7 @@ export function IncidentDetail() {
   const [grantPermission, setGrantPermission] = useState<IncidentPermission>('VIEW')
   const [applyCommsPlanOpen, setApplyCommsPlanOpen] = useState(false)
   const [applyCommsPlanId, setApplyCommsPlanId] = useState('')
+  const [downloadingCommsPlanPdf, setDownloadingCommsPlanPdf] = useState(false)
 
   const { data: incident } = useQuery({
     queryKey: ['incidents', id],
@@ -334,6 +336,28 @@ export function IncidentDetail() {
     onError: () => toast.error('Failed to revoke communications plan'),
   })
 
+  async function handleDownloadCommsPlanPdf() {
+    if (!activeCommsPlan) return
+    setDownloadingCommsPlanPdf(true)
+    try {
+      const response = await api.get(`/api/comms-plans/${activeCommsPlan.communicationPlanId}/pdf`, {
+        responseType: 'blob',
+      })
+      const url = window.URL.createObjectURL(new Blob([response.data]))
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `ICS-205-${activeCommsPlan.planName.replace(/[^a-zA-Z0-9-]+/g, '_')}.pdf`
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.URL.revokeObjectURL(url)
+    } catch {
+      toast.error('Failed to generate PDF')
+    } finally {
+      setDownloadingCommsPlanPdf(false)
+    }
+  }
+
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
     createLogMutation.mutate()
@@ -446,27 +470,40 @@ export function IncidentDetail() {
         </div>
       </div>
 
-      {isActive && (
+      {!isClosed && (
         <div className="overflow-hidden rounded-lg bg-credential-paper-edge">
           <div className="flex items-center justify-between gap-3 bg-credential-ink px-4 py-3 text-white">
             <div className="min-w-0">
               <div className="credential-micro !text-white/50">
-                Active Incident · {incidentRef(incident.id, incident.createdAt)}
+                {isActive ? 'Active Incident' : 'Planned Incident'} · {incidentRef(incident.id, incident.createdAt)}
               </div>
               <div className="truncate text-[15px] font-semibold">{incident.name}</div>
             </div>
-            <div className="flex shrink-0 items-center gap-2 font-credential-mono text-[11px] text-white/85">
-              <span className="relative inline-flex size-2.5">
-                <span
-                  className="absolute inline-flex size-full rounded-full opacity-60"
-                  style={{ background: 'var(--credential-blue-soft)', boxShadow: '0 0 0 3px rgba(127,178,229,.25)' }}
-                />
-                <span
-                  className="relative inline-flex size-full rounded-full"
-                  style={{ background: 'var(--credential-blue-soft)' }}
-                />
-              </span>
-              {tileData.length} Checked In
+            <div className="flex shrink-0 items-center gap-3">
+              <div className="flex items-center gap-2 font-credential-mono text-[11px] text-white/85">
+                <span className="relative inline-flex size-2.5">
+                  <span
+                    className="absolute inline-flex size-full rounded-full opacity-60"
+                    style={{ background: 'var(--credential-blue-soft)', boxShadow: '0 0 0 3px rgba(127,178,229,.25)' }}
+                  />
+                  <span
+                    className="relative inline-flex size-full rounded-full"
+                    style={{ background: 'var(--credential-blue-soft)' }}
+                  />
+                </span>
+                {tileData.length} Checked In
+              </div>
+              <Button
+                size="sm"
+                variant="outline"
+                className="bg-transparent text-white hover:bg-white/10 hover:text-white"
+                disabled={!canEdit}
+                title={canEdit ? 'Check in an operator' : 'Requires edit access to this incident'}
+                onClick={() => setOperatorCheckInOpen(true)}
+              >
+                <LogIn className="size-4" />
+                Check In
+              </Button>
             </div>
           </div>
           <div className="grid grid-cols-1 gap-3 p-4 sm:grid-cols-2 lg:grid-cols-3">
@@ -552,88 +589,6 @@ export function IncidentDetail() {
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="text-base">Communications Plan</CardTitle>
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={!canEdit}
-            title={canEdit ? 'Apply or change the communications plan' : 'Requires edit access to this incident'}
-            onClick={() => setApplyCommsPlanOpen(true)}
-          >
-            {activeCommsPlan ? 'Change Plan' : 'Apply Plan'}
-          </Button>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-4">
-          {activeCommsPlan ? (
-            <div className="flex items-center justify-between rounded-md border p-3">
-              <div>
-                <div className="flex items-center gap-2">
-                  <Link
-                    to={`/comms-plans/${activeCommsPlan.communicationPlanId}`}
-                    className="font-medium hover:underline"
-                  >
-                    {activeCommsPlan.planName}
-                  </Link>
-                  <Badge variant="secondary">v{activeCommsPlan.planVersion}</Badge>
-                </div>
-                <p className="text-muted-foreground text-sm">
-                  Applied {new Date(activeCommsPlan.appliedAt).toLocaleString()} by{' '}
-                  {activeCommsPlan.appliedByCallsign ?? 'System'}
-                </p>
-              </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                disabled={!canEdit}
-                title={canEdit ? 'Revoke this communications plan' : 'Requires edit access to this incident'}
-                onClick={() => revokeCommsPlanMutation.mutate(activeCommsPlan.id)}
-              >
-                Revoke
-              </Button>
-            </div>
-          ) : (
-            <p className="text-sm text-muted-foreground">No communications plan applied.</p>
-          )}
-          {commsPlanHistory && commsPlanHistory.length > 0 && (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Plan</TableHead>
-                  <TableHead>Applied</TableHead>
-                  <TableHead>Status</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {commsPlanHistory.map((h) => (
-                  <TableRow key={h.id}>
-                    <TableCell className="font-medium">
-                      <Link to={`/comms-plans/${h.communicationPlanId}`} className="hover:underline">
-                        {h.planName}
-                      </Link>{' '}
-                      <span className="text-muted-foreground">v{h.planVersion}</span>
-                    </TableCell>
-                    <TableCell className="text-sm whitespace-nowrap">
-                      {new Date(h.appliedAt).toLocaleString()} by {h.appliedByCallsign ?? 'System'}
-                    </TableCell>
-                    <TableCell className="text-sm whitespace-nowrap">
-                      {h.revokedAt ? (
-                        <span className="text-muted-foreground">
-                          Revoked {new Date(h.revokedAt).toLocaleString()} by {h.revokedByCallsign ?? 'System'}
-                        </span>
-                      ) : (
-                        <Badge variant="default">Active</Badge>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-base">Message Log (ICS-213)</CardTitle>
           {!isClosed && (
             <Button size="sm" onClick={() => setDialogOpen(true)}>
@@ -681,144 +636,212 @@ export function IncidentDetail() {
         </CardContent>
       </Card>
 
-      <hr className="border-t" />
-
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="text-base">
-            Operators Timesheet
-            <span className="ml-2 text-muted-foreground font-normal text-sm">
-              ({openOperatorCheckIns.length} on scene)
-            </span>
-          </CardTitle>
-          {!isClosed && (
-            <Button
-              size="sm"
-              disabled={!canEdit}
-              title={canEdit ? 'Check in an operator' : 'Requires edit access to this incident'}
-              onClick={() => setOperatorCheckInOpen(true)}
-            >
-              <LogIn className="size-4" />
-              Check In
-            </Button>
-          )}
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Callsign</TableHead>
-                <TableHead>Role</TableHead>
-                <TableHead>Post</TableHead>
-                <TableHead>Checked In</TableHead>
-                <TableHead>Checked Out</TableHead>
-                <TableHead>Notes</TableHead>
-                <TableHead className="text-right">Action</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {(!operatorCheckIns || operatorCheckIns.length === 0) && (
-                <TableRow>
-                  <TableCell colSpan={7} className="text-center text-muted-foreground">
-                    No operators checked in yet.
-                  </TableCell>
-                </TableRow>
-              )}
-              {operatorCheckIns?.map((c) => {
-                const canCheckOut = canEdit || c.operatorCallsign === user?.callsign
-                return (
-                  <TableRow key={c.id}>
-                    <TableCell className="font-medium">
-                      <Link to={`/operators/${c.operatorId}`} className="hover:underline">
-                        {c.operatorCallsign}
-                      </Link>
-                    </TableCell>
-                    <TableCell>{c.roleName || '—'}</TableCell>
-                    <TableCell>{c.post || '—'}</TableCell>
-                    <TableCell className="text-sm whitespace-nowrap">
-                      {new Date(c.checkedInAt).toLocaleString()}
-                    </TableCell>
-                    <TableCell className="text-sm whitespace-nowrap">
-                      {c.checkedOutAt ? (
-                        new Date(c.checkedOutAt).toLocaleString()
-                      ) : (
-                        <Badge variant="default">On Scene</Badge>
-                      )}
-                    </TableCell>
-                    <TableCell className="text-muted-foreground text-sm max-w-[200px] truncate">
-                      {c.notes || '—'}
-                    </TableCell>
-                    <TableCell className="text-right">
-                      {!c.checkedOutAt && (
-                        <Button
-                          variant="ghost"
-                          size="sm"
-                          disabled={!canCheckOut}
-                          title={canCheckOut ? 'Check out' : 'You may only check yourself out'}
-                          onClick={() => checkOutOperatorMutation.mutate(c.id)}
-                        >
-                          <LogOut className="size-4" />
-                          Check Out
-                        </Button>
-                      )}
-                    </TableCell>
+        <CardContent className="pt-6">
+          <Tabs defaultValue="operators">
+            <TabsList>
+              <TabsTrigger value="operators">
+                Operators
+                <span className="ml-1.5 text-muted-foreground font-normal">
+                  ({operatorCheckIns?.length ?? 0})
+                </span>
+              </TabsTrigger>
+              <TabsTrigger value="equipment">
+                Gear &amp; Equipment
+                <span className="ml-1.5 text-muted-foreground font-normal">
+                  ({resourceCheckIns?.length ?? 0})
+                </span>
+              </TabsTrigger>
+              <TabsTrigger value="comms-plan">Comms Plan</TabsTrigger>
+            </TabsList>
+            <TabsContent value="operators">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Callsign</TableHead>
+                    <TableHead>Role</TableHead>
+                    <TableHead>Post</TableHead>
+                    <TableHead>Checked In</TableHead>
+                    <TableHead>Checked Out</TableHead>
+                    <TableHead>Notes</TableHead>
+                    <TableHead className="text-right">Action</TableHead>
                   </TableRow>
-                )
-              })}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+                </TableHeader>
+                <TableBody>
+                  {(!operatorCheckIns || operatorCheckIns.length === 0) && (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center text-muted-foreground">
+                        No operators checked in yet.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                  {operatorCheckIns?.map((c) => {
+                    const canCheckOut = canEdit || c.operatorCallsign === user?.callsign
+                    return (
+                      <TableRow key={c.id}>
+                        <TableCell className="font-medium">
+                          <Link to={`/operators/${c.operatorId}`} className="hover:underline">
+                            {c.operatorCallsign}
+                          </Link>
+                        </TableCell>
+                        <TableCell>{c.roleName || '—'}</TableCell>
+                        <TableCell>{c.post || '—'}</TableCell>
+                        <TableCell className="text-sm whitespace-nowrap">
+                          {new Date(c.checkedInAt).toLocaleString()}
+                        </TableCell>
+                        <TableCell className="text-sm whitespace-nowrap">
+                          {c.checkedOutAt ? (
+                            new Date(c.checkedOutAt).toLocaleString()
+                          ) : (
+                            <Badge variant="default">On Scene</Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-muted-foreground text-sm max-w-[200px] truncate">
+                          {c.notes || '—'}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {!c.checkedOutAt && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              disabled={!canCheckOut}
+                              title={canCheckOut ? 'Check out' : 'You may only check yourself out'}
+                              onClick={() => checkOutOperatorMutation.mutate(c.id)}
+                            >
+                              <LogOut className="size-4" />
+                              Check Out
+                            </Button>
+                          )}
+                        </TableCell>
+                      </TableRow>
+                    )
+                  })}
+                </TableBody>
+              </Table>
+            </TabsContent>
+            <TabsContent value="equipment">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Equipment</TableHead>
+                    <TableHead>Type</TableHead>
+                    <TableHead>Checked In</TableHead>
+                    <TableHead>Checked Out</TableHead>
+                    <TableHead>Notes</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {(!resourceCheckIns || resourceCheckIns.length === 0) && (
+                    <TableRow>
+                      <TableCell colSpan={5} className="text-center text-muted-foreground">
+                        No equipment checked in yet.
+                      </TableCell>
+                    </TableRow>
+                  )}
+                  {resourceCheckIns?.map((c) => (
+                    <TableRow key={c.id}>
+                      <TableCell className="font-medium">{c.resourceIdentifier}</TableCell>
+                      <TableCell>{c.resourceTypeName}</TableCell>
+                      <TableCell className="text-sm whitespace-nowrap">
+                        {new Date(c.checkedInAt).toLocaleString()}
+                      </TableCell>
+                      <TableCell className="text-sm whitespace-nowrap">
+                        {c.checkedOutAt ? (
+                          new Date(c.checkedOutAt).toLocaleString()
+                        ) : (
+                          <Badge variant="default">On Scene</Badge>
+                        )}
+                      </TableCell>
+                      <TableCell className="text-muted-foreground text-sm max-w-[200px] truncate">
+                        {c.notes || '—'}
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+            </TabsContent>
+            <TabsContent value="comms-plan" className="flex flex-col gap-4">
+              <div className="flex items-center justify-between">
+                <p className="text-sm font-medium">Current Plan</p>
+                <div className="flex items-center gap-2">
+                  {activeCommsPlan && (
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={downloadingCommsPlanPdf}
+                      onClick={handleDownloadCommsPlanPdf}
+                    >
+                      {downloadingCommsPlanPdf ? (
+                        <Loader2 className="size-4 animate-spin" />
+                      ) : (
+                        <Download className="size-4" />
+                      )}
+                      Generate PDF
+                    </Button>
+                  )}
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    disabled={!canEdit}
+                    title={canEdit ? 'Apply or change the communications plan' : 'Requires edit access to this incident'}
+                    onClick={() => setApplyCommsPlanOpen(true)}
+                  >
+                    {activeCommsPlan ? 'Change Plan' : 'Apply Plan'}
+                  </Button>
+                </div>
+              </div>
 
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="text-base">
-            Gear & Equipment Timesheet
-            <span className="ml-2 text-muted-foreground font-normal text-sm">
-              ({resourceCheckIns?.length ?? 0} total)
-            </span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Equipment</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead>Checked In</TableHead>
-                <TableHead>Checked Out</TableHead>
-                <TableHead>Notes</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {(!resourceCheckIns || resourceCheckIns.length === 0) && (
-                <TableRow>
-                  <TableCell colSpan={5} className="text-center text-muted-foreground">
-                    No equipment checked in yet.
-                  </TableCell>
-                </TableRow>
+              {activeCommsPlan ? (
+                <div className="flex items-center justify-between rounded-md border p-3">
+                  <div>
+                    <div className="flex items-center gap-2">
+                      <Link
+                        to={`/comms-plans/${activeCommsPlan.communicationPlanId}`}
+                        className="font-medium hover:underline"
+                      >
+                        {activeCommsPlan.planName}
+                      </Link>
+                      <Badge variant="secondary">v{activeCommsPlan.planVersion}</Badge>
+                    </div>
+                    <p className="text-muted-foreground text-sm">
+                      Applied {new Date(activeCommsPlan.appliedAt).toLocaleString()} by{' '}
+                      {activeCommsPlan.appliedByCallsign ?? 'System'}
+                    </p>
+                  </div>
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    disabled={!canEdit}
+                    title={canEdit ? 'Revoke this communications plan' : 'Requires edit access to this incident'}
+                    onClick={() => revokeCommsPlanMutation.mutate(activeCommsPlan.id)}
+                  >
+                    Revoke
+                  </Button>
+                </div>
+              ) : (
+                <p className="text-sm text-muted-foreground">No communications plan applied.</p>
               )}
-              {resourceCheckIns?.map((c) => (
-                <TableRow key={c.id}>
-                  <TableCell className="font-medium">{c.resourceIdentifier}</TableCell>
-                  <TableCell>{c.resourceTypeName}</TableCell>
-                  <TableCell className="text-sm whitespace-nowrap">
-                    {new Date(c.checkedInAt).toLocaleString()}
-                  </TableCell>
-                  <TableCell className="text-sm whitespace-nowrap">
-                    {c.checkedOutAt ? (
-                      new Date(c.checkedOutAt).toLocaleString()
-                    ) : (
-                      <Badge variant="default">On Scene</Badge>
-                    )}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground text-sm max-w-[200px] truncate">
-                    {c.notes || '—'}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
+
+              {commsPlanHistory && commsPlanHistory.length > 0 && (
+                <div>
+                  <p className="text-sm font-medium mb-2">History</p>
+                  <ul className="flex flex-col gap-1">
+                    {commsPlanHistory.map((h) => (
+                      <li key={h.id}>
+                        <Link
+                          to={`/comms-plans/${h.communicationPlanId}`}
+                          className="flex items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-muted"
+                        >
+                          <span className="font-medium">{h.planName}</span>
+                          <Badge variant="outline">v{h.planVersion}</Badge>
+                        </Link>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </TabsContent>
+          </Tabs>
         </CardContent>
       </Card>
 

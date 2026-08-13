@@ -173,6 +173,7 @@ export function AccountSettings() {
         canViewContact: true,
         phone: me.phone,
         email: me.email,
+        licensePlate: me.licensePlate,
         photoUrl: me.photoUrl ? apiUrl(me.photoUrl) : null,
         credentialNo: credentialNoFor(me.id),
         incident: me.currentCheckIn

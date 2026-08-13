@@ -50,6 +50,7 @@ function CredentialCard({ data, orgName }: { data: OperatorIdentityData; orgName
     roleAccessLevel,
     phone,
     email,
+    licensePlate,
     canViewContact,
     photoUrl,
     credentialNo,
@@ -113,6 +114,13 @@ function CredentialCard({ data, orgName }: { data: OperatorIdentityData; orgName
             <ContactLine kind="phone" value={phone} canView={canViewContact} />
             <ContactLine kind="email" value={email} canView={canViewContact} />
           </div>
+
+          <ContactLine
+            kind="plate"
+            value={licensePlate ?? null}
+            canView={canViewContact}
+            emptyText="NONE"
+          />
         </div>
       </div>
 
@@ -318,7 +326,7 @@ export type OperatorIdentityProps =
 
 export function OperatorIdentity(props: OperatorIdentityProps) {
   if (props.variant === 'credential') {
-    return <CredentialCard data={props.data} orgName={props.orgName ?? 'NJ2PC-OEM'} />
+    return <CredentialCard data={props.data} orgName={props.orgName ?? 'AuxComms by AL0Y'} />
   }
   if (props.variant === 'row') {
     return <RosterRow data={props.data} expanded={props.expanded} onToggle={props.onToggle} />

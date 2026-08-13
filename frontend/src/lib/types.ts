@@ -58,6 +58,7 @@ export interface Operator {
   permissions: Permission[]
   photoUrl: string | null
   currentCheckIn: OperatorCurrentCheckIn | null
+  licensePlate: string | null
 }
 
 export type ResourceFieldType = 'TEXT' | 'NUMBER' | 'BOOLEAN' | 'DATE' | 'SELECT'

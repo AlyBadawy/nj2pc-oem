@@ -17,6 +17,9 @@ export interface OperatorIdentityData {
   canViewContact: boolean
   phone: string | null
   email: string | null
+  /** Formatted "PLATE(STATE)" summary of the operator's vehicle(s), e.g. "H67-R23(NJ)" — empty
+   * string means no vehicle on file, null means the viewer can't see it (masked like phone/email). */
+  licensePlate?: string | null
   photoUrl?: string | null
   credentialNo?: string | null
   incident?: OperatorIdentityIncident | null
@@ -45,6 +48,12 @@ export function maskEmail(raw: string): string {
   const domain = raw.slice(at + 1)
   const first = local.slice(0, 1)
   return `${first}${'•'.repeat(Math.max(local.length - 1, 4))}@${domain}`
+}
+
+/** Masks the plate number(s) in a "PLATE(STATE)" (or comma-separated multi-vehicle) summary,
+ * keeping the state code(s) visible — mirrors maskPhone/maskEmail's partial-reveal pattern. */
+export function maskPlate(raw: string): string {
+  return raw.replace(/[^(),\s]+(?=\()/g, (plate) => '•'.repeat(Math.max(plate.length, 4)))
 }
 
 /** Presentational only — a stable, non-fabricated badge number derived from the operator's

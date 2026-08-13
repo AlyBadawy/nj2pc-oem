@@ -28,7 +28,8 @@ public record OperatorResponse(
         String createdByCallsign,
         Set<Permission> permissions,
         String photoUrl,
-        CurrentCheckIn currentCheckIn
+        CurrentCheckIn currentCheckIn,
+        String licensePlate
 ) {
     public record CurrentCheckIn(
             Long incidentId,
@@ -56,10 +57,15 @@ public record OperatorResponse(
     }
 
     public static OperatorResponse from(Operator o) {
-        return from(o, true, null);
+        return from(o, true, null, null);
     }
 
     public static OperatorResponse from(Operator o, boolean showContact, OperatorCheckIn checkIn) {
+        return from(o, showContact, checkIn, null);
+    }
+
+    public static OperatorResponse from(Operator o, boolean showContact, OperatorCheckIn checkIn,
+                                         String licensePlateSummary) {
         return new OperatorResponse(
                 o.getId(), o.getCallsign(), o.getName(),
                 o.getLicenseClass(), o.getDmrIds(), showContact ? o.getPhone() : null,
@@ -69,7 +75,8 @@ public record OperatorResponse(
                 o.isAdmin(), o.getPasswordHash() != null, o.getCreatedAt(),
                 o.getCreatedBy() != null ? o.getCreatedBy().getCallsign() : null,
                 o.getPermissions(), o.getPhotoPath() != null ? "/api/operators/" + o.getId() + "/photo" : null,
-                CurrentCheckIn.from(checkIn)
+                CurrentCheckIn.from(checkIn),
+                showContact ? licensePlateSummary : null
         );
     }
 }

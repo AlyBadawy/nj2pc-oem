@@ -5,6 +5,9 @@ import org.nj2pc.oem.auditlog.EntityType;
 import org.nj2pc.oem.checkin.OperatorCheckIn;
 import org.nj2pc.oem.checkin.OperatorCheckInRepository;
 import org.nj2pc.oem.common.ApiException;
+import org.nj2pc.oem.vehicle.Vehicle;
+import org.nj2pc.oem.vehicle.VehiclePlateFormatter;
+import org.nj2pc.oem.vehicle.VehicleRepository;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
@@ -25,15 +28,18 @@ public class OperatorService {
     private final PermissionGuard permissionGuard;
     private final AuditLogService auditLogService;
     private final OperatorCheckInRepository operatorCheckInRepository;
+    private final VehicleRepository vehicleRepository;
 
     public OperatorService(OperatorRepository operatorRepository, PasswordEncoder passwordEncoder,
                             PermissionGuard permissionGuard, AuditLogService auditLogService,
-                            OperatorCheckInRepository operatorCheckInRepository) {
+                            OperatorCheckInRepository operatorCheckInRepository,
+                            VehicleRepository vehicleRepository) {
         this.operatorRepository = operatorRepository;
         this.passwordEncoder = passwordEncoder;
         this.permissionGuard = permissionGuard;
         this.auditLogService = auditLogService;
         this.operatorCheckInRepository = operatorCheckInRepository;
+        this.vehicleRepository = vehicleRepository;
     }
 
     @Transactional(readOnly = true)
@@ -43,8 +49,11 @@ public class OperatorService {
         boolean showContactAll = caller.isAdmin() || caller.getPermissions().contains(Permission.OPERATOR_VIEW_CONTACT);
         Map<Long, OperatorCheckIn> openCheckIns = operatorCheckInRepository.findByCheckedOutAtIsNull().stream()
                 .collect(Collectors.toMap(c -> c.getOperator().getId(), Function.identity(), (a, b) -> a));
+        Map<Long, List<Vehicle>> vehiclesByOperator = vehicleRepository.findAll().stream()
+                .collect(Collectors.groupingBy(v -> v.getOperator().getId()));
         return operatorRepository.findAll().stream()
-                .map(o -> toResponse(o, caller, showContactAll, openCheckIns.get(o.getId())))
+                .map(o -> toResponse(o, caller, showContactAll, openCheckIns.get(o.getId()),
+                        vehiclesByOperator.getOrDefault(o.getId(), List.of())))
                 .toList();
     }
 
@@ -55,12 +64,14 @@ public class OperatorService {
         boolean showContactAll = caller.isAdmin() || caller.getPermissions().contains(Permission.OPERATOR_VIEW_CONTACT);
         Operator operator = getOperatorOrThrow(id);
         OperatorCheckIn checkIn = operatorCheckInRepository.findByOperatorIdAndCheckedOutAtIsNull(id).orElse(null);
-        return toResponse(operator, caller, showContactAll, checkIn);
+        List<Vehicle> vehicles = vehicleRepository.findByOperatorId(id);
+        return toResponse(operator, caller, showContactAll, checkIn, vehicles);
     }
 
-    private OperatorResponse toResponse(Operator o, Operator caller, boolean showContactAll, OperatorCheckIn checkIn) {
+    private OperatorResponse toResponse(Operator o, Operator caller, boolean showContactAll, OperatorCheckIn checkIn,
+                                         List<Vehicle> vehicles) {
         boolean showContact = showContactAll || o.getId().equals(caller.getId());
-        return OperatorResponse.from(o, showContact, checkIn);
+        return OperatorResponse.from(o, showContact, checkIn, VehiclePlateFormatter.summarize(vehicles));
     }
 
     @Transactional

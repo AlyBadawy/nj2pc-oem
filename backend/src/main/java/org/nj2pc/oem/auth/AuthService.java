@@ -9,6 +9,8 @@ import org.nj2pc.oem.operator.Operator;
 import org.nj2pc.oem.operator.OperatorPrincipal;
 import org.nj2pc.oem.operator.OperatorRepository;
 import org.nj2pc.oem.operator.OperatorResponse;
+import org.nj2pc.oem.vehicle.VehiclePlateFormatter;
+import org.nj2pc.oem.vehicle.VehicleRepository;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.Authentication;
@@ -25,19 +27,22 @@ public class AuthService {
     private final JwtService jwtService;
     private final AuditLogService auditLogService;
     private final OperatorCheckInRepository operatorCheckInRepository;
+    private final VehicleRepository vehicleRepository;
 
     public AuthService(OperatorRepository operatorRepository,
                         PasswordEncoder passwordEncoder,
                         AuthenticationManager authenticationManager,
                         JwtService jwtService,
                         AuditLogService auditLogService,
-                        OperatorCheckInRepository operatorCheckInRepository) {
+                        OperatorCheckInRepository operatorCheckInRepository,
+                        VehicleRepository vehicleRepository) {
         this.operatorRepository = operatorRepository;
         this.passwordEncoder = passwordEncoder;
         this.authenticationManager = authenticationManager;
         this.jwtService = jwtService;
         this.auditLogService = auditLogService;
         this.operatorCheckInRepository = operatorCheckInRepository;
+        this.vehicleRepository = vehicleRepository;
     }
 
     public AuthResponse login(LoginRequest request) {
@@ -66,7 +71,8 @@ public class AuthService {
         Operator operator = operatorRepository.findByCallsignIgnoreCase(callsign)
                 .orElseThrow(() -> ApiException.notFound("Operator not found: " + callsign));
         var checkIn = operatorCheckInRepository.findByOperatorIdAndCheckedOutAtIsNull(operator.getId()).orElse(null);
-        return OperatorResponse.from(operator, true, checkIn);
+        String plateSummary = VehiclePlateFormatter.summarize(vehicleRepository.findByOperatorId(operator.getId()));
+        return OperatorResponse.from(operator, true, checkIn, plateSummary);
     }
 
     @Transactional
@@ -109,6 +115,7 @@ public class AuthService {
                 operator.getCallsign() + " updated their own profile", callsign);
 
         var checkIn = operatorCheckInRepository.findByOperatorIdAndCheckedOutAtIsNull(operator.getId()).orElse(null);
-        return OperatorResponse.from(operator, true, checkIn);
+        String plateSummary = VehiclePlateFormatter.summarize(vehicleRepository.findByOperatorId(operator.getId()));
+        return OperatorResponse.from(operator, true, checkIn, plateSummary);
     }
 }
