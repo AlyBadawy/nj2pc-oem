@@ -9,6 +9,8 @@ public record OperatorCheckInResponse(
         String operatorCallsign,
         Long roleId,
         String roleName,
+        String roleColor,
+        String roleAccessLevel,
         String post,
         Instant checkedInAt,
         Instant checkedOutAt,
@@ -19,6 +21,8 @@ public record OperatorCheckInResponse(
                 c.getId(), c.getIncident().getId(), c.getOperator().getId(), c.getOperator().getCallsign(),
                 c.getRole() != null ? c.getRole().getId() : null,
                 c.getRole() != null ? c.getRole().getName() : null,
+                c.getRole() != null ? c.getRole().getColor() : null,
+                c.getRole() != null ? c.getRole().getAccessLevel() : null,
                 c.getPost(), c.getCheckedInAt(), c.getCheckedOutAt(), c.getNotes()
         );
     }

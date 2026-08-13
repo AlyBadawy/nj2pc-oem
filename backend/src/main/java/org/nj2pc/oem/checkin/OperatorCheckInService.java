@@ -19,6 +19,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 
 @Service
 public class OperatorCheckInService {
@@ -60,6 +61,12 @@ public class OperatorCheckInService {
     public List<OperatorCheckInResponse> findAllOpen() {
         return operatorCheckInRepository.findByCheckedOutAtIsNull().stream()
                 .map(OperatorCheckInResponse::from).toList();
+    }
+
+    @Transactional(readOnly = true)
+    public Optional<LastRoleResponse> findLastRole(Long operatorId) {
+        return operatorCheckInRepository.findTopByOperatorIdAndRoleIsNotNullOrderByCheckedInAtDesc(operatorId)
+                .map(c -> new LastRoleResponse(c.getRole().getId(), c.getRole().getName()));
     }
 
     @Transactional

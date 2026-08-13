@@ -64,44 +64,6 @@ export function OperatorFormFields({
         </div>
       </div>
 
-      <div className="flex flex-col gap-1.5">
-        <Label>DMR ID{form.dmrIds.length > 1 ? 's' : ''}</Label>
-        {form.dmrIds.length === 0 && (
-          <p className="text-sm text-muted-foreground">No DMR IDs added yet.</p>
-        )}
-        {form.dmrIds.map((dmrId, index) => (
-          <div key={index} className="flex items-center gap-2 max-w-sm">
-            <Input
-              value={dmrId}
-              onChange={(e) => {
-                const next = [...form.dmrIds]
-                next[index] = e.target.value
-                setForm({ ...form, dmrIds: next })
-              }}
-              placeholder="3123456"
-            />
-            <Button
-              type="button"
-              variant="ghost"
-              size="icon-sm"
-              onClick={() => setForm({ ...form, dmrIds: form.dmrIds.filter((_, i) => i !== index) })}
-            >
-              <X className="size-4" />
-            </Button>
-          </div>
-        ))}
-        <Button
-          type="button"
-          variant="outline"
-          size="sm"
-          className="self-start"
-          onClick={() => setForm({ ...form, dmrIds: [...form.dmrIds, ''] })}
-        >
-          <Plus className="size-4" />
-          Add DMR ID
-        </Button>
-      </div>
-
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="phone">Phone</Label>
@@ -203,6 +165,44 @@ export function OperatorFormFields({
             placeholder="FN20vv"
           />
         </div>
+      </div>
+
+      <SectionHeading>DMR IDs</SectionHeading>
+      <div className="flex flex-col gap-1.5">
+        {form.dmrIds.length === 0 && (
+          <p className="text-sm text-muted-foreground">No DMR IDs added yet.</p>
+        )}
+        {form.dmrIds.map((dmrId, index) => (
+          <div key={index} className="flex items-center gap-2 max-w-sm">
+            <Input
+              value={dmrId}
+              onChange={(e) => {
+                const next = [...form.dmrIds]
+                next[index] = e.target.value
+                setForm({ ...form, dmrIds: next })
+              }}
+              placeholder="3123456"
+            />
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              onClick={() => setForm({ ...form, dmrIds: form.dmrIds.filter((_, i) => i !== index) })}
+            >
+              <X className="size-4" />
+            </Button>
+          </div>
+        ))}
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="self-start"
+          onClick={() => setForm({ ...form, dmrIds: [...form.dmrIds, ''] })}
+        >
+          <Plus className="size-4" />
+          Add DMR ID
+        </Button>
       </div>
 
       <SectionHeading>Account Access</SectionHeading>

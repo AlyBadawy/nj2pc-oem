@@ -5,6 +5,9 @@ import { ArrowLeft, Plus, LogIn, LogOut, Flag, Play, Pencil, ShieldCheck } from 
 import { toast } from 'sonner'
 import { api } from '@/lib/api'
 import { hasPermission, useAuth } from '@/lib/auth-context'
+import { tierRank } from '@/lib/roleTier'
+import { incidentRef, type OperatorIdentityData } from '@/lib/identity'
+import { OperatorIdentity } from '@/components/identity/OperatorIdentity'
 import type {
   Incident,
   IncidentLog,
@@ -192,7 +195,7 @@ export function IncidentDetail() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['incidents', id, 'resource-checkins'] })
       queryClient.invalidateQueries({ queryKey: ['resources'] })
-      toast.success('Resource checked in')
+      toast.success('Equipment checked in')
       setResourceCheckInOpen(false)
       setResourceCheckInId('')
       setResourceCheckInNotes('')
@@ -211,7 +214,7 @@ export function IncidentDetail() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['incidents', id, 'resource-checkins'] })
       queryClient.invalidateQueries({ queryKey: ['resources'] })
-      toast.success('Resource checked out')
+      toast.success('Equipment checked out')
     },
     onError: () => toast.error('Failed to check out resource'),
   })
@@ -277,6 +280,23 @@ export function IncidentDetail() {
 
   const canEdit = incident.canEdit
   const openOperatorCheckIns = operatorCheckIns?.filter((c) => !c.checkedOutAt) ?? []
+  const tileData = [...openOperatorCheckIns]
+    .sort((a, b) => tierRank(b.roleName) - tierRank(a.roleName) || a.checkedInAt.localeCompare(b.checkedInAt))
+    .map((c): OperatorIdentityData => {
+      const op = operators?.find((o) => o.id === c.operatorId)
+      return {
+        id: c.operatorId,
+        callsign: c.operatorCallsign,
+        name: op?.name ?? c.operatorCallsign,
+        licenseClass: op?.licenseClass ?? null,
+        role: c.roleName,
+        canViewContact: false,
+        phone: null,
+        email: null,
+        assignment: c.post,
+        checkedInAt: c.checkedInAt,
+      }
+    })
   const openResourceCheckIns = resourceCheckIns?.filter((c) => !c.checkedOutAt) ?? []
   const checkedInOperatorIds = new Set(openOperatorCheckIns.map((c) => c.operatorId))
   const checkedInResourceIds = new Set(openResourceCheckIns.map((c) => c.resourceId))
@@ -360,6 +380,45 @@ export function IncidentDetail() {
           )}
         </div>
       </div>
+
+      {isActive && (
+        <div className="overflow-hidden rounded-lg bg-credential-paper-edge">
+          <div className="flex items-center justify-between gap-3 bg-credential-ink px-4 py-3 text-white">
+            <div className="min-w-0">
+              <div className="credential-micro !text-white/50">
+                Active Incident · {incidentRef(incident.id, incident.createdAt)}
+              </div>
+              <div className="truncate text-[15px] font-semibold">{incident.name}</div>
+            </div>
+            <div className="flex shrink-0 items-center gap-2 font-credential-mono text-[11px] text-white/85">
+              <span className="relative inline-flex size-2.5">
+                <span
+                  className="absolute inline-flex size-full rounded-full opacity-60"
+                  style={{ background: 'var(--credential-blue-soft)', boxShadow: '0 0 0 3px rgba(127,178,229,.25)' }}
+                />
+                <span
+                  className="relative inline-flex size-full rounded-full"
+                  style={{ background: 'var(--credential-blue-soft)' }}
+                />
+              </span>
+              {tileData.length} Checked In
+            </div>
+          </div>
+          <div className="grid grid-cols-1 gap-3 p-4 sm:grid-cols-2 lg:grid-cols-3">
+            {tileData.length === 0 && (
+              <p className="text-muted-foreground text-sm col-span-full">No operators checked in yet.</p>
+            )}
+            {tileData.map((d) => (
+              <OperatorIdentity
+                key={d.id}
+                variant="tile"
+                data={d}
+                onClick={() => navigate(`/operators/${d.id}`)}
+              />
+            ))}
+          </div>
+        </div>
+      )}
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
@@ -447,7 +506,7 @@ export function IncidentDetail() {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-base">
-            Resources On Scene
+            Gear & Equipment On Scene
             <span className="ml-2 text-muted-foreground font-normal text-sm">
               ({openResourceCheckIns.length} on scene)
             </span>
@@ -463,7 +522,7 @@ export function IncidentDetail() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Resource</TableHead>
+                <TableHead>Equipment</TableHead>
                 <TableHead>Type</TableHead>
                 <TableHead>Checked In</TableHead>
                 <TableHead>Checked Out</TableHead>
@@ -475,7 +534,7 @@ export function IncidentDetail() {
               {(!resourceCheckIns || resourceCheckIns.length === 0) && (
                 <TableRow>
                   <TableCell colSpan={6} className="text-center text-muted-foreground">
-                    No resources checked in yet.
+                    No equipment checked in yet.
                   </TableCell>
                 </TableRow>
               )}
@@ -727,7 +786,7 @@ export function IncidentDetail() {
       <Dialog open={resourceCheckInOpen} onOpenChange={setResourceCheckInOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Check In Resource</DialogTitle>
+            <DialogTitle>Check In Equipment</DialogTitle>
           </DialogHeader>
           <form
             onSubmit={(e) => {
@@ -737,10 +796,10 @@ export function IncidentDetail() {
             className="flex flex-col gap-3"
           >
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="checkInResourceId">Resource</Label>
+              <Label htmlFor="checkInResourceId">Equipment</Label>
               <Select value={resourceCheckInId} onValueChange={setResourceCheckInId}>
                 <SelectTrigger id="checkInResourceId">
-                  <SelectValue placeholder="Select resource" />
+                  <SelectValue placeholder="Select equipment" />
                 </SelectTrigger>
                 <SelectContent>
                   {availableResources.map((r) => (
@@ -778,7 +837,7 @@ export function IncidentDetail() {
             <DialogDescription>
               This will close "{incident.name}" and automatically check out{' '}
               {openOperatorCheckIns.length} operator{openOperatorCheckIns.length === 1 ? '' : 's'} and{' '}
-              {openResourceCheckIns.length} resource{openResourceCheckIns.length === 1 ? '' : 's'}{' '}
+              {openResourceCheckIns.length} piece{openResourceCheckIns.length === 1 ? '' : 's'} of equipment{' '}
               still on scene. This cannot be undone.
             </DialogDescription>
           </DialogHeader>

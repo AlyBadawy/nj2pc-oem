@@ -1,4 +1,4 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
@@ -35,11 +35,17 @@ function emptyForm(selfOperatorId: string): FormState {
   }
 }
 
-export function VehicleCreate() {
+export function VehicleCreate({ forOthers = false }: { forOthers?: boolean }) {
   const { user } = useAuth()
-  const canManageAll = hasPermission(user, 'RESOURCE_MANAGE_ALL')
+  const canAssignOwner = hasPermission(user, 'RESOURCE_MANAGE_ALL') || hasPermission(user, 'RESOURCE_ASSIGN_OWNER')
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+
+  useEffect(() => {
+    if (forOthers && !canAssignOwner) {
+      navigate('/vehicles', { replace: true })
+    }
+  }, [forOthers, canAssignOwner, navigate])
 
   const { data: me } = useQuery({
     queryKey: ['auth', 'me'],
@@ -49,14 +55,16 @@ export function VehicleCreate() {
   const { data: operators } = useQuery({
     queryKey: ['operators'],
     queryFn: async () => (await api.get<Operator[]>('/api/operators')).data,
-    enabled: canManageAll,
+    enabled: forOthers && canAssignOwner,
   })
 
   const [form, setForm] = useState<FormState>(emptyForm(me ? String(me.id) : ''))
 
+  const operatorId = forOthers ? form.operatorId || (me ? String(me.id) : '') : me ? String(me.id) : ''
+
   const createMutation = useMutation({
     mutationFn: async () =>
-      api.post(`/api/operators/${form.operatorId}/vehicles`, {
+      api.post(`/api/operators/${operatorId}/vehicles`, {
         year: Number(form.year),
         make: form.make,
         model: form.model,
@@ -68,7 +76,7 @@ export function VehicleCreate() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['vehicles'] })
       toast.success('Vehicle added')
-      navigate('/vehicles')
+      navigate(forOthers ? '/all-vehicles' : '/vehicles')
     },
     onError: () => toast.error('Failed to add vehicle'),
   })
@@ -78,19 +86,19 @@ export function VehicleCreate() {
     createMutation.mutate()
   }
 
-  const operatorId = form.operatorId || (me ? String(me.id) : '')
+  if (forOthers && !canAssignOwner) return null
 
   return (
     <div className="flex flex-col gap-6">
       <div>
         <h1 className="text-2xl font-semibold">Add Vehicle</h1>
         <p className="text-muted-foreground text-sm">
-          {canManageAll ? 'Register a vehicle for an operator.' : 'Register a vehicle under your callsign.'}
+          {forOthers ? 'Register a vehicle for an operator.' : 'Register a vehicle under your callsign.'}
         </p>
       </div>
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
-        {canManageAll && (
+        {forOthers ? (
           <div className="flex flex-col gap-1.5 max-w-xs">
             <Label htmlFor="operatorId">Owner</Label>
             <Select value={operatorId} onValueChange={(value) => setForm({ ...form, operatorId: value })}>
@@ -105,6 +113,11 @@ export function VehicleCreate() {
                 ))}
               </SelectContent>
             </Select>
+          </div>
+        ) : (
+          <div className="flex flex-col gap-1.5 max-w-xs">
+            <Label>Owner</Label>
+            <Input value={user?.callsign ?? ''} disabled />
           </div>
         )}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">

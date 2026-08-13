@@ -12,7 +12,11 @@ public interface OperatorCheckInRepository extends JpaRepository<OperatorCheckIn
 
     List<OperatorCheckIn> findByCheckedOutAtIsNull();
 
+    Optional<OperatorCheckIn> findByOperatorIdAndCheckedOutAtIsNull(Long operatorId);
+
     Optional<OperatorCheckIn> findByIncidentIdAndOperatorIdAndCheckedOutAtIsNull(Long incidentId, Long operatorId);
 
     boolean existsByIncidentIdAndOperatorIdAndCheckedOutAtIsNull(Long incidentId, Long operatorId);
+
+    Optional<OperatorCheckIn> findTopByOperatorIdAndRoleIsNotNullOrderByCheckedInAtDesc(Long operatorId);
 }

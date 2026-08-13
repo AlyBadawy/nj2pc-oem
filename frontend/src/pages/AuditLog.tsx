@@ -155,7 +155,7 @@ export function AuditLog() {
                     </Badge>
                   </TableCell>
                   <TableCell className="text-sm">{entry.action}</TableCell>
-                  <TableCell className="text-sm max-w-[400px]">{entry.summary}</TableCell>
+                  <TableCell className="text-sm max-w-[400px] whitespace-normal break-words">{entry.summary}</TableCell>
                   <TableCell className="text-sm">{entry.performedByCallsign ?? '—'}</TableCell>
                   <TableCell className="text-sm whitespace-nowrap">{entry.performedIp ?? '—'}</TableCell>
                 </TableRow>

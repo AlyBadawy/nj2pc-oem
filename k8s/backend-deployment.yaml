@@ -9,11 +9,11 @@ metadata:
 spec:
   replicas: 1
   revisionHistoryLimit: 2
+  # Recreate, not RollingUpdate: the ReadWriteOnce storage PVC below can only be mounted by one
+  # pod at a time, so a surge pod for a rolling update would fail to schedule while the old pod
+  # still holds it. This trades a brief window of downtime per deploy for a reliable rollout.
   strategy:
-    type: RollingUpdate
-    rollingUpdate:
-      maxSurge: 1
-      maxUnavailable: 0
+    type: Recreate
   selector:
     matchLabels:
       app.kubernetes.io/name: nj2pc-oem-backend
@@ -37,6 +37,11 @@ spec:
               value: "5432"
             - name: DB_NAME
               value: nj2pc_oem
+            - name: STORAGE_DIR
+              value: /data
+          volumeMounts:
+            - name: storage
+              mountPath: /data
           resources:
             requests:
               cpu: 100m
@@ -56,3 +61,7 @@ spec:
               port: 8080
             initialDelaySeconds: 30
             periodSeconds: 20
+      volumes:
+        - name: storage
+          persistentVolumeClaim:
+            claimName: nj2pc-oem-storage

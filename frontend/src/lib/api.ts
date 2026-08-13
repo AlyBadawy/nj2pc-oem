@@ -1,10 +1,17 @@
 import axios from 'axios'
 
 const TOKEN_STORAGE_KEY = 'nj2pc-oem-token'
+const API_BASE_URL = import.meta.env.VITE_API_URL ?? 'http://localhost:8080'
 
 export const api = axios.create({
-  baseURL: import.meta.env.VITE_API_URL ?? 'http://localhost:8080',
+  baseURL: API_BASE_URL,
 })
+
+/** Absolute URL for a relative API path — needed for plain `<img src>` requests, which
+ * don't go through the axios instance (and so don't carry its baseURL or auth header). */
+export function apiUrl(path: string): string {
+  return `${API_BASE_URL}${path}`
+}
 
 api.interceptors.request.use((config) => {
   const token = localStorage.getItem(TOKEN_STORAGE_KEY)

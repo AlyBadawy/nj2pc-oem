@@ -60,6 +60,9 @@ public class Operator {
     @Column(name = "password_hash")
     private String passwordHash;
 
+    @Column(name = "photo_path")
+    private String photoPath;
+
     @Column(nullable = false)
     private boolean admin = false;
 
@@ -198,6 +201,14 @@ public class Operator {
 
     public void setPasswordHash(String passwordHash) {
         this.passwordHash = passwordHash;
+    }
+
+    public String getPhotoPath() {
+        return photoPath;
+    }
+
+    public void setPhotoPath(String photoPath) {
+        this.photoPath = photoPath;
     }
 
     public boolean isAdmin() {

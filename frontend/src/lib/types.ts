@@ -2,12 +2,17 @@ export type Permission =
   | 'OPERATOR_LIST'
   | 'OPERATOR_MANAGE_PERMISSIONS'
   | 'OPERATOR_CREATE'
+  | 'OPERATOR_VIEW_CONTACT'
   | 'INCIDENT_CREATE'
   | 'INCIDENT_VIEW_ALL'
   | 'INCIDENT_EDIT_ALL'
   | 'RESOURCE_TYPE_MANAGE'
   | 'RESOURCE_MANAGE_ALL'
+  | 'RESOURCE_ASSIGN_OWNER'
+  | 'VEHICLE_VIEW_DETAILS'
+  | 'OPERATOR_ROLE_MANAGE'
   | 'LOG_VIEW'
+  | 'COMMS_PLAN_MANAGE'
 
 export interface AuthResponse {
   token: string
@@ -18,6 +23,16 @@ export interface AuthResponse {
 }
 
 export type OperatorStatus = 'ACTIVE' | 'INACTIVE'
+
+export interface OperatorCurrentCheckIn {
+  incidentId: number
+  incidentName: string
+  roleName: string | null
+  roleColor: string | null
+  roleAccessLevel: string | null
+  post: string | null
+  checkedInAt: string
+}
 
 export interface Operator {
   id: number
@@ -40,12 +55,26 @@ export interface Operator {
   createdAt: string
   createdByCallsign: string | null
   permissions: Permission[]
+  photoUrl: string | null
+  currentCheckIn: OperatorCurrentCheckIn | null
+}
+
+export type ResourceFieldType = 'TEXT' | 'NUMBER' | 'BOOLEAN' | 'DATE' | 'SELECT'
+
+export interface ResourceTypeField {
+  id: number
+  name: string
+  fieldType: ResourceFieldType
+  required: boolean
+  sortOrder: number
+  options: string[] | null
 }
 
 export interface ResourceType {
   id: number
   name: string
   createdAt: string
+  fields: ResourceTypeField[]
 }
 
 export interface Resource {
@@ -57,6 +86,7 @@ export interface Resource {
   ownerId: number | null
   ownerCallsign: string | null
   notes: string | null
+  customFields: Record<string, unknown>
 }
 
 export interface Vehicle {
@@ -73,7 +103,14 @@ export interface Vehicle {
   createdAt: string
 }
 
-export type AuditEntityType = 'OPERATOR' | 'INCIDENT' | 'RESOURCE' | 'RESOURCE_TYPE' | 'VEHICLE'
+export type AuditEntityType =
+  | 'OPERATOR'
+  | 'INCIDENT'
+  | 'RESOURCE'
+  | 'RESOURCE_TYPE'
+  | 'VEHICLE'
+  | 'COMMS_PLAN'
+  | 'OPERATOR_ROLE'
 
 export interface AuditLogEntry {
   id: number
@@ -121,6 +158,9 @@ export interface IncidentLog {
 export interface OperatorRole {
   id: number
   name: string
+  color: string
+  accessLevel: string
+  sortOrder: number
   createdAt: string
 }
 
@@ -131,6 +171,8 @@ export interface OperatorCheckIn {
   operatorCallsign: string
   roleId: number | null
   roleName: string | null
+  roleColor: string | null
+  roleAccessLevel: string | null
   post: string | null
   checkedInAt: string
   checkedOutAt: string | null
@@ -154,4 +196,43 @@ export interface IncidentPermissionGrant {
   operatorId: number
   operatorCallsign: string
   permission: IncidentPermission
+}
+
+export type ChannelMode = 'ANALOG' | 'DIGITAL' | 'MIXED'
+
+export interface CommunicationChannel {
+  id: number
+  planId: number
+  zoneGroup: string
+  channelNumber: number
+  function: string
+  channelName: string
+  assignment: string | null
+  rxFrequency: string | null
+  rxTone: string | null
+  txFrequency: string | null
+  txTone: string | null
+  mode: ChannelMode
+  remarks: string | null
+}
+
+export interface CommunicationPlanIncidentSummary {
+  id: number
+  name: string
+}
+
+export interface CommunicationPlan {
+  id: number
+  name: string
+  operationalPeriodStart: string | null
+  operationalPeriodEnd: string | null
+  specialInstructions: string | null
+  preparedByName: string | null
+  preparedByCallsign: string | null
+  preparedAt: string | null
+  approvedByName: string | null
+  approvedByCallsign: string | null
+  approvedAt: string | null
+  createdAt: string
+  incidents: CommunicationPlanIncidentSummary[]
 }

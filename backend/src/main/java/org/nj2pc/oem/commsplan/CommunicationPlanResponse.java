@@ -16,7 +16,10 @@ public record CommunicationPlanResponse(
         String approvedByCallsign,
         Instant approvedAt,
         Instant createdAt,
-        List<IncidentSummary> incidents
+        List<IncidentSummary> incidents,
+        int version,
+        Long rootPlanId,
+        boolean active
 ) {
     public record IncidentSummary(Long id, String name) {
     }
@@ -30,7 +33,7 @@ public record CommunicationPlanResponse(
                 p.getId(), p.getName(), p.getOperationalPeriodStart(), p.getOperationalPeriodEnd(),
                 p.getSpecialInstructions(), p.getPreparedByName(), p.getPreparedByCallsign(), p.getPreparedAt(),
                 p.getApprovedByName(), p.getApprovedByCallsign(), p.getApprovedAt(), p.getCreatedAt(),
-                incidents
+                incidents, p.getVersion(), p.getRootPlanId(), p.isActive()
         );
     }
 }

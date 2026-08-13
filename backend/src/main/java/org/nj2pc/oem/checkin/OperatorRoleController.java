@@ -2,7 +2,7 @@ package org.nj2pc.oem.checkin;
 
 import jakarta.validation.Valid;
 import org.springframework.http.HttpStatus;
-import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
@@ -24,21 +24,19 @@ public class OperatorRoleController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    @PreAuthorize("hasRole('ADMIN')")
-    public OperatorRoleResponse create(@Valid @RequestBody OperatorRoleRequest request) {
-        return operatorRoleService.create(request);
+    public OperatorRoleResponse create(Authentication authentication, @Valid @RequestBody OperatorRoleRequest request) {
+        return operatorRoleService.create(authentication, request);
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
-    public OperatorRoleResponse update(@PathVariable Long id, @Valid @RequestBody OperatorRoleRequest request) {
-        return operatorRoleService.update(id, request);
+    public OperatorRoleResponse update(Authentication authentication, @PathVariable Long id,
+                                        @Valid @RequestBody OperatorRoleRequest request) {
+        return operatorRoleService.update(authentication, id, request);
     }
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    @PreAuthorize("hasRole('ADMIN')")
-    public void delete(@PathVariable Long id) {
-        operatorRoleService.delete(id);
+    public void delete(Authentication authentication, @PathVariable Long id) {
+        operatorRoleService.delete(authentication, id);
     }
 }

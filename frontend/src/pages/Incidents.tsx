@@ -1,9 +1,10 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { Play, Flag } from 'lucide-react'
+import { Play, Flag, FilePlus2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { api } from '@/lib/api'
+import { hasPermission, useAuth } from '@/lib/auth-context'
 import type { Incident } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -33,6 +34,8 @@ function formatRange(start: string | null, end: string | null): string {
 }
 
 export function Incidents() {
+  const { user } = useAuth()
+  const canCreate = hasPermission(user, 'INCIDENT_CREATE')
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [endTarget, setEndTarget] = useState<Incident | null>(null)
@@ -55,7 +58,7 @@ export function Incidents() {
     mutationFn: async (id: number) => api.post(`/api/incidents/${id}/end`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['incidents'] })
-      toast.success('Incident ended — all operators and resources checked out')
+      toast.success('Incident ended — all operators and equipment checked out')
       setEndTarget(null)
     },
     onError: () => toast.error('Failed to end incident'),
@@ -63,11 +66,21 @@ export function Incidents() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Incidents</h1>
-        <p className="text-muted-foreground text-sm">
-          Incidents you can view — either via a permission grant, or because you're currently checked in.
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-2xl font-semibold">Incidents</h1>
+          <p className="text-muted-foreground text-sm">
+            Incidents you can view — either via a permission grant, or because you're currently checked in.
+          </p>
+        </div>
+        <Button
+          disabled={!canCreate}
+          title={canCreate ? 'Create incident' : 'Requires Create Incidents permission'}
+          onClick={() => navigate('/incidents/new')}
+        >
+          <FilePlus2 className="size-4" />
+          Create Incident
+        </Button>
       </div>
 
       <Card>
@@ -157,7 +170,7 @@ export function Incidents() {
             <DialogTitle>End Incident</DialogTitle>
             <DialogDescription>
               This will close "{endTarget?.name}" and automatically check out any operators and
-              resources still on scene. No further changes can be made once it's closed. This
+              equipment still on scene. No further changes can be made once it's closed. This
               cannot be undone.
             </DialogDescription>
           </DialogHeader>

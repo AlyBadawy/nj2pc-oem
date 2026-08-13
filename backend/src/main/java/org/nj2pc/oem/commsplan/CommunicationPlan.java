@@ -48,6 +48,15 @@ public class CommunicationPlan {
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
 
+    @Column(nullable = false)
+    private int version = 1;
+
+    @Column(name = "root_plan_id")
+    private Long rootPlanId;
+
+    @Column(nullable = false)
+    private boolean active = true;
+
     @ManyToMany
     @JoinTable(
             name = "incident_communication_plans",
@@ -146,5 +155,29 @@ public class CommunicationPlan {
 
     public Set<Incident> getIncidents() {
         return incidents;
+    }
+
+    public int getVersion() {
+        return version;
+    }
+
+    public void setVersion(int version) {
+        this.version = version;
+    }
+
+    public Long getRootPlanId() {
+        return rootPlanId;
+    }
+
+    public void setRootPlanId(Long rootPlanId) {
+        this.rootPlanId = rootPlanId;
+    }
+
+    public boolean isActive() {
+        return active;
+    }
+
+    public void setActive(boolean active) {
+        this.active = active;
     }
 }

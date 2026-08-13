@@ -37,4 +37,10 @@ public class AuthController {
     public void changePassword(Authentication authentication, @Valid @RequestBody ChangePasswordRequest request) {
         authService.changePassword(authentication.getName(), request);
     }
+
+    @PutMapping("/me")
+    public OperatorResponse updateProfile(Authentication authentication,
+                                           @Valid @RequestBody SelfProfileUpdateRequest request) {
+        return authService.updateProfile(authentication.getName(), request);
+    }
 }

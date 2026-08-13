@@ -37,7 +37,8 @@ public class VehicleService {
 
     @Transactional
     public VehicleResponse create(Authentication authentication, Long operatorId, VehicleRequest request) {
-        permissionGuard.requireSelfOrPermission(authentication, operatorId, Permission.RESOURCE_MANAGE_ALL);
+        permissionGuard.requireSelfOrAnyPermission(authentication, operatorId,
+                Permission.RESOURCE_MANAGE_ALL, Permission.RESOURCE_ASSIGN_OWNER);
         Operator operator = operatorRepository.findById(operatorId)
                 .orElseThrow(() -> ApiException.notFound("Operator not found: " + operatorId));
         Vehicle vehicle = new Vehicle();

@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: nj2pc-oem-storage
+  namespace: hams
+  labels:
+    app.kubernetes.io/name: nj2pc-oem-backend
+    homelab/stack: nj2pc-oem
+spec:
+  accessModes:
+    - ReadWriteOnce
+  storageClassName: local-path
+  resources:
+    requests:
+      storage: 1Gi

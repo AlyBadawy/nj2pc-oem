@@ -2,6 +2,7 @@ package org.nj2pc.oem.auth;
 
 import org.nj2pc.oem.auditlog.AuditLogService;
 import org.nj2pc.oem.auditlog.EntityType;
+import org.nj2pc.oem.checkin.OperatorCheckInRepository;
 import org.nj2pc.oem.common.ApiException;
 import org.nj2pc.oem.config.JwtService;
 import org.nj2pc.oem.operator.Operator;
@@ -23,17 +24,20 @@ public class AuthService {
     private final AuthenticationManager authenticationManager;
     private final JwtService jwtService;
     private final AuditLogService auditLogService;
+    private final OperatorCheckInRepository operatorCheckInRepository;
 
     public AuthService(OperatorRepository operatorRepository,
                         PasswordEncoder passwordEncoder,
                         AuthenticationManager authenticationManager,
                         JwtService jwtService,
-                        AuditLogService auditLogService) {
+                        AuditLogService auditLogService,
+                        OperatorCheckInRepository operatorCheckInRepository) {
         this.operatorRepository = operatorRepository;
         this.passwordEncoder = passwordEncoder;
         this.authenticationManager = authenticationManager;
         this.jwtService = jwtService;
         this.auditLogService = auditLogService;
+        this.operatorCheckInRepository = operatorCheckInRepository;
     }
 
     public AuthResponse login(LoginRequest request) {
@@ -61,7 +65,8 @@ public class AuthService {
     public OperatorResponse me(String callsign) {
         Operator operator = operatorRepository.findByCallsignIgnoreCase(callsign)
                 .orElseThrow(() -> ApiException.notFound("Operator not found: " + callsign));
-        return OperatorResponse.from(operator);
+        var checkIn = operatorCheckInRepository.findByOperatorIdAndCheckedOutAtIsNull(operator.getId()).orElse(null);
+        return OperatorResponse.from(operator, true, checkIn);
     }
 
     @Transactional
@@ -76,5 +81,34 @@ public class AuthService {
 
         operator.setPasswordHash(passwordEncoder.encode(request.newPassword()));
         operatorRepository.save(operator);
+    }
+
+    @Transactional
+    public OperatorResponse updateProfile(String callsign, SelfProfileUpdateRequest request) {
+        Operator operator = operatorRepository.findByCallsignIgnoreCase(callsign)
+                .orElseThrow(() -> ApiException.notFound("Operator not found: " + callsign));
+
+        operator.setName(request.name());
+        operator.setLicenseClass(request.licenseClass());
+        operator.getDmrIds().clear();
+        if (request.dmrIds() != null) {
+            operator.getDmrIds().addAll(request.dmrIds());
+        }
+        operator.setPhone(request.phone());
+        operator.setEmail(request.email());
+        operator.setNotes(request.notes());
+        operator.setAddressLine1(request.addressLine1());
+        operator.setAddressLine2(request.addressLine2());
+        operator.setAddressAttn(request.addressAttn());
+        operator.setLatitude(request.latitude());
+        operator.setLongitude(request.longitude());
+        operator.setGridSquare(request.gridSquare());
+        operator = operatorRepository.save(operator);
+
+        auditLogService.record(EntityType.OPERATOR, operator.getId(), "UPDATE",
+                operator.getCallsign() + " updated their own profile", callsign);
+
+        var checkIn = operatorCheckInRepository.findByOperatorIdAndCheckedOutAtIsNull(operator.getId()).orElse(null);
+        return OperatorResponse.from(operator, true, checkIn);
     }
 }

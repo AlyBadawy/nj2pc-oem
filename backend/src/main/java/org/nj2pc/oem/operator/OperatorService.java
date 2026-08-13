@@ -2,6 +2,8 @@ package org.nj2pc.oem.operator;
 
 import org.nj2pc.oem.auditlog.AuditLogService;
 import org.nj2pc.oem.auditlog.EntityType;
+import org.nj2pc.oem.checkin.OperatorCheckIn;
+import org.nj2pc.oem.checkin.OperatorCheckInRepository;
 import org.nj2pc.oem.common.ApiException;
 import org.springframework.security.core.Authentication;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -10,6 +12,9 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
 
 @Service
 public class OperatorService {
@@ -18,25 +23,43 @@ public class OperatorService {
     private final PasswordEncoder passwordEncoder;
     private final PermissionGuard permissionGuard;
     private final AuditLogService auditLogService;
+    private final OperatorCheckInRepository operatorCheckInRepository;
 
     public OperatorService(OperatorRepository operatorRepository, PasswordEncoder passwordEncoder,
-                            PermissionGuard permissionGuard, AuditLogService auditLogService) {
+                            PermissionGuard permissionGuard, AuditLogService auditLogService,
+                            OperatorCheckInRepository operatorCheckInRepository) {
         this.operatorRepository = operatorRepository;
         this.passwordEncoder = passwordEncoder;
         this.permissionGuard = permissionGuard;
         this.auditLogService = auditLogService;
+        this.operatorCheckInRepository = operatorCheckInRepository;
     }
 
     @Transactional(readOnly = true)
     public List<OperatorResponse> findAll(Authentication authentication) {
         permissionGuard.require(authentication, Permission.OPERATOR_LIST);
-        return operatorRepository.findAll().stream().map(OperatorResponse::from).toList();
+        Operator caller = permissionGuard.requireCaller(authentication);
+        boolean showContactAll = caller.isAdmin() || caller.getPermissions().contains(Permission.OPERATOR_VIEW_CONTACT);
+        Map<Long, OperatorCheckIn> openCheckIns = operatorCheckInRepository.findByCheckedOutAtIsNull().stream()
+                .collect(Collectors.toMap(c -> c.getOperator().getId(), Function.identity(), (a, b) -> a));
+        return operatorRepository.findAll().stream()
+                .map(o -> toResponse(o, caller, showContactAll, openCheckIns.get(o.getId())))
+                .toList();
     }
 
     @Transactional(readOnly = true)
     public OperatorResponse findById(Authentication authentication, Long id) {
         permissionGuard.require(authentication, Permission.OPERATOR_LIST);
-        return OperatorResponse.from(getOperatorOrThrow(id));
+        Operator caller = permissionGuard.requireCaller(authentication);
+        boolean showContactAll = caller.isAdmin() || caller.getPermissions().contains(Permission.OPERATOR_VIEW_CONTACT);
+        Operator operator = getOperatorOrThrow(id);
+        OperatorCheckIn checkIn = operatorCheckInRepository.findByOperatorIdAndCheckedOutAtIsNull(id).orElse(null);
+        return toResponse(operator, caller, showContactAll, checkIn);
+    }
+
+    private OperatorResponse toResponse(Operator o, Operator caller, boolean showContactAll, OperatorCheckIn checkIn) {
+        boolean showContact = showContactAll || o.getId().equals(caller.getId());
+        return OperatorResponse.from(o, showContact, checkIn);
     }
 
     @Transactional

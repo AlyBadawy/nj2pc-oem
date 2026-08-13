@@ -6,4 +6,6 @@ import java.util.List;
 
 public interface CommunicationPlanRepository extends JpaRepository<CommunicationPlan, Long> {
     List<CommunicationPlan> findByIncidents_Id(Long incidentId);
+
+    List<CommunicationPlan> findByActiveTrue();
 }

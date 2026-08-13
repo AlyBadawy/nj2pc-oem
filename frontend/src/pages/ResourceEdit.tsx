@@ -16,6 +16,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select'
+import { CustomFieldInputs, type CustomFieldValues } from '@/components/CustomFieldInputs'
 
 type FormState = {
   resourceTypeId: string
@@ -38,10 +39,12 @@ const NONE = '__none__'
 export function ResourceEdit() {
   const { user } = useAuth()
   const canManageAll = hasPermission(user, 'RESOURCE_MANAGE_ALL')
+  const canAssignOwner = canManageAll || hasPermission(user, 'RESOURCE_ASSIGN_OWNER')
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
   const [form, setForm] = useState<FormState>(emptyForm)
+  const [customFields, setCustomFields] = useState<CustomFieldValues>({})
   const [loaded, setLoaded] = useState(false)
   const [canEditThis, setCanEditThis] = useState(true)
 
@@ -50,10 +53,12 @@ export function ResourceEdit() {
     queryFn: async () => (await api.get<ResourceType[]>('/api/resource-types')).data,
   })
 
+  const selectedType = resourceTypes?.find((t) => String(t.id) === form.resourceTypeId)
+
   const { data: operators } = useQuery({
     queryKey: ['operators'],
     queryFn: async () => (await api.get<Operator[]>('/api/operators')).data,
-    enabled: canManageAll,
+    enabled: canAssignOwner,
   })
 
   useQuery({
@@ -68,6 +73,7 @@ export function ResourceEdit() {
         ownerId: data.ownerId ? String(data.ownerId) : '',
         notes: data.notes ?? '',
       })
+      setCustomFields(data.customFields as CustomFieldValues)
       setLoaded(true)
       return data
     },
@@ -88,13 +94,14 @@ export function ResourceEdit() {
         serialNumber: form.serialNumber || null,
         ownerId: form.ownerId ? Number(form.ownerId) : null,
         notes: form.notes || null,
+        customFields,
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['resources'] })
-      toast.success('Resource updated')
+      toast.success('Equipment updated')
       navigate('/resources')
     },
-    onError: () => toast.error('Failed to update resource'),
+    onError: () => toast.error('Failed to update equipment'),
   })
 
   function handleSubmit(e: FormEvent) {
@@ -107,17 +114,20 @@ export function ResourceEdit() {
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <h1 className="text-2xl font-semibold">Edit Resource</h1>
+        <h1 className="text-2xl font-semibold">Edit Equipment</h1>
         <p className="text-muted-foreground text-sm">{form.identifier}</p>
       </div>
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-4">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div className="flex flex-col gap-1.5">
-            <Label htmlFor="resourceTypeId">Resource Type</Label>
+            <Label htmlFor="resourceTypeId">Equipment Type</Label>
             <Select
               value={form.resourceTypeId}
-              onValueChange={(value) => setForm({ ...form, resourceTypeId: value })}
+              onValueChange={(value) => {
+                setForm({ ...form, resourceTypeId: value })
+                setCustomFields({})
+              }}
             >
               <SelectTrigger id="resourceTypeId">
                 <SelectValue placeholder="Select a type" />
@@ -150,7 +160,7 @@ export function ResourceEdit() {
               onChange={(e) => setForm({ ...form, serialNumber: e.target.value })}
             />
           </div>
-          {canManageAll && (
+          {canAssignOwner && (
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="ownerId">Owner</Label>
               <Select
@@ -180,6 +190,11 @@ export function ResourceEdit() {
             onChange={(e) => setForm({ ...form, notes: e.target.value })}
           />
         </div>
+
+        {selectedType && (
+          <CustomFieldInputs fields={selectedType.fields} values={customFields} onChange={setCustomFields} />
+        )}
+
         <div>
           <Button type="submit" disabled={saveMutation.isPending}>
             Save Changes

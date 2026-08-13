@@ -5,14 +5,13 @@ import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.security.access.prepost.PreAuthorize;
+import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
 import java.util.List;
 
 @RestController
 @RequestMapping("/api/comms-plans")
-@PreAuthorize("hasRole('ADMIN')")
 public class CommunicationPlanController {
 
     private final CommunicationPlanService communicationPlanService;
@@ -42,29 +41,32 @@ public class CommunicationPlanController {
 
     @PostMapping
     @ResponseStatus(HttpStatus.CREATED)
-    public CommunicationPlanResponse create(@Valid @RequestBody CommunicationPlanRequest request) {
-        return communicationPlanService.create(request);
+    public CommunicationPlanResponse create(Authentication authentication, @Valid @RequestBody CommunicationPlanRequest request) {
+        return communicationPlanService.create(authentication, request);
     }
 
     @PutMapping("/{id}")
-    public CommunicationPlanResponse update(@PathVariable Long id, @Valid @RequestBody CommunicationPlanRequest request) {
-        return communicationPlanService.update(id, request);
+    public CommunicationPlanResponse update(Authentication authentication, @PathVariable Long id,
+                                             @Valid @RequestBody CommunicationPlanRequest request) {
+        return communicationPlanService.update(authentication, id, request);
     }
 
     @DeleteMapping("/{id}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void delete(@PathVariable Long id) {
-        communicationPlanService.delete(id);
+    public void delete(Authentication authentication, @PathVariable Long id) {
+        communicationPlanService.delete(authentication, id);
     }
 
     @PostMapping("/{id}/incidents/{incidentId}")
-    public CommunicationPlanResponse linkIncident(@PathVariable Long id, @PathVariable Long incidentId) {
-        return communicationPlanService.linkIncident(id, incidentId);
+    public CommunicationPlanResponse linkIncident(Authentication authentication, @PathVariable Long id,
+                                                   @PathVariable Long incidentId) {
+        return communicationPlanService.linkIncident(authentication, id, incidentId);
     }
 
     @DeleteMapping("/{id}/incidents/{incidentId}")
-    public CommunicationPlanResponse unlinkIncident(@PathVariable Long id, @PathVariable Long incidentId) {
-        return communicationPlanService.unlinkIncident(id, incidentId);
+    public CommunicationPlanResponse unlinkIncident(Authentication authentication, @PathVariable Long id,
+                                                     @PathVariable Long incidentId) {
+        return communicationPlanService.unlinkIncident(authentication, id, incidentId);
     }
 
     @GetMapping("/{id}/pdf")
@@ -85,20 +87,21 @@ public class CommunicationPlanController {
 
     @PostMapping("/{id}/channels")
     @ResponseStatus(HttpStatus.CREATED)
-    public CommunicationChannelResponse createChannel(@PathVariable Long id,
+    public CommunicationChannelResponse createChannel(Authentication authentication, @PathVariable Long id,
                                                         @Valid @RequestBody CommunicationChannelRequest request) {
-        return communicationChannelService.create(id, request);
+        return communicationChannelService.create(authentication, id, request);
     }
 
     @PutMapping("/{id}/channels/{channelId}")
-    public CommunicationChannelResponse updateChannel(@PathVariable Long id, @PathVariable Long channelId,
+    public CommunicationChannelResponse updateChannel(Authentication authentication, @PathVariable Long id,
+                                                        @PathVariable Long channelId,
                                                         @Valid @RequestBody CommunicationChannelRequest request) {
-        return communicationChannelService.update(id, channelId, request);
+        return communicationChannelService.update(authentication, id, channelId, request);
     }
 
     @DeleteMapping("/{id}/channels/{channelId}")
     @ResponseStatus(HttpStatus.NO_CONTENT)
-    public void deleteChannel(@PathVariable Long id, @PathVariable Long channelId) {
-        communicationChannelService.delete(id, channelId);
+    public void deleteChannel(Authentication authentication, @PathVariable Long id, @PathVariable Long channelId) {
+        communicationChannelService.delete(authentication, id, channelId);
     }
 }

@@ -5,5 +5,7 @@ public enum EntityType {
     INCIDENT,
     RESOURCE,
     RESOURCE_TYPE,
-    VEHICLE
+    VEHICLE,
+    COMMS_PLAN,
+    OPERATOR_ROLE
 }

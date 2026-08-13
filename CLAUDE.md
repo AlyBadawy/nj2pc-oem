@@ -120,13 +120,25 @@ pattern). When adding a new lazy relation to an entity, grep for where its ownin
 `*Response.from()` is called and check every call site is transactional.
 
 ### Migrations
-Flyway migrations in `backend/src/main/resources/db/migration/`, currently `V1` (full schema) and
-`V2` (seed: default operator roles + bootstrap `ADMIN`/`ChangeMe!23` operator). Earlier in this
-app's life, while it was still pre-deployment, schema changes were squashed back into `V1` instead
-of accumulating — **that phase is over.** The app is now live in the cluster, so from here on,
-every schema change is a new versioned migration (`V3__...sql`, `V4__...sql`, ...), never an edit
-to `V1`/`V2` themselves. Don't drop/recreate the deployed database as part of a routine change
-anymore either — that was only ever appropriate for the pre-deployment squash-and-reset workflow.
+Flyway migrations in `backend/src/main/resources/db/migration/`, currently `V1` (full schema),
+`V2` (seed: default operator roles + bootstrap `ADMIN`/`ChangeMe!23` operator), and `V3`
+(`operators.photo_path`). Earlier in this app's life, while it was still pre-deployment, schema
+changes were squashed back into `V1` instead of accumulating — **that phase is over.** The app is
+now live in the cluster, so from here on, every schema change is a new versioned migration
+(`V4__...sql`, ...), never an edit to `V1`/`V2`/`V3` themselves. Don't drop/recreate the deployed
+database as part of a routine change anymore either — that was only ever appropriate for the
+pre-deployment squash-and-reset workflow.
+
+### File storage
+Operator photos (and any future uploaded files) live on disk under `app.storage.dir`
+(`STORAGE_DIR` env var, defaults to `./data` for local dev) — see `OperatorPhotoService`, which
+resolves `{storage.dir}/operator-photos/{operatorId}.{ext}`. In the cluster this is backed by the
+`nj2pc-oem-storage` PVC (`k8s/pvc.yaml`, `ReadWriteOnce`/`local-path`, mounted at `/data`) — because
+it's RWO, `backend-deployment.yaml` uses `strategy: Recreate` instead of `RollingUpdate` (a surge
+pod can't mount the same RWO volume as the still-running old pod), trading zero-downtime deploys
+for a working rollout. `GET /api/operators/{id}/photo` is deliberately `permitAll()` in
+`SecurityConfig` (plain `<img src>` requests can't carry the app's JWT header) while upload/delete
+are self-or-admin, checked in `OperatorPhotoService` itself.
 
 ### Frontend structure
 The UI was intentionally stripped down to just the operator/permission model while it's being

@@ -16,12 +16,16 @@ import java.util.List;
 public class ResourceTypeService {
 
     private final ResourceTypeRepository resourceTypeRepository;
+    private final ResourceTypeFieldRepository resourceTypeFieldRepository;
     private final PermissionGuard permissionGuard;
     private final AuditLogService auditLogService;
 
-    public ResourceTypeService(ResourceTypeRepository resourceTypeRepository, PermissionGuard permissionGuard,
+    public ResourceTypeService(ResourceTypeRepository resourceTypeRepository,
+                                ResourceTypeFieldRepository resourceTypeFieldRepository,
+                                PermissionGuard permissionGuard,
                                 AuditLogService auditLogService) {
         this.resourceTypeRepository = resourceTypeRepository;
+        this.resourceTypeFieldRepository = resourceTypeFieldRepository;
         this.permissionGuard = permissionGuard;
         this.auditLogService = auditLogService;
     }
@@ -71,5 +75,60 @@ public class ResourceTypeService {
     ResourceType getTypeOrThrow(Long id) {
         return resourceTypeRepository.findById(id)
                 .orElseThrow(() -> ApiException.notFound("Resource type not found: " + id));
+    }
+
+    @Transactional
+    public ResourceTypeResponse addField(Authentication authentication, Long resourceTypeId,
+                                          ResourceTypeFieldRequest request) {
+        permissionGuard.require(authentication, Permission.RESOURCE_TYPE_MANAGE);
+        ResourceType type = getTypeOrThrow(resourceTypeId);
+        if (resourceTypeFieldRepository.existsByResourceTypeIdAndNameIgnoreCase(resourceTypeId, request.name())) {
+            throw ApiException.conflict("Field already exists on this equipment type: " + request.name());
+        }
+        ResourceTypeField field = new ResourceTypeField();
+        field.setResourceType(type);
+        field.setName(request.name());
+        field.setFieldType(request.fieldType());
+        field.setRequired(request.required());
+        field.setOptions(request.options());
+        field.setSortOrder(resourceTypeFieldRepository.countByResourceTypeId(resourceTypeId));
+        resourceTypeFieldRepository.save(field);
+        auditLogService.record(EntityType.RESOURCE_TYPE, type.getId(), "FIELD_ADD",
+                "Added field " + field.getName() + " to equipment type " + type.getName(), authentication.getName());
+        return ResourceTypeResponse.from(resourceTypeRepository.findById(resourceTypeId).orElseThrow());
+    }
+
+    @Transactional
+    public ResourceTypeResponse updateField(Authentication authentication, Long resourceTypeId, Long fieldId,
+                                             ResourceTypeFieldRequest request) {
+        permissionGuard.require(authentication, Permission.RESOURCE_TYPE_MANAGE);
+        ResourceType type = getTypeOrThrow(resourceTypeId);
+        ResourceTypeField field = getFieldOrThrow(resourceTypeId, fieldId);
+        field.setFieldType(request.fieldType());
+        field.setRequired(request.required());
+        field.setOptions(request.options());
+        resourceTypeFieldRepository.save(field);
+        auditLogService.record(EntityType.RESOURCE_TYPE, type.getId(), "FIELD_UPDATE",
+                "Updated field " + field.getName() + " on equipment type " + type.getName(), authentication.getName());
+        return ResourceTypeResponse.from(resourceTypeRepository.findById(resourceTypeId).orElseThrow());
+    }
+
+    @Transactional
+    public void deleteField(Authentication authentication, Long resourceTypeId, Long fieldId) {
+        permissionGuard.require(authentication, Permission.RESOURCE_TYPE_MANAGE);
+        ResourceType type = getTypeOrThrow(resourceTypeId);
+        ResourceTypeField field = getFieldOrThrow(resourceTypeId, fieldId);
+        resourceTypeFieldRepository.delete(field);
+        auditLogService.record(EntityType.RESOURCE_TYPE, type.getId(), "FIELD_DELETE",
+                "Deleted field " + field.getName() + " from equipment type " + type.getName(), authentication.getName());
+    }
+
+    private ResourceTypeField getFieldOrThrow(Long resourceTypeId, Long fieldId) {
+        ResourceTypeField field = resourceTypeFieldRepository.findById(fieldId)
+                .orElseThrow(() -> ApiException.notFound("Field not found: " + fieldId));
+        if (!field.getResourceType().getId().equals(resourceTypeId)) {
+            throw ApiException.notFound("Field not found: " + fieldId);
+        }
+        return field;
     }
 }

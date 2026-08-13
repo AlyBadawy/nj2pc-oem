@@ -11,7 +11,9 @@ import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 @Service
 public class ResourceService {
@@ -97,8 +99,11 @@ public class ResourceService {
         resource.setIdentifier(request.identifier());
         resource.setSerialNumber(request.serialNumber());
         resource.setNotes(request.notes());
+        resource.setCustomFields(sanitizeCustomFields(type, request.customFields()));
 
-        boolean canAssignAnyOwner = caller.isAdmin() || caller.getPermissions().contains(Permission.RESOURCE_MANAGE_ALL);
+        boolean canAssignAnyOwner = caller.isAdmin()
+                || caller.getPermissions().contains(Permission.RESOURCE_MANAGE_ALL)
+                || caller.getPermissions().contains(Permission.RESOURCE_ASSIGN_OWNER);
         if (!canAssignAnyOwner) {
             resource.setOwner(caller);
             return;
@@ -111,5 +116,24 @@ public class ResourceService {
         } else {
             resource.setOwner(null);
         }
+    }
+
+    private Map<String, Object> sanitizeCustomFields(ResourceType type, Map<String, Object> input) {
+        Map<String, Object> source = input != null ? input : Map.of();
+        Map<String, Object> result = new LinkedHashMap<>();
+        if (type.getFields() == null) {
+            return result;
+        }
+        for (ResourceTypeField field : type.getFields()) {
+            Object value = source.get(field.getName());
+            boolean blank = value == null || (value instanceof String s && s.isBlank());
+            if (field.isRequired() && blank) {
+                throw ApiException.badRequest("Missing required field: " + field.getName());
+            }
+            if (!blank) {
+                result.put(field.getName(), value);
+            }
+        }
+        return result;
     }
 }

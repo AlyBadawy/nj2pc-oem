@@ -34,9 +34,23 @@ public class PermissionGuard {
      * elevated permission (or is admin) — the "manage your own X, or anyone's with permission Y" pattern.
      */
     public void requireSelfOrPermission(Authentication authentication, Long targetOperatorId, Permission permission) {
+        requireSelfOrAnyPermission(authentication, targetOperatorId, permission);
+    }
+
+    /**
+     * Same as {@link #requireSelfOrPermission}, but accepts any one of several elevated
+     * permissions — for actions two different permission grants can each independently unlock.
+     */
+    public void requireSelfOrAnyPermission(Authentication authentication, Long targetOperatorId,
+                                            Permission... permissions) {
         Operator caller = requireCaller(authentication);
-        if (caller.isAdmin() || caller.getPermissions().contains(permission)) {
+        if (caller.isAdmin()) {
             return;
+        }
+        for (Permission permission : permissions) {
+            if (caller.getPermissions().contains(permission)) {
+                return;
+            }
         }
         if (!caller.getId().equals(targetOperatorId)) {
             throw ApiException.forbidden("You do not have permission to perform this action");

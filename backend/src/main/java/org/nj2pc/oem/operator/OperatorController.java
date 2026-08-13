@@ -1,7 +1,10 @@
 package org.nj2pc.oem.operator;
 
 import jakarta.validation.Valid;
+import org.nj2pc.oem.checkin.LastRoleResponse;
+import org.nj2pc.oem.checkin.OperatorCheckInService;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
@@ -13,9 +16,11 @@ import java.util.List;
 public class OperatorController {
 
     private final OperatorService operatorService;
+    private final OperatorCheckInService operatorCheckInService;
 
-    public OperatorController(OperatorService operatorService) {
+    public OperatorController(OperatorService operatorService, OperatorCheckInService operatorCheckInService) {
         this.operatorService = operatorService;
+        this.operatorCheckInService = operatorCheckInService;
     }
 
     @GetMapping
@@ -52,5 +57,12 @@ public class OperatorController {
     @PreAuthorize("hasRole('ADMIN')")
     public void delete(@PathVariable Long id) {
         operatorService.delete(id);
+    }
+
+    @GetMapping("/{id}/last-role")
+    public ResponseEntity<LastRoleResponse> lastRole(@PathVariable Long id) {
+        return operatorCheckInService.findLastRole(id)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.noContent().build());
     }
 }

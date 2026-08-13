@@ -1,5 +1,7 @@
 package org.nj2pc.oem.resource;
 
+import java.util.Map;
+
 public record ResourceResponse(
         Long id,
         Long resourceTypeId,
@@ -8,7 +10,8 @@ public record ResourceResponse(
         String serialNumber,
         Long ownerId,
         String ownerCallsign,
-        String notes
+        String notes,
+        Map<String, Object> customFields
 ) {
     public static ResourceResponse from(Resource r) {
         return new ResourceResponse(
@@ -19,7 +22,8 @@ public record ResourceResponse(
                 r.getSerialNumber(),
                 r.getOwner() != null ? r.getOwner().getId() : null,
                 r.getOwner() != null ? r.getOwner().getCallsign() : null,
-                r.getNotes()
+                r.getNotes(),
+                r.getCustomFields()
         );
     }
 }

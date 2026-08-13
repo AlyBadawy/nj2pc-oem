@@ -1,7 +1,12 @@
 package org.nj2pc.oem.resource;
 
 import jakarta.persistence.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import org.nj2pc.oem.operator.Operator;
+
+import java.util.HashMap;
+import java.util.Map;
 
 @Entity
 @Table(name = "resources")
@@ -26,6 +31,10 @@ public class Resource {
     private Operator owner;
 
     private String notes;
+
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "custom_fields", nullable = false, columnDefinition = "jsonb")
+    private Map<String, Object> customFields = new HashMap<>();
 
     public Long getId() {
         return id;
@@ -69,5 +78,13 @@ public class Resource {
 
     public void setNotes(String notes) {
         this.notes = notes;
+    }
+
+    public Map<String, Object> getCustomFields() {
+        return customFields;
+    }
+
+    public void setCustomFields(Map<String, Object> customFields) {
+        this.customFields = customFields;
     }
 }
