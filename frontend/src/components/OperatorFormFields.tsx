@@ -1,4 +1,4 @@
-import { Plus, X, Loader2 } from 'lucide-react'
+import { Plus, X, Loader2, Search } from 'lucide-react'
 import type { OperatorFormState } from '@/lib/operatorForm'
 import type { OperatorStatus } from '@/lib/types'
 import { permissionCatalog } from '@/lib/permissions'
@@ -22,12 +22,14 @@ export function OperatorFormFields({
   mode,
   lookupLoading,
   onCallsignBlur,
+  onLookupClick,
 }: {
   form: OperatorFormState
   setForm: (form: OperatorFormState) => void
   mode: 'create' | 'edit'
   lookupLoading?: boolean
   onCallsignBlur?: () => void
+  onLookupClick?: () => void
 }) {
   return (
     <div className="flex flex-col gap-4">
@@ -37,13 +39,28 @@ export function OperatorFormFields({
             Callsign
             {lookupLoading && <Loader2 className="size-3 animate-spin text-muted-foreground" />}
           </Label>
-          <Input
-            id="callsign"
-            value={form.callsign}
-            onChange={(e) => setForm({ ...form, callsign: e.target.value.toUpperCase() })}
-            onBlur={onCallsignBlur}
-            required
-          />
+          <div className="flex gap-2">
+            <Input
+              id="callsign"
+              className="flex-1"
+              value={form.callsign}
+              onChange={(e) => setForm({ ...form, callsign: e.target.value.toUpperCase() })}
+              onBlur={onCallsignBlur}
+              required
+            />
+            {onLookupClick && (
+              <Button
+                type="button"
+                variant="outline"
+                size="icon"
+                disabled={lookupLoading || !form.callsign.trim()}
+                title="Look up this callsign in the FCC database"
+                onClick={onLookupClick}
+              >
+                <Search className="size-4" />
+              </Button>
+            )}
+          </div>
         </div>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="name">Name</Label>

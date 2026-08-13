@@ -5,6 +5,7 @@ import { toast } from 'sonner'
 import { api } from '@/lib/api'
 import { useAuth } from '@/lib/auth-context'
 import { emptyOperatorForm, type OperatorFormState } from '@/lib/operatorForm'
+import { formatCallookLicenseClass, formatCallookName, lookupCallsign } from '@/lib/callook'
 import type { Operator } from '@/lib/types'
 import { OperatorFormFields } from '@/components/OperatorFormFields'
 import { Button } from '@/components/ui/button'
@@ -17,6 +18,7 @@ export function OperatorEdit() {
   const queryClient = useQueryClient()
   const [form, setForm] = useState<OperatorFormState>(emptyOperatorForm)
   const [loaded, setLoaded] = useState(false)
+  const [lookupLoading, setLookupLoading] = useState(false)
 
   useEffect(() => {
     if (!isAdmin) {
@@ -74,6 +76,33 @@ export function OperatorEdit() {
     },
   })
 
+  async function handleLookup() {
+    if (!form.callsign.trim()) return
+    setLookupLoading(true)
+    const result = await lookupCallsign(form.callsign)
+    setLookupLoading(false)
+
+    if (!result || result.status !== 'VALID' || result.type !== 'PERSON') {
+      toast.info('Callsign not found in FCC database.')
+      return
+    }
+
+    setForm((f) => ({
+      ...f,
+      name: result.name ? formatCallookName(result.name) : f.name,
+      licenseClass: result.current?.operClass
+        ? formatCallookLicenseClass(result.current.operClass)
+        : f.licenseClass,
+      addressLine1: result.address?.line1 || f.addressLine1,
+      addressLine2: result.address?.line2 || f.addressLine2,
+      addressAttn: result.address?.attn || f.addressAttn,
+      latitude: result.location?.latitude || f.latitude,
+      longitude: result.location?.longitude || f.longitude,
+      gridSquare: result.location?.gridsquare || f.gridSquare,
+    }))
+    toast.success('Auto-filled from FCC database — review before saving.')
+  }
+
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
     saveMutation.mutate()
@@ -89,7 +118,13 @@ export function OperatorEdit() {
       </div>
 
       <form onSubmit={handleSubmit} className="flex flex-col gap-6">
-        <OperatorFormFields form={form} setForm={setForm} mode="edit" />
+        <OperatorFormFields
+          form={form}
+          setForm={setForm}
+          mode="edit"
+          lookupLoading={lookupLoading}
+          onLookupClick={handleLookup}
+        />
         <div>
           <Button type="submit" disabled={saveMutation.isPending}>
             Save Changes
