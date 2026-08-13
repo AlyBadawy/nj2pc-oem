@@ -1,7 +1,7 @@
 import { Plus, X, Loader2, Search } from 'lucide-react'
 import type { OperatorFormState } from '@/lib/operatorForm'
 import type { OperatorStatus } from '@/lib/types'
-import { permissionCatalog } from '@/lib/permissions'
+import { permissionModuleNames, permissionsByModule } from '@/lib/permissions'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -239,28 +239,35 @@ export function OperatorFormFields({
         />
       </div>
 
-      <div className="flex flex-col gap-2">
+      <div className="flex flex-col gap-4">
         <Label>Permissions</Label>
-        {permissionCatalog.map((option) => (
-          <label key={option.value} className="flex items-start gap-2 text-sm">
-            <input
-              type="checkbox"
-              className="mt-0.5"
-              checked={form.permissions.includes(option.value)}
-              onChange={(e) =>
-                setForm({
-                  ...form,
-                  permissions: e.target.checked
-                    ? [...form.permissions, option.value]
-                    : form.permissions.filter((p) => p !== option.value),
-                })
-              }
-            />
-            <span>
-              <span className="font-medium">{option.label}</span>{' '}
-              <span className="text-muted-foreground">{option.description}</span>
-            </span>
-          </label>
+        {permissionModuleNames.map((moduleName) => (
+          <div key={moduleName} className="flex flex-col gap-2">
+            <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+              {moduleName}
+            </p>
+            {permissionsByModule[moduleName].map((option) => (
+              <label key={option.value} className="flex items-start gap-2 text-sm">
+                <input
+                  type="checkbox"
+                  className="mt-0.5"
+                  checked={form.permissions.includes(option.value)}
+                  onChange={(e) =>
+                    setForm({
+                      ...form,
+                      permissions: e.target.checked
+                        ? [...form.permissions, option.value]
+                        : form.permissions.filter((p) => p !== option.value),
+                    })
+                  }
+                />
+                <span>
+                  <span className="font-medium">{option.label}</span>{' '}
+                  <span className="text-muted-foreground">{option.description}</span>
+                </span>
+              </label>
+            ))}
+          </div>
         ))}
       </div>
     </div>

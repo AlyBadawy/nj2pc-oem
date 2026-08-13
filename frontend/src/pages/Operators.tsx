@@ -5,7 +5,7 @@ import { Pencil, Trash2, ShieldCheck, UserPlus, LayoutGrid, TableIcon } from 'lu
 import { toast } from 'sonner'
 import { api, apiUrl } from '@/lib/api'
 import { hasPermission, useAuth } from '@/lib/auth-context'
-import { permissionCatalog } from '@/lib/permissions'
+import { permissionModuleNames, permissionsByModule } from '@/lib/permissions'
 import { credentialNoFor, incidentRef, type OperatorIdentityData } from '@/lib/identity'
 import type { Operator, Permission } from '@/lib/types'
 import { Button } from '@/components/ui/button'
@@ -215,22 +215,29 @@ export function Operators() {
             <DialogTitle>Manage Permissions</DialogTitle>
             <DialogDescription>{permissionsTarget?.callsign}</DialogDescription>
           </DialogHeader>
-          <div className="flex flex-col gap-2">
-            {permissionCatalog.map((option) => (
-              <label key={option.value} className="flex items-center gap-2 text-sm">
-                <input
-                  type="checkbox"
-                  checked={selectedPermissions.includes(option.value)}
-                  onChange={(e) =>
-                    setSelectedPermissions(
-                      e.target.checked
-                        ? [...selectedPermissions, option.value]
-                        : selectedPermissions.filter((p) => p !== option.value),
-                    )
-                  }
-                />
-                {option.label}
-              </label>
+          <div className="flex flex-col gap-4 max-h-[60vh] overflow-y-auto pr-1">
+            {permissionModuleNames.map((moduleName) => (
+              <div key={moduleName} className="flex flex-col gap-2">
+                <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                  {moduleName}
+                </p>
+                {permissionsByModule[moduleName].map((option) => (
+                  <label key={option.value} className="flex items-center gap-2 text-sm">
+                    <input
+                      type="checkbox"
+                      checked={selectedPermissions.includes(option.value)}
+                      onChange={(e) =>
+                        setSelectedPermissions(
+                          e.target.checked
+                            ? [...selectedPermissions, option.value]
+                            : selectedPermissions.filter((p) => p !== option.value),
+                        )
+                      }
+                    />
+                    {option.label}
+                  </label>
+                ))}
+              </div>
             ))}
           </div>
           <DialogFooter>

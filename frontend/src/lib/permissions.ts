@@ -91,3 +91,14 @@ export const permissionCatalog: { value: Permission; label: string; description:
 export const permissionLabels: Record<Permission, string> = Object.fromEntries(
   permissionCatalog.map((p) => [p.value, p.label]),
 ) as Record<Permission, string>
+
+export const permissionsByModule: Record<string, typeof permissionCatalog> = permissionCatalog.reduce(
+  (groups, permission) => {
+    if (!groups[permission.module]) groups[permission.module] = []
+    groups[permission.module].push(permission)
+    return groups
+  },
+  {} as Record<string, typeof permissionCatalog>,
+)
+
+export const permissionModuleNames = Object.keys(permissionsByModule)

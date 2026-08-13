@@ -3,20 +3,10 @@ import { useQuery } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
 import { api } from '@/lib/api'
 import { hasPermission, useAuth } from '@/lib/auth-context'
-import { permissionCatalog } from '@/lib/permissions'
+import { permissionModuleNames, permissionsByModule } from '@/lib/permissions'
 import type { Operator } from '@/lib/types'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-
-const permissionsByModule = permissionCatalog.reduce<Record<string, typeof permissionCatalog>>(
-  (groups, permission) => {
-    if (!groups[permission.module]) groups[permission.module] = []
-    groups[permission.module].push(permission)
-    return groups
-  },
-  {},
-)
-const moduleNames = Object.keys(permissionsByModule)
 
 export function PermissionDetails() {
   const { user } = useAuth()
@@ -46,7 +36,7 @@ export function PermissionDetails() {
         </p>
       </div>
 
-      {moduleNames.map((moduleName) => (
+      {permissionModuleNames.map((moduleName) => (
         <Card key={moduleName}>
           <CardHeader>
             <CardTitle className="text-base">{moduleName}</CardTitle>
