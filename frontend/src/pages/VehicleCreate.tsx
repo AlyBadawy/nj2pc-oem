@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom'
 import { toast } from 'sonner'
 import { api } from '@/lib/api'
 import { hasPermission, useAuth } from '@/lib/auth-context'
+import { US_STATES } from '@/lib/usStates'
 import type { Operator } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -161,12 +162,21 @@ export function VehicleCreate({ forOthers = false }: { forOthers?: boolean }) {
           </div>
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="licensePlateState">License Plate State</Label>
-            <Input
-              id="licensePlateState"
+            <Select
               value={form.licensePlateState}
-              onChange={(e) => setForm({ ...form, licensePlateState: e.target.value })}
-              required
-            />
+              onValueChange={(value) => setForm({ ...form, licensePlateState: value })}
+            >
+              <SelectTrigger id="licensePlateState">
+                <SelectValue placeholder="Select a state" />
+              </SelectTrigger>
+              <SelectContent>
+                {US_STATES.map((state) => (
+                  <SelectItem key={state.code} value={state.code}>
+                    {state.name} ({state.code})
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
         </div>
         <div className="flex flex-col gap-1.5">
@@ -174,7 +184,10 @@ export function VehicleCreate({ forOthers = false }: { forOthers?: boolean }) {
           <Textarea id="notes" value={form.notes} onChange={(e) => setForm({ ...form, notes: e.target.value })} />
         </div>
         <div>
-          <Button type="submit" disabled={createMutation.isPending || !operatorId}>
+          <Button
+            type="submit"
+            disabled={createMutation.isPending || !operatorId || !form.licensePlateState}
+          >
             Add Vehicle
           </Button>
         </div>
