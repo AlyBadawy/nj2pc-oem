@@ -36,7 +36,7 @@ export function Login() {
           <div className="mx-auto mb-2 flex size-12 items-center justify-center rounded-full bg-primary/10 text-primary">
             <Radio className="size-6" />
           </div>
-          <CardTitle className="text-xl">AuxComms by AL0Y</CardTitle>
+          <CardTitle className="text-xl">0Y-AuxComs</CardTitle>
           <CardDescription>Ham Radio Incident Management</CardDescription>
         </CardHeader>
         <CardContent>

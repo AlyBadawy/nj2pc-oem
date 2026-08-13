@@ -326,7 +326,7 @@ export type OperatorIdentityProps =
 
 export function OperatorIdentity(props: OperatorIdentityProps) {
   if (props.variant === 'credential') {
-    return <CredentialCard data={props.data} orgName={props.orgName ?? 'AuxComms by AL0Y'} />
+    return <CredentialCard data={props.data} orgName={props.orgName ?? '0Y-AuxComs'} />
   }
   if (props.variant === 'row') {
     return <RosterRow data={props.data} expanded={props.expanded} onToggle={props.onToggle} />
