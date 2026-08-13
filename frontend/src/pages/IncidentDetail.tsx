@@ -488,6 +488,204 @@ export function IncidentDetail() {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-base">
+            Currently Deployed Gear and Equipment
+            <span className="ml-2 text-muted-foreground font-normal text-sm">
+              ({openResourceCheckIns.length} deployed)
+            </span>
+          </CardTitle>
+          {!isClosed && (
+            <Button size="sm" onClick={() => setResourceCheckInOpen(true)}>
+              <LogIn className="size-4" />
+              Check In
+            </Button>
+          )}
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Equipment</TableHead>
+                <TableHead>Type</TableHead>
+                <TableHead>Checked In</TableHead>
+                <TableHead>Checked Out</TableHead>
+                <TableHead>Notes</TableHead>
+                <TableHead className="text-right">Action</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {openResourceCheckIns.length === 0 && (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center text-muted-foreground">
+                    No equipment checked in yet.
+                  </TableCell>
+                </TableRow>
+              )}
+              {openResourceCheckIns.map((c) => (
+                <TableRow key={c.id}>
+                  <TableCell className="font-medium">{c.resourceIdentifier}</TableCell>
+                  <TableCell>{c.resourceTypeName}</TableCell>
+                  <TableCell className="text-sm whitespace-nowrap">
+                    {new Date(c.checkedInAt).toLocaleString()}
+                  </TableCell>
+                  <TableCell className="text-sm whitespace-nowrap">
+                    <Badge variant="default">On Scene</Badge>
+                  </TableCell>
+                  <TableCell className="text-muted-foreground text-sm max-w-[200px] truncate">
+                    {c.notes || '—'}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => checkOutResourceMutation.mutate(c.id)}
+                    >
+                      <LogOut className="size-4" />
+                      Check Out
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle className="text-base">Communications Plan</CardTitle>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={!canEdit}
+            title={canEdit ? 'Apply or change the communications plan' : 'Requires edit access to this incident'}
+            onClick={() => setApplyCommsPlanOpen(true)}
+          >
+            {activeCommsPlan ? 'Change Plan' : 'Apply Plan'}
+          </Button>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-4">
+          {activeCommsPlan ? (
+            <div className="flex items-center justify-between rounded-md border p-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <Link
+                    to={`/comms-plans/${activeCommsPlan.communicationPlanId}`}
+                    className="font-medium hover:underline"
+                  >
+                    {activeCommsPlan.planName}
+                  </Link>
+                  <Badge variant="secondary">v{activeCommsPlan.planVersion}</Badge>
+                </div>
+                <p className="text-muted-foreground text-sm">
+                  Applied {new Date(activeCommsPlan.appliedAt).toLocaleString()} by{' '}
+                  {activeCommsPlan.appliedByCallsign ?? 'System'}
+                </p>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={!canEdit}
+                title={canEdit ? 'Revoke this communications plan' : 'Requires edit access to this incident'}
+                onClick={() => revokeCommsPlanMutation.mutate(activeCommsPlan.id)}
+              >
+                Revoke
+              </Button>
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">No communications plan applied.</p>
+          )}
+          {commsPlanHistory && commsPlanHistory.length > 0 && (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Plan</TableHead>
+                  <TableHead>Applied</TableHead>
+                  <TableHead>Status</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {commsPlanHistory.map((h) => (
+                  <TableRow key={h.id}>
+                    <TableCell className="font-medium">
+                      <Link to={`/comms-plans/${h.communicationPlanId}`} className="hover:underline">
+                        {h.planName}
+                      </Link>{' '}
+                      <span className="text-muted-foreground">v{h.planVersion}</span>
+                    </TableCell>
+                    <TableCell className="text-sm whitespace-nowrap">
+                      {new Date(h.appliedAt).toLocaleString()} by {h.appliedByCallsign ?? 'System'}
+                    </TableCell>
+                    <TableCell className="text-sm whitespace-nowrap">
+                      {h.revokedAt ? (
+                        <span className="text-muted-foreground">
+                          Revoked {new Date(h.revokedAt).toLocaleString()} by {h.revokedByCallsign ?? 'System'}
+                        </span>
+                      ) : (
+                        <Badge variant="default">Active</Badge>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle className="text-base">Message Log (ICS-213)</CardTitle>
+          {!isClosed && (
+            <Button size="sm" onClick={() => setDialogOpen(true)}>
+              <Plus className="size-4" />
+              Log Entry
+            </Button>
+          )}
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Time</TableHead>
+                <TableHead>From</TableHead>
+                <TableHead>To</TableHead>
+                <TableHead>Subject</TableHead>
+                <TableHead>Message</TableHead>
+                <TableHead>Priority</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {logsLoading && (
+                <TableRow>
+                  <TableCell colSpan={6} className="text-center text-muted-foreground">
+                    Loading…
+                  </TableCell>
+                </TableRow>
+              )}
+              {logs?.map((log) => (
+                <TableRow key={log.id}>
+                  <TableCell className="text-muted-foreground text-sm whitespace-nowrap">
+                    {new Date(log.loggedAt).toLocaleString()}
+                  </TableCell>
+                  <TableCell>{log.operatorCallsign || '—'}</TableCell>
+                  <TableCell>{log.toOperatorCallsign || '—'}</TableCell>
+                  <TableCell className="font-medium">{log.subject}</TableCell>
+                  <TableCell className="max-w-xs truncate">{log.message}</TableCell>
+                  <TableCell>
+                    <Badge variant={priorityVariant[log.priority]}>{log.priority}</Badge>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      <hr className="border-t" />
+
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle className="text-base">
             Operators Timesheet
             <span className="ml-2 text-muted-foreground font-normal text-sm">
               ({openOperatorCheckIns.length} on scene)
@@ -575,71 +773,6 @@ export function IncidentDetail() {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-base">
-            Currently Deployed
-            <span className="ml-2 text-muted-foreground font-normal text-sm">
-              ({openResourceCheckIns.length} deployed)
-            </span>
-          </CardTitle>
-          {!isClosed && (
-            <Button size="sm" onClick={() => setResourceCheckInOpen(true)}>
-              <LogIn className="size-4" />
-              Check In
-            </Button>
-          )}
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Equipment</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead>Checked In</TableHead>
-                <TableHead>Checked Out</TableHead>
-                <TableHead>Notes</TableHead>
-                <TableHead className="text-right">Action</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {openResourceCheckIns.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={6} className="text-center text-muted-foreground">
-                    No equipment checked in yet.
-                  </TableCell>
-                </TableRow>
-              )}
-              {openResourceCheckIns.map((c) => (
-                <TableRow key={c.id}>
-                  <TableCell className="font-medium">{c.resourceIdentifier}</TableCell>
-                  <TableCell>{c.resourceTypeName}</TableCell>
-                  <TableCell className="text-sm whitespace-nowrap">
-                    {new Date(c.checkedInAt).toLocaleString()}
-                  </TableCell>
-                  <TableCell className="text-sm whitespace-nowrap">
-                    <Badge variant="default">On Scene</Badge>
-                  </TableCell>
-                  <TableCell className="text-muted-foreground text-sm max-w-[200px] truncate">
-                    {c.notes || '—'}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => checkOutResourceMutation.mutate(c.id)}
-                    >
-                      <LogOut className="size-4" />
-                      Check Out
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="text-base">
             Gear & Equipment Timesheet
             <span className="ml-2 text-muted-foreground font-normal text-sm">
               ({resourceCheckIns?.length ?? 0} total)
@@ -681,129 +814,6 @@ export function IncidentDetail() {
                   </TableCell>
                   <TableCell className="text-muted-foreground text-sm max-w-[200px] truncate">
                     {c.notes || '—'}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="text-base">Communications Plan</CardTitle>
-          <Button
-            size="sm"
-            variant="outline"
-            disabled={!canEdit}
-            title={canEdit ? 'Apply or change the communications plan' : 'Requires edit access to this incident'}
-            onClick={() => setApplyCommsPlanOpen(true)}
-          >
-            {activeCommsPlan ? 'Change Plan' : 'Apply Plan'}
-          </Button>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-4">
-          {activeCommsPlan ? (
-            <div className="flex items-center justify-between rounded-md border p-3">
-              <div>
-                <div className="flex items-center gap-2">
-                  <span className="font-medium">{activeCommsPlan.planName}</span>
-                  <Badge variant="secondary">v{activeCommsPlan.planVersion}</Badge>
-                </div>
-                <p className="text-muted-foreground text-sm">
-                  Applied {new Date(activeCommsPlan.appliedAt).toLocaleString()} by{' '}
-                  {activeCommsPlan.appliedByCallsign ?? 'System'}
-                </p>
-              </div>
-              <Button
-                variant="ghost"
-                size="sm"
-                disabled={!canEdit}
-                title={canEdit ? 'Revoke this communications plan' : 'Requires edit access to this incident'}
-                onClick={() => revokeCommsPlanMutation.mutate(activeCommsPlan.id)}
-              >
-                Revoke
-              </Button>
-            </div>
-          ) : (
-            <p className="text-sm text-muted-foreground">No communications plan applied.</p>
-          )}
-          {commsPlanHistory && commsPlanHistory.length > 0 && (
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Plan</TableHead>
-                  <TableHead>Applied</TableHead>
-                  <TableHead>Status</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {commsPlanHistory.map((h) => (
-                  <TableRow key={h.id}>
-                    <TableCell className="font-medium">
-                      {h.planName} <span className="text-muted-foreground">v{h.planVersion}</span>
-                    </TableCell>
-                    <TableCell className="text-sm whitespace-nowrap">
-                      {new Date(h.appliedAt).toLocaleString()} by {h.appliedByCallsign ?? 'System'}
-                    </TableCell>
-                    <TableCell className="text-sm whitespace-nowrap">
-                      {h.revokedAt ? (
-                        <span className="text-muted-foreground">
-                          Revoked {new Date(h.revokedAt).toLocaleString()} by {h.revokedByCallsign ?? 'System'}
-                        </span>
-                      ) : (
-                        <Badge variant="default">Active</Badge>
-                      )}
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
-          )}
-        </CardContent>
-      </Card>
-
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="text-base">Message Log (ICS-213)</CardTitle>
-          {!isClosed && (
-            <Button size="sm" onClick={() => setDialogOpen(true)}>
-              <Plus className="size-4" />
-              Log Entry
-            </Button>
-          )}
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Time</TableHead>
-                <TableHead>From</TableHead>
-                <TableHead>To</TableHead>
-                <TableHead>Subject</TableHead>
-                <TableHead>Message</TableHead>
-                <TableHead>Priority</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {logsLoading && (
-                <TableRow>
-                  <TableCell colSpan={6} className="text-center text-muted-foreground">
-                    Loading…
-                  </TableCell>
-                </TableRow>
-              )}
-              {logs?.map((log) => (
-                <TableRow key={log.id}>
-                  <TableCell className="text-muted-foreground text-sm whitespace-nowrap">
-                    {new Date(log.loggedAt).toLocaleString()}
-                  </TableCell>
-                  <TableCell>{log.operatorCallsign || '—'}</TableCell>
-                  <TableCell>{log.toOperatorCallsign || '—'}</TableCell>
-                  <TableCell className="font-medium">{log.subject}</TableCell>
-                  <TableCell className="max-w-xs truncate">{log.message}</TableCell>
-                  <TableCell>
-                    <Badge variant={priorityVariant[log.priority]}>{log.priority}</Badge>
                   </TableCell>
                 </TableRow>
               ))}

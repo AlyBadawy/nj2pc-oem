@@ -1,11 +1,11 @@
 import { useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Plus, Pencil, Trash2, Link as LinkIcon, X, Download, Loader2 } from 'lucide-react'
+import { ArrowLeft, Plus, Pencil, Trash2, Download, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { api } from '@/lib/api'
 import { hasPermission, useAuth } from '@/lib/auth-context'
-import type { ChannelMode, CommunicationChannel, CommunicationPlan, Incident } from '@/lib/types'
+import type { ChannelMode, CommunicationChannel, CommunicationPlan } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -79,7 +79,6 @@ export function CommsPlanDetail() {
   const [channelDialogOpen, setChannelDialogOpen] = useState(false)
   const [editingChannel, setEditingChannel] = useState<CommunicationChannel | null>(null)
   const [channelForm, setChannelForm] = useState<ChannelFormState>(emptyChannelForm)
-  const [linkIncidentId, setLinkIncidentId] = useState('')
   const [downloadingPdf, setDownloadingPdf] = useState(false)
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false)
   const [editPlanDialogOpen, setEditPlanDialogOpen] = useState(false)
@@ -98,12 +97,6 @@ export function CommsPlanDetail() {
   const { data: channels, isLoading: channelsLoading } = useQuery({
     queryKey: ['comms-plans', id, 'channels'],
     queryFn: async () => (await api.get<CommunicationChannel[]>(`/api/comms-plans/${id}/channels`)).data,
-  })
-
-  const { data: incidents } = useQuery({
-    queryKey: ['incidents'],
-    queryFn: async () => (await api.get<Incident[]>('/api/incidents')).data,
-    enabled: canManage,
   })
 
   const saveChannelMutation = useMutation({
@@ -141,25 +134,6 @@ export function CommsPlanDetail() {
       toast.success('Channel removed')
     },
     onError: () => toast.error('Failed to remove channel'),
-  })
-
-  const linkIncidentMutation = useMutation({
-    mutationFn: async (incidentId: number) => api.post(`/api/comms-plans/${id}/incidents/${incidentId}`),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['comms-plans', id] })
-      toast.success('Incident linked')
-      setLinkIncidentId('')
-    },
-    onError: () => toast.error('Failed to link incident'),
-  })
-
-  const unlinkIncidentMutation = useMutation({
-    mutationFn: async (incidentId: number) => api.delete(`/api/comms-plans/${id}/incidents/${incidentId}`),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['comms-plans', id] })
-      toast.success('Incident unlinked')
-    },
-    onError: () => toast.error('Failed to unlink incident'),
   })
 
   const deletePlanMutation = useMutation({
@@ -256,9 +230,6 @@ export function CommsPlanDetail() {
 
   if (!plan) return null
 
-  const linkedIds = new Set(plan.incidents.map((i) => i.id))
-  const availableIncidents = incidents?.filter((i) => !linkedIds.has(i.id)) ?? []
-
   return (
     <div className="flex flex-col gap-6">
       <div>
@@ -306,58 +277,6 @@ export function CommsPlanDetail() {
           <p className="mt-3 text-sm max-w-2xl whitespace-pre-wrap">{plan.specialInstructions}</p>
         )}
       </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Linked Incidents</CardTitle>
-        </CardHeader>
-        <CardContent className="flex flex-col gap-3">
-          <div className="flex flex-wrap gap-2">
-            {plan.incidents.length === 0 && (
-              <p className="text-sm text-muted-foreground">No incidents linked yet.</p>
-            )}
-            {plan.incidents.map((incident) => (
-              <Badge key={incident.id} variant="secondary" className="gap-1 pr-1">
-                {incident.name}
-                <button
-                  type="button"
-                  className="ml-1 rounded-full hover:bg-muted-foreground/20 p-0.5 disabled:pointer-events-none disabled:opacity-40"
-                  disabled={!canManage}
-                  title={canManage ? `Unlink ${incident.name}` : 'Requires Manage Comms Plans permission'}
-                  onClick={() => unlinkIncidentMutation.mutate(incident.id)}
-                  aria-label={`Unlink ${incident.name}`}
-                >
-                  <X className="size-3" />
-                </button>
-              </Badge>
-            ))}
-          </div>
-          <div className="flex items-center gap-2">
-            <Select value={linkIncidentId} onValueChange={setLinkIncidentId} disabled={!canManage}>
-              <SelectTrigger className="w-64">
-                <SelectValue placeholder="Select an incident to link" />
-              </SelectTrigger>
-              <SelectContent>
-                {availableIncidents.map((incident) => (
-                  <SelectItem key={incident.id} value={String(incident.id)}>
-                    {incident.name}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-            <Button
-              variant="outline"
-              size="sm"
-              disabled={!canManage || !linkIncidentId || linkIncidentMutation.isPending}
-              title={canManage ? 'Link incident' : 'Requires Manage Comms Plans permission'}
-              onClick={() => linkIncidentMutation.mutate(Number(linkIncidentId))}
-            >
-              <LinkIcon className="size-4" />
-              Link
-            </Button>
-          </div>
-        </CardContent>
-      </Card>
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
