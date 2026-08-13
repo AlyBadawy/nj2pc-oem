@@ -1,6 +1,6 @@
-import { useState, type FormEvent } from 'react'
+import { useEffect, useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useNavigate, useParams } from 'react-router-dom'
+import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, Plus, LogIn, LogOut, Flag, Play, Pencil, ShieldCheck } from 'lucide-react'
 import { toast } from 'sonner'
 import { api } from '@/lib/api'
@@ -9,7 +9,9 @@ import { tierRank } from '@/lib/roleTier'
 import { incidentRef, type OperatorIdentityData } from '@/lib/identity'
 import { OperatorIdentity } from '@/components/identity/OperatorIdentity'
 import type {
+  CommunicationPlan,
   Incident,
+  IncidentCommsPlanApplication,
   IncidentLog,
   IncidentPermission,
   IncidentPermissionGrant,
@@ -90,6 +92,8 @@ export function IncidentDetail() {
   const [permissionsOpen, setPermissionsOpen] = useState(false)
   const [grantOperatorId, setGrantOperatorId] = useState('')
   const [grantPermission, setGrantPermission] = useState<IncidentPermission>('VIEW')
+  const [applyCommsPlanOpen, setApplyCommsPlanOpen] = useState(false)
+  const [applyCommsPlanId, setApplyCommsPlanId] = useState('')
 
   const { data: incident } = useQuery({
     queryKey: ['incidents', id],
@@ -132,6 +136,43 @@ export function IncidentDetail() {
     queryFn: async () => (await api.get<IncidentPermissionGrant[]>(`/api/incidents/${id}/permissions`)).data,
     enabled: !!incident?.canEdit,
   })
+
+  const { data: activeCommsPlan } = useQuery({
+    queryKey: ['incidents', id, 'comms-plan-active'],
+    queryFn: async () => {
+      const res = await api.get<IncidentCommsPlanApplication | null>(`/api/incidents/${id}/comms-plan-applications/active`, {
+        validateStatus: (status) => status === 200 || status === 204,
+      })
+      return res.status === 204 ? null : res.data
+    },
+  })
+
+  const { data: commsPlanHistory } = useQuery({
+    queryKey: ['incidents', id, 'comms-plan-history'],
+    queryFn: async () => (await api.get<IncidentCommsPlanApplication[]>(`/api/incidents/${id}/comms-plan-applications`)).data,
+  })
+
+  const { data: availableCommsPlans } = useQuery({
+    queryKey: ['comms-plans', 'active'],
+    queryFn: async () => (await api.get<CommunicationPlan[]>('/api/comms-plans', { params: { active: true } })).data,
+  })
+
+  const { data: lastRole } = useQuery({
+    queryKey: ['operators', operatorCheckInId, 'last-role'],
+    queryFn: async () => {
+      const res = await api.get<{ roleId: number; roleName: string } | null>(`/api/operators/${operatorCheckInId}/last-role`, {
+        validateStatus: (status) => status === 200 || status === 204,
+      })
+      return res.status === 204 ? null : res.data
+    },
+    enabled: !!operatorCheckInId,
+  })
+
+  useEffect(() => {
+    if (lastRole && !operatorCheckInRoleId) {
+      setOperatorCheckInRoleId(String(lastRole.roleId))
+    }
+  }, [lastRole])
 
   const createLogMutation = useMutation({
     mutationFn: async () =>
@@ -271,6 +312,28 @@ export function IncidentDetail() {
     onError: () => toast.error('Failed to revoke permission'),
   })
 
+  const applyCommsPlanMutation = useMutation({
+    mutationFn: async () => api.post(`/api/incidents/${id}/comms-plan-applications`, { communicationPlanId: Number(applyCommsPlanId) }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['incidents', id, 'comms-plan-active'] })
+      queryClient.invalidateQueries({ queryKey: ['incidents', id, 'comms-plan-history'] })
+      toast.success('Communications plan applied')
+      setApplyCommsPlanOpen(false)
+      setApplyCommsPlanId('')
+    },
+    onError: () => toast.error('Failed to apply communications plan'),
+  })
+
+  const revokeCommsPlanMutation = useMutation({
+    mutationFn: async (applicationId: number) => api.post(`/api/incidents/${id}/comms-plan-applications/${applicationId}/revoke`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['incidents', id, 'comms-plan-active'] })
+      queryClient.invalidateQueries({ queryKey: ['incidents', id, 'comms-plan-history'] })
+      toast.success('Communications plan revoked')
+    },
+    onError: () => toast.error('Failed to revoke communications plan'),
+  })
+
   function handleSubmit(e: FormEvent) {
     e.preventDefault()
     createLogMutation.mutate()
@@ -281,7 +344,7 @@ export function IncidentDetail() {
   const canEdit = incident.canEdit
   const openOperatorCheckIns = operatorCheckIns?.filter((c) => !c.checkedOutAt) ?? []
   const tileData = [...openOperatorCheckIns]
-    .sort((a, b) => tierRank(b.roleName) - tierRank(a.roleName) || a.checkedInAt.localeCompare(b.checkedInAt))
+    .sort((a, b) => tierRank(b.roleAccessLevel) - tierRank(a.roleAccessLevel) || a.checkedInAt.localeCompare(b.checkedInAt))
     .map((c): OperatorIdentityData => {
       const op = operators?.find((o) => o.id === c.operatorId)
       return {
@@ -290,6 +353,8 @@ export function IncidentDetail() {
         name: op?.name ?? c.operatorCallsign,
         licenseClass: op?.licenseClass ?? null,
         role: c.roleName,
+        roleColor: c.roleColor,
+        roleAccessLevel: c.roleAccessLevel,
         canViewContact: false,
         phone: null,
         email: null,
@@ -423,7 +488,7 @@ export function IncidentDetail() {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-base">
-            Operators On Scene
+            Operators Timesheet
             <span className="ml-2 text-muted-foreground font-normal text-sm">
               ({openOperatorCheckIns.length} on scene)
             </span>
@@ -465,7 +530,11 @@ export function IncidentDetail() {
                 const canCheckOut = canEdit || c.operatorCallsign === user?.callsign
                 return (
                   <TableRow key={c.id}>
-                    <TableCell className="font-medium">{c.operatorCallsign}</TableCell>
+                    <TableCell className="font-medium">
+                      <Link to={`/operators/${c.operatorId}`} className="hover:underline">
+                        {c.operatorCallsign}
+                      </Link>
+                    </TableCell>
                     <TableCell>{c.roleName || '—'}</TableCell>
                     <TableCell>{c.post || '—'}</TableCell>
                     <TableCell className="text-sm whitespace-nowrap">
@@ -506,9 +575,9 @@ export function IncidentDetail() {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle className="text-base">
-            Gear & Equipment On Scene
+            Currently Deployed
             <span className="ml-2 text-muted-foreground font-normal text-sm">
-              ({openResourceCheckIns.length} on scene)
+              ({openResourceCheckIns.length} deployed)
             </span>
           </CardTitle>
           {!isClosed && (
@@ -531,9 +600,67 @@ export function IncidentDetail() {
               </TableRow>
             </TableHeader>
             <TableBody>
-              {(!resourceCheckIns || resourceCheckIns.length === 0) && (
+              {openResourceCheckIns.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={6} className="text-center text-muted-foreground">
+                    No equipment checked in yet.
+                  </TableCell>
+                </TableRow>
+              )}
+              {openResourceCheckIns.map((c) => (
+                <TableRow key={c.id}>
+                  <TableCell className="font-medium">{c.resourceIdentifier}</TableCell>
+                  <TableCell>{c.resourceTypeName}</TableCell>
+                  <TableCell className="text-sm whitespace-nowrap">
+                    {new Date(c.checkedInAt).toLocaleString()}
+                  </TableCell>
+                  <TableCell className="text-sm whitespace-nowrap">
+                    <Badge variant="default">On Scene</Badge>
+                  </TableCell>
+                  <TableCell className="text-muted-foreground text-sm max-w-[200px] truncate">
+                    {c.notes || '—'}
+                  </TableCell>
+                  <TableCell className="text-right">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      onClick={() => checkOutResourceMutation.mutate(c.id)}
+                    >
+                      <LogOut className="size-4" />
+                      Check Out
+                    </Button>
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle className="text-base">
+            Gear & Equipment Timesheet
+            <span className="ml-2 text-muted-foreground font-normal text-sm">
+              ({resourceCheckIns?.length ?? 0} total)
+            </span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Equipment</TableHead>
+                <TableHead>Type</TableHead>
+                <TableHead>Checked In</TableHead>
+                <TableHead>Checked Out</TableHead>
+                <TableHead>Notes</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {(!resourceCheckIns || resourceCheckIns.length === 0) && (
+                <TableRow>
+                  <TableCell colSpan={5} className="text-center text-muted-foreground">
                     No equipment checked in yet.
                   </TableCell>
                 </TableRow>
@@ -555,22 +682,84 @@ export function IncidentDetail() {
                   <TableCell className="text-muted-foreground text-sm max-w-[200px] truncate">
                     {c.notes || '—'}
                   </TableCell>
-                  <TableCell className="text-right">
-                    {!c.checkedOutAt && (
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        onClick={() => checkOutResourceMutation.mutate(c.id)}
-                      >
-                        <LogOut className="size-4" />
-                        Check Out
-                      </Button>
-                    )}
-                  </TableCell>
                 </TableRow>
               ))}
             </TableBody>
           </Table>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between">
+          <CardTitle className="text-base">Communications Plan</CardTitle>
+          <Button
+            size="sm"
+            variant="outline"
+            disabled={!canEdit}
+            title={canEdit ? 'Apply or change the communications plan' : 'Requires edit access to this incident'}
+            onClick={() => setApplyCommsPlanOpen(true)}
+          >
+            {activeCommsPlan ? 'Change Plan' : 'Apply Plan'}
+          </Button>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-4">
+          {activeCommsPlan ? (
+            <div className="flex items-center justify-between rounded-md border p-3">
+              <div>
+                <div className="flex items-center gap-2">
+                  <span className="font-medium">{activeCommsPlan.planName}</span>
+                  <Badge variant="secondary">v{activeCommsPlan.planVersion}</Badge>
+                </div>
+                <p className="text-muted-foreground text-sm">
+                  Applied {new Date(activeCommsPlan.appliedAt).toLocaleString()} by{' '}
+                  {activeCommsPlan.appliedByCallsign ?? 'System'}
+                </p>
+              </div>
+              <Button
+                variant="ghost"
+                size="sm"
+                disabled={!canEdit}
+                title={canEdit ? 'Revoke this communications plan' : 'Requires edit access to this incident'}
+                onClick={() => revokeCommsPlanMutation.mutate(activeCommsPlan.id)}
+              >
+                Revoke
+              </Button>
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">No communications plan applied.</p>
+          )}
+          {commsPlanHistory && commsPlanHistory.length > 0 && (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Plan</TableHead>
+                  <TableHead>Applied</TableHead>
+                  <TableHead>Status</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {commsPlanHistory.map((h) => (
+                  <TableRow key={h.id}>
+                    <TableCell className="font-medium">
+                      {h.planName} <span className="text-muted-foreground">v{h.planVersion}</span>
+                    </TableCell>
+                    <TableCell className="text-sm whitespace-nowrap">
+                      {new Date(h.appliedAt).toLocaleString()} by {h.appliedByCallsign ?? 'System'}
+                    </TableCell>
+                    <TableCell className="text-sm whitespace-nowrap">
+                      {h.revokedAt ? (
+                        <span className="text-muted-foreground">
+                          Revoked {new Date(h.revokedAt).toLocaleString()} by {h.revokedByCallsign ?? 'System'}
+                        </span>
+                      ) : (
+                        <Badge variant="default">Active</Badge>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
         </CardContent>
       </Card>
 
@@ -824,6 +1013,45 @@ export function IncidentDetail() {
                 disabled={!resourceCheckInId || checkInResourceMutation.isPending}
               >
                 Check In
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={applyCommsPlanOpen} onOpenChange={setApplyCommsPlanOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Apply Communications Plan</DialogTitle>
+          </DialogHeader>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault()
+              applyCommsPlanMutation.mutate()
+            }}
+            className="flex flex-col gap-3"
+          >
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="applyCommsPlanId">Plan</Label>
+              <Select value={applyCommsPlanId} onValueChange={setApplyCommsPlanId}>
+                <SelectTrigger id="applyCommsPlanId">
+                  <SelectValue placeholder="Select plan" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableCommsPlans?.map((plan) => (
+                    <SelectItem key={plan.id} value={String(plan.id)}>
+                      {plan.name} (v{plan.version})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <DialogFooter>
+              <Button
+                type="submit"
+                disabled={!applyCommsPlanId || applyCommsPlanMutation.isPending}
+              >
+                Apply
               </Button>
             </DialogFooter>
           </form>
