@@ -3,7 +3,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import { api } from '@/lib/api'
-import { useAuth } from '@/lib/auth-context'
+import { hasPermission, useAuth } from '@/lib/auth-context'
 import { emptyOperatorForm, type OperatorFormState } from '@/lib/operatorForm'
 import { formatCallookLicenseClass, formatCallookName, lookupCallsign } from '@/lib/callook'
 import type { Operator } from '@/lib/types'
@@ -12,7 +12,8 @@ import { Button } from '@/components/ui/button'
 
 export function OperatorEdit() {
   const { user } = useAuth()
-  const isAdmin = user?.admin ?? false
+  const canEdit = hasPermission(user, 'OPERATOR_EDIT')
+  const canManagePermissions = hasPermission(user, 'OPERATOR_MANAGE_PERMISSIONS')
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -21,10 +22,10 @@ export function OperatorEdit() {
   const [lookupLoading, setLookupLoading] = useState(false)
 
   useEffect(() => {
-    if (!isAdmin) {
+    if (!canEdit) {
       navigate(`/operators/${id}`, { replace: true })
     }
-  }, [isAdmin, navigate, id])
+  }, [canEdit, navigate, id])
 
   useQuery({
     queryKey: ['operators', id],
@@ -51,7 +52,7 @@ export function OperatorEdit() {
       setLoaded(true)
       return data
     },
-    enabled: isAdmin && !!id,
+    enabled: canEdit && !!id,
   })
 
   const saveMutation = useMutation({
@@ -108,7 +109,7 @@ export function OperatorEdit() {
     saveMutation.mutate()
   }
 
-  if (!isAdmin || !loaded) return null
+  if (!canEdit || !loaded) return null
 
   return (
     <div className="flex flex-col gap-6">
@@ -124,6 +125,7 @@ export function OperatorEdit() {
           mode="edit"
           lookupLoading={lookupLoading}
           onLookupClick={handleLookup}
+          canManagePermissions={canManagePermissions}
         />
         <div>
           <Button type="submit" disabled={saveMutation.isPending}>

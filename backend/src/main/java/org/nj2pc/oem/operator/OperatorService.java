@@ -13,6 +13,7 @@ import org.springframework.transaction.annotation.Transactional;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.function.Function;
 import java.util.stream.Collectors;
 
@@ -83,12 +84,23 @@ public class OperatorService {
 
     @Transactional
     public OperatorResponse update(Authentication authentication, Long id, OperatorRequest request) {
+        permissionGuard.require(authentication, Permission.OPERATOR_EDIT);
+        Operator caller = permissionGuard.requireCaller(authentication);
         Operator operator = getOperatorOrThrow(id);
         if (!operator.getCallsign().equalsIgnoreCase(request.callsign())
                 && operatorRepository.existsByCallsignIgnoreCase(request.callsign())) {
             throw ApiException.conflict("Callsign already registered: " + request.callsign());
         }
+        Set<Permission> previousPermissions = new HashSet<>(operator.getPermissions());
         applyRequest(operator, request);
+        boolean canManagePermissions = caller.isAdmin()
+                || caller.getPermissions().contains(Permission.OPERATOR_MANAGE_PERMISSIONS);
+        if (!canManagePermissions) {
+            // OPERATOR_EDIT alone only covers profile fields — changing another operator's
+            // permission grants still requires OPERATOR_MANAGE_PERMISSIONS (or admin), otherwise
+            // this endpoint would be a privilege-escalation path.
+            operator.setPermissions(previousPermissions);
+        }
         operator = operatorRepository.save(operator);
         auditLogService.record(EntityType.OPERATOR, operator.getId(), "UPDATE",
                 "Updated operator " + operator.getCallsign(), authentication.getName());

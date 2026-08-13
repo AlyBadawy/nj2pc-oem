@@ -26,6 +26,7 @@ export function Operators() {
   const { user } = useAuth()
   const isAdmin = user?.admin ?? false
   const canManagePermissions = hasPermission(user, 'OPERATOR_MANAGE_PERMISSIONS')
+  const canEditOperator = hasPermission(user, 'OPERATOR_EDIT')
   const canViewContact = hasPermission(user, 'OPERATOR_VIEW_CONTACT')
   const canList = hasPermission(user, 'OPERATOR_LIST')
   const canCreate = hasPermission(user, 'OPERATOR_CREATE')
@@ -166,7 +167,7 @@ export function Operators() {
                   expanded={expandedId === op.id}
                   onToggle={() => setExpandedId(expandedId === op.id ? null : op.id)}
                 />
-                {expandedId === op.id && (isAdmin || canManagePermissions) && (
+                {expandedId === op.id && (isAdmin || canManagePermissions || canEditOperator) && (
                   <div
                     className="flex justify-end gap-1 border-b border-black/10 bg-credential-blue-tint px-3 pb-2.5"
                     style={{ boxShadow: 'inset 3px 0 0 var(--credential-blue)' }}
@@ -184,8 +185,8 @@ export function Operators() {
                     <Button
                       variant="ghost"
                       size="sm"
-                      disabled={!isAdmin}
-                      title={isAdmin ? 'Edit operator' : 'Admin only'}
+                      disabled={!canEditOperator}
+                      title={canEditOperator ? 'Edit operator' : 'Requires Edit Operators permission'}
                       onClick={() => navigate(`/operators/${op.id}/edit`)}
                     >
                       <Pencil className="size-4" />

@@ -20,6 +20,13 @@ export const permissionCatalog: { value: Permission; label: string; description:
     module: 'Operators',
   },
   {
+    value: 'OPERATOR_EDIT',
+    label: 'Edit Operators',
+    description:
+      "Edit any operator's profile fields and reset their password. Does not include managing permissions.",
+    module: 'Operators',
+  },
+  {
     value: 'OPERATOR_VIEW_CONTACT',
     label: 'View Contact Info',
     description: "See other operators' phone number and email.",

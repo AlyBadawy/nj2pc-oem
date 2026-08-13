@@ -40,7 +40,6 @@ public class OperatorController {
     }
 
     @PutMapping("/{id}")
-    @PreAuthorize("hasRole('ADMIN')")
     public OperatorResponse update(Authentication authentication, @PathVariable Long id,
                                     @Valid @RequestBody OperatorRequest request) {
         return operatorService.update(authentication, id, request);

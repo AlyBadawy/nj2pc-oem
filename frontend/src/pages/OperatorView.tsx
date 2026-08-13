@@ -27,6 +27,7 @@ export function OperatorView() {
   const isAdmin = user?.admin ?? false
   const canList = hasPermission(user, 'OPERATOR_LIST')
   const canViewContact = hasPermission(user, 'OPERATOR_VIEW_CONTACT')
+  const canEditOperator = hasPermission(user, 'OPERATOR_EDIT')
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
@@ -112,8 +113,8 @@ export function OperatorView() {
             Print
           </Button>
           <Button
-            disabled={!isAdmin}
-            title={isAdmin ? 'Edit operator' : 'Admin only'}
+            disabled={!canEditOperator}
+            title={canEditOperator ? 'Edit operator' : 'Requires Edit Operators permission'}
             onClick={() => navigate(`/operators/${id}/edit`)}
           >
             <Pencil className="size-4" />

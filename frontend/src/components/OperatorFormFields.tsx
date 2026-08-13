@@ -23,6 +23,7 @@ export function OperatorFormFields({
   lookupLoading,
   onCallsignBlur,
   onLookupClick,
+  canManagePermissions = true,
 }: {
   form: OperatorFormState
   setForm: (form: OperatorFormState) => void
@@ -30,6 +31,7 @@ export function OperatorFormFields({
   lookupLoading?: boolean
   onCallsignBlur?: () => void
   onLookupClick?: () => void
+  canManagePermissions?: boolean
 }) {
   return (
     <div className="flex flex-col gap-4">
@@ -241,16 +243,26 @@ export function OperatorFormFields({
 
       <div className="flex flex-col gap-4">
         <Label>Permissions</Label>
+        {!canManagePermissions && (
+          <p className="text-sm text-muted-foreground">
+            Requires the Manage Permissions permission to change — shown for reference only.
+          </p>
+        )}
         {permissionModuleNames.map((moduleName) => (
           <div key={moduleName} className="flex flex-col gap-2">
             <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
               {moduleName}
             </p>
             {permissionsByModule[moduleName].map((option) => (
-              <label key={option.value} className="flex items-start gap-2 text-sm">
+              <label
+                key={option.value}
+                className="flex items-start gap-2 text-sm"
+                title={canManagePermissions ? undefined : 'Requires the Manage Permissions permission'}
+              >
                 <input
                   type="checkbox"
                   className="mt-0.5"
+                  disabled={!canManagePermissions}
                   checked={form.permissions.includes(option.value)}
                   onChange={(e) =>
                     setForm({
