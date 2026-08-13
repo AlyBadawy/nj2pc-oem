@@ -329,20 +329,20 @@ export function CommsPlanDetail() {
           </Button>
         </CardHeader>
         <CardContent>
-          <div className="overflow-x-auto">
-            <Table>
+          <div className="w-full">
+            <Table className="table-fixed w-full">
               <TableHeader>
                 <TableRow>
-                  <TableHead>Zone/Grp</TableHead>
-                  <TableHead>Ch#</TableHead>
-                  <TableHead>Function</TableHead>
-                  <TableHead>Channel Name</TableHead>
+                  <TableHead className="w-14">Zone</TableHead>
+                  <TableHead className="w-10">Ch#</TableHead>
+                  <TableHead className="w-24">Function</TableHead>
+                  <TableHead className="w-36">Channel Name</TableHead>
                   <TableHead>Assignment</TableHead>
-                  <TableHead>RX Freq</TableHead>
-                  <TableHead>TX Freq</TableHead>
-                  <TableHead>Mode</TableHead>
+                  <TableHead className="w-28">RX Freq</TableHead>
+                  <TableHead className="w-28">TX Freq</TableHead>
+                  <TableHead className="w-14">Mode</TableHead>
                   <TableHead>Remarks</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
+                  <TableHead className="w-20 text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -365,20 +365,20 @@ export function CommsPlanDetail() {
                     <TableCell>{channel.zoneGroup}</TableCell>
                     <TableCell>{channel.channelNumber}</TableCell>
                     <TableCell>{channel.function}</TableCell>
-                    <TableCell className="font-medium whitespace-nowrap">{channel.channelName}</TableCell>
-                    <TableCell className="max-w-[200px] truncate">{channel.assignment || '—'}</TableCell>
-                    <TableCell className="whitespace-nowrap">
+                    <TableCell className="font-medium whitespace-normal break-words">{channel.channelName}</TableCell>
+                    <TableCell className="whitespace-normal break-words">{channel.assignment || '—'}</TableCell>
+                    <TableCell className="whitespace-normal break-words">
                       {channel.rxFrequency || '—'}
                       {channel.rxTone && <div className="text-xs text-muted-foreground">{channel.rxTone}</div>}
                     </TableCell>
-                    <TableCell className="whitespace-nowrap">
+                    <TableCell className="whitespace-normal break-words">
                       {channel.txFrequency || '—'}
                       {channel.txTone && <div className="text-xs text-muted-foreground">{channel.txTone}</div>}
                     </TableCell>
                     <TableCell>
                       <Badge variant="outline">{modeLabel[channel.mode]}</Badge>
                     </TableCell>
-                    <TableCell className="max-w-[200px] truncate text-muted-foreground text-sm">
+                    <TableCell className="whitespace-normal break-words text-muted-foreground text-sm">
                       {channel.remarks || '—'}
                     </TableCell>
                     <TableCell className="text-right space-x-1">
@@ -417,7 +417,7 @@ export function CommsPlanDetail() {
           <form onSubmit={handleChannelSubmit} className="flex flex-col gap-3">
             <div className="grid grid-cols-3 gap-3">
               <div className="flex flex-col gap-1.5">
-                <Label htmlFor="zoneGroup">Zone/Grp</Label>
+                <Label htmlFor="zoneGroup">Zone</Label>
                 <Input
                   id="zoneGroup"
                   value={channelForm.zoneGroup}
