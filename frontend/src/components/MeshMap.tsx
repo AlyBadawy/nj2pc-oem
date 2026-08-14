@@ -180,7 +180,14 @@ export function MeshMap({ nodes, links, incidentLat, incidentLng }: Props) {
   return (
     <div
       ref={wrapperRef}
-      className={cn('relative', isFullscreen && 'fixed inset-0 h-screen w-screen bg-credential-paper')}
+      // `isolate` contains Leaflet's internal pane z-indices (up to 700, for tiles/markers/
+      // tooltips) inside this element's own stacking context — without it, those high
+      // z-indices leak out and render above page-level UI like Dialog/modal overlays (which
+      // use a much lower z-50), even though the Dialog is portaled later in the DOM.
+      className={cn(
+        'relative isolate',
+        isFullscreen && 'fixed inset-0 h-screen w-screen bg-credential-paper',
+      )}
     >
       <Button
         type="button"
