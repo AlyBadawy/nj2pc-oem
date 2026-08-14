@@ -1,6 +1,6 @@
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from 'react-router-dom'
-import { Plus, Pencil, Trash2 } from 'lucide-react'
+import { Plus, Pencil, Trash2, Eye } from 'lucide-react'
 import { toast } from 'sonner'
 import { api } from '@/lib/api'
 import { useAuth } from '@/lib/auth-context'
@@ -82,6 +82,9 @@ export function Resources() {
                     {r.notes || '—'}
                   </TableCell>
                   <TableCell className="text-right space-x-1">
+                    <Button variant="ghost" size="icon-sm" onClick={() => navigate(`/resources/${r.id}`)}>
+                      <Eye className="size-4" />
+                    </Button>
                     <Button variant="ghost" size="icon-sm" onClick={() => navigate(`/resources/${r.id}/edit`)}>
                       <Pencil className="size-4" />
                     </Button>

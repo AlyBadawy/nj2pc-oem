@@ -16,6 +16,7 @@ import { DeployGear } from '@/pages/DeployGear'
 import { Resources } from '@/pages/Resources'
 import { AllResources } from '@/pages/AllResources'
 import { ResourceCreate } from '@/pages/ResourceCreate'
+import { ResourceView } from '@/pages/ResourceView'
 import { ResourceEdit } from '@/pages/ResourceEdit'
 import { ResourceTypes } from '@/pages/ResourceTypes'
 import { OperatorRoles } from '@/pages/OperatorRoles'
@@ -51,6 +52,7 @@ function App() {
             <Route path="all-resources" element={<AllResources />} />
             <Route path="resources/new" element={<ResourceCreate />} />
             <Route path="all-resources/new" element={<ResourceCreate forOthers />} />
+            <Route path="resources/:id" element={<ResourceView />} />
             <Route path="resources/:id/edit" element={<ResourceEdit />} />
             <Route path="resource-types" element={<ResourceTypes />} />
             <Route path="operator-roles" element={<OperatorRoles />} />

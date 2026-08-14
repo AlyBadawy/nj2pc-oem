@@ -64,10 +64,25 @@ const modeLabel: Record<ChannelMode, string> = {
   MIXED: 'M',
 }
 
+function toIso(localDateTime: string): string | null {
+  return localDateTime ? new Date(localDateTime).toISOString() : null
+}
+
+function toLocalInput(iso: string | null): string {
+  if (!iso) return ''
+  const d = new Date(iso)
+  const pad = (n: number) => String(n).padStart(2, '0')
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
+}
+
 type PlanFormState = {
   name: string
   preparedByName: string
   preparedByCallsign: string
+  preparedAt: string
+  approvedByName: string
+  approvedByCallsign: string
+  approvedAt: string
   specialInstructions: string
 }
 
@@ -87,6 +102,10 @@ export function CommsPlanDetail() {
     name: '',
     preparedByName: '',
     preparedByCallsign: '',
+    preparedAt: '',
+    approvedByName: '',
+    approvedByCallsign: '',
+    approvedAt: '',
     specialInstructions: '',
   })
 
@@ -161,7 +180,10 @@ export function CommsPlanDetail() {
         name: planForm.name,
         preparedByName: planForm.preparedByName || null,
         preparedByCallsign: planForm.preparedByCallsign || null,
-        preparedAt: planForm.preparedByName ? new Date().toISOString() : null,
+        preparedAt: toIso(planForm.preparedAt),
+        approvedByName: planForm.approvedByName || null,
+        approvedByCallsign: planForm.approvedByCallsign || null,
+        approvedAt: toIso(planForm.approvedAt),
         specialInstructions: planForm.specialInstructions || null,
       }),
     onSuccess: (response) => {
@@ -179,6 +201,10 @@ export function CommsPlanDetail() {
       name: plan.name,
       preparedByName: plan.preparedByName ?? '',
       preparedByCallsign: plan.preparedByCallsign ?? '',
+      preparedAt: toLocalInput(plan.preparedAt),
+      approvedByName: plan.approvedByName ?? '',
+      approvedByCallsign: plan.approvedByCallsign ?? '',
+      approvedAt: toLocalInput(plan.approvedAt),
       specialInstructions: plan.specialInstructions ?? '',
     })
     setEditPlanDialogOpen(true)
@@ -251,6 +277,7 @@ export function CommsPlanDetail() {
             <h1 className="text-2xl font-semibold">{plan.name}</h1>
             <Badge variant="outline">v{plan.version}</Badge>
             {!plan.active && <Badge variant="destructive">Superseded</Badge>}
+            {plan.approvedAt && <Badge variant="default">Approved</Badge>}
           </div>
           <div className="flex flex-wrap items-center gap-2">
             <Button
@@ -280,6 +307,13 @@ export function CommsPlanDetail() {
         {(plan.preparedByCallsign || plan.preparedByName) && (
           <p className="text-muted-foreground text-sm">
             Prepared by {plan.preparedByName} {plan.preparedByCallsign && `(${plan.preparedByCallsign})`}
+            {plan.preparedAt && ` on ${new Date(plan.preparedAt).toLocaleString()}`}
+          </p>
+        )}
+        {(plan.approvedByCallsign || plan.approvedByName) && (
+          <p className="text-muted-foreground text-sm">
+            Approved by {plan.approvedByName} {plan.approvedByCallsign && `(${plan.approvedByCallsign})`}
+            {plan.approvedAt && ` on ${new Date(plan.approvedAt).toLocaleString()}`}
           </p>
         )}
         {plan.specialInstructions && (
@@ -580,6 +614,47 @@ export function CommsPlanDetail() {
                   }
                 />
               </div>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="planPreparedAt">Prepared At</Label>
+              <Input
+                id="planPreparedAt"
+                type="datetime-local"
+                value={planForm.preparedAt}
+                onChange={(e) => setPlanForm({ ...planForm, preparedAt: e.target.value })}
+              />
+            </div>
+            <div className="pt-2 border-t">
+              <p className="text-sm font-medium pt-4 pb-2">Approval</p>
+            </div>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="planApprovedByName">Approved By</Label>
+                <Input
+                  id="planApprovedByName"
+                  value={planForm.approvedByName}
+                  onChange={(e) => setPlanForm({ ...planForm, approvedByName: e.target.value })}
+                />
+              </div>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="planApprovedByCallsign">Callsign</Label>
+                <Input
+                  id="planApprovedByCallsign"
+                  value={planForm.approvedByCallsign}
+                  onChange={(e) =>
+                    setPlanForm({ ...planForm, approvedByCallsign: e.target.value.toUpperCase() })
+                  }
+                />
+              </div>
+            </div>
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="planApprovedAt">Approved At</Label>
+              <Input
+                id="planApprovedAt"
+                type="datetime-local"
+                value={planForm.approvedAt}
+                onChange={(e) => setPlanForm({ ...planForm, approvedAt: e.target.value })}
+              />
             </div>
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="planSpecialInstructions">Special Instructions</Label>
