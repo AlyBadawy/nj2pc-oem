@@ -2,12 +2,14 @@ package org.nj2pc.oem.mesh;
 
 import org.nj2pc.oem.auditlog.AuditLogService;
 import org.nj2pc.oem.auditlog.EntityType;
+import org.nj2pc.oem.checkin.ResourceCheckInService;
 import org.nj2pc.oem.common.ApiException;
 import org.nj2pc.oem.incident.Incident;
 import org.nj2pc.oem.incident.IncidentRepository;
 import org.nj2pc.oem.operator.Operator;
 import org.nj2pc.oem.operator.PermissionGuard;
 import org.nj2pc.oem.resource.Resource;
+import org.nj2pc.oem.resource.ResourceLastLocationResponse;
 import org.nj2pc.oem.resource.ResourceRepository;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
@@ -15,6 +17,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 
 @Service
 public class MeshSessionService {
@@ -25,6 +28,7 @@ public class MeshSessionService {
     private final MeshLanClientSnapshotRepository meshLanClientSnapshotRepository;
     private final IncidentRepository incidentRepository;
     private final ResourceRepository resourceRepository;
+    private final ResourceCheckInService resourceCheckInService;
     private final PermissionGuard permissionGuard;
     private final AuditLogService auditLogService;
 
@@ -34,6 +38,7 @@ public class MeshSessionService {
                                MeshLanClientSnapshotRepository meshLanClientSnapshotRepository,
                                IncidentRepository incidentRepository,
                                ResourceRepository resourceRepository,
+                               ResourceCheckInService resourceCheckInService,
                                PermissionGuard permissionGuard,
                                AuditLogService auditLogService) {
         this.meshSessionRepository = meshSessionRepository;
@@ -42,6 +47,7 @@ public class MeshSessionService {
         this.meshLanClientSnapshotRepository = meshLanClientSnapshotRepository;
         this.incidentRepository = incidentRepository;
         this.resourceRepository = resourceRepository;
+        this.resourceCheckInService = resourceCheckInService;
         this.permissionGuard = permissionGuard;
         this.auditLogService = auditLogService;
     }
@@ -112,7 +118,17 @@ public class MeshSessionService {
             node.setChannelWidth(input.channelWidth());
             node.setRfPowerDbm(input.rfPowerDbm());
             node.setRawJson(input.rawJson());
-            resourceRepository.findByIdentifierIgnoreCase(input.hostname()).ifPresent(node::setResource);
+            resourceRepository.findByIdentifierIgnoreCase(input.hostname()).ifPresent(resource -> {
+                node.setResource(resource);
+                // Prefer the gear's own last-known deployment location over whatever GPS the
+                // node itself self-reports — that setting can go stale (manually configured
+                // once, never updated), while a check-in location reflects where it was
+                // actually last placed in the field.
+                resourceCheckInService.findLastLocation(resource.getId()).ifPresent((ResourceLastLocationResponse loc) -> {
+                    node.setLatitude(loc.latitude());
+                    node.setLongitude(loc.longitude());
+                });
+            });
             meshNodeSnapshotRepository.save(node);
         }
 

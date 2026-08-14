@@ -4,7 +4,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, CheckCircle2, Loader2, RadioTower, XCircle } from 'lucide-react'
 import { toast } from 'sonner'
 import { api } from '@/lib/api'
-import { isNotOnMeshError, runMeshScrape, type MeshScrapeResult } from '@/lib/meshScrape'
+import { isMixedContentError, isNotOnMeshError, runMeshScrape, type MeshScrapeResult } from '@/lib/meshScrape'
 import { LINK_TYPE_LABEL } from '@/lib/meshVisual'
 import type { Incident, MeshLinkType, MeshSessionDetail } from '@/lib/types'
 import { Button } from '@/components/ui/button'
@@ -23,7 +23,7 @@ export function MeshScan() {
   const [phase, setPhase] = useState<Phase>('scan')
   const [scanning, setScanning] = useState(false)
   const [progress, setProgress] = useState('')
-  const [scanError, setScanError] = useState<{ notOnMesh: boolean; message: string } | null>(null)
+  const [scanError, setScanError] = useState<{ mixedContent: boolean; message: string } | null>(null)
   const [result, setResult] = useState<MeshScrapeResult | null>(null)
   const [label, setLabel] = useState('')
   const [notes, setNotes] = useState('')
@@ -50,10 +50,12 @@ export function MeshScan() {
       setPhase('review')
     } catch (err) {
       setScanError({
-        notOnMesh: isNotOnMeshError(err),
-        message: isNotOnMeshError(err)
-          ? 'Could not reach the mesh — make sure this device is connected to it, then try again.'
-          : 'The scan failed partway through. You can try again.',
+        mixedContent: isMixedContentError(err),
+        message: isMixedContentError(err)
+          ? (err as Error).message
+          : isNotOnMeshError(err)
+            ? 'Could not reach the mesh — make sure this device is connected to it, then try again.'
+            : 'The scan failed partway through. You can try again.',
       })
     } finally {
       setScanning(false)
@@ -122,7 +124,20 @@ export function MeshScan() {
             {scanError && (
               <div className="flex items-start gap-2 rounded-md border border-destructive/30 bg-destructive/5 p-3 text-sm text-destructive">
                 <XCircle className="size-4 shrink-0 mt-0.5" />
-                <span>{scanError.message}</span>
+                <span>
+                  {scanError.mixedContent ? (
+                    <>
+                      This page is loaded over HTTPS, which browsers block from reaching the mesh
+                      (plain HTTP only). Open this app at{' '}
+                      <a href="http://al0y-emcomms.local.mesh" className="underline">
+                        http://al0y-emcomms.local.mesh
+                      </a>{' '}
+                      instead, then try scanning again.
+                    </>
+                  ) : (
+                    scanError.message
+                  )}
+                </span>
               </div>
             )}
           </CardContent>

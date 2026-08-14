@@ -1,46 +1,30 @@
-import { BAND_LEGEND, LINK_TYPE_COLOR_FALLBACK, LINK_TYPE_DASH, LINK_TYPE_LABEL } from '@/lib/meshVisual'
-import type { MeshLinkType } from '@/lib/types'
-
-function DashSwatch({ type }: { type: MeshLinkType }) {
-  const dash = LINK_TYPE_DASH[type]
-  return (
-    <svg width="28" height="10" viewBox="0 0 28 10" aria-hidden>
-      <line
-        x1="1"
-        y1="5"
-        x2="27"
-        y2="5"
-        stroke={LINK_TYPE_COLOR_FALLBACK[type]}
-        strokeWidth="2.5"
-        strokeDasharray={dash.length ? dash.join(',') : undefined}
-      />
-    </svg>
-  )
-}
+import { LINK_TYPE_COLOR, LINK_TYPE_LABEL } from '@/lib/meshVisual'
 
 export function MeshMapLegend() {
   return (
     <div className="flex flex-col gap-3 text-sm">
       <div>
-        <p className="text-xs font-medium text-muted-foreground mb-1.5">Link Type (line style)</p>
-        <div className="flex flex-col gap-1">
-          {(Object.keys(LINK_TYPE_LABEL) as MeshLinkType[]).map((type) => (
-            <div key={type} className="flex items-center gap-2">
-              <DashSwatch type={type} />
-              <span>{LINK_TYPE_LABEL[type]}</span>
-            </div>
-          ))}
+        <p className="text-xs font-medium text-muted-foreground mb-1.5">Link Color</p>
+        <div className="flex items-center gap-2">
+          <span className="inline-block h-0.5 w-6 rounded-full" style={{ background: LINK_TYPE_COLOR.RF }} />
+          <span>RF — colored by channel</span>
         </div>
-      </div>
-      <div>
-        <p className="text-xs font-medium text-muted-foreground mb-1.5">Band (RF link color)</p>
-        <div className="flex flex-col gap-1">
-          {BAND_LEGEND.map(([band, color]) => (
-            <div key={band} className="flex items-center gap-2">
-              <span className="inline-block size-2.5 rounded-full" style={{ background: color }} />
-              <span>{band}</span>
-            </div>
-          ))}
+        <p className="text-xs text-muted-foreground mt-0.5">
+          Two links sharing a color share a channel. Tap or hover a link for the exact channel/band.
+        </p>
+        <div className="flex flex-col gap-1 mt-2">
+          <div className="flex items-center gap-2">
+            <span className="inline-block h-0.5 w-6 rounded-full" style={{ background: LINK_TYPE_COLOR.DTD }} />
+            <span>{LINK_TYPE_LABEL.DTD}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="inline-block h-0.5 w-6 rounded-full" style={{ background: LINK_TYPE_COLOR.TUNNEL }} />
+            <span>{LINK_TYPE_LABEL.TUNNEL}</span>
+          </div>
+          <div className="flex items-center gap-2">
+            <span className="inline-block h-0.5 w-6 rounded-full" style={{ background: LINK_TYPE_COLOR.UNKNOWN }} />
+            <span>{LINK_TYPE_LABEL.UNKNOWN}</span>
+          </div>
         </div>
       </div>
       <div className="flex items-center gap-2">

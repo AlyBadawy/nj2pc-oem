@@ -11,4 +11,6 @@ public interface ResourceCheckInRepository extends JpaRepository<ResourceCheckIn
     List<ResourceCheckIn> findByIncidentIdAndCheckedOutAtIsNull(Long incidentId);
 
     Optional<ResourceCheckIn> findByIncidentIdAndResourceIdAndCheckedOutAtIsNull(Long incidentId, Long resourceId);
+
+    Optional<ResourceCheckIn> findFirstByResourceIdAndLatitudeIsNotNullOrderByCheckedInAtDesc(Long resourceId);
 }

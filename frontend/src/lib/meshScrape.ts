@@ -81,8 +81,8 @@ type NeighborRowRaw = {
 }
 
 class MeshFetchError extends Error {
-  kind: 'not-on-mesh' | 'fetch-failed'
-  constructor(kind: 'not-on-mesh' | 'fetch-failed', message: string) {
+  kind: 'not-on-mesh' | 'fetch-failed' | 'mixed-content'
+  constructor(kind: 'not-on-mesh' | 'fetch-failed' | 'mixed-content', message: string) {
     super(message)
     this.kind = kind
   }
@@ -191,7 +191,13 @@ function parseOwnLocation(doc: Document): { latitude: string | null; longitude: 
   const text = textOf(doc.querySelector('#location .t'))
   if (!text) return { latitude: null, longitude: null }
   const [lat, lng] = text.split(',').map((s) => s.trim())
-  return { latitude: lat || null, longitude: lng || null }
+  // A node with no GPS configured renders literal placeholder text here (e.g. "Unknown") rather
+  // than omitting the block — only accept values that actually look like decimal coordinates.
+  const isCoordinate = (value: string | undefined): value is string => !!value && /^-?\d+(\.\d+)?$/.test(value)
+  return {
+    latitude: isCoordinate(lat) ? lat : null,
+    longitude: isCoordinate(lng) ? lng : null,
+  }
 }
 
 function parseStatusPage(html: string, localHostname: string): LocalStatusParsed {
@@ -409,6 +415,18 @@ async function scanNode(hostname: string, isLocalNode: boolean): Promise<NodeSca
 }
 
 export async function runMeshScrape(onProgress?: MeshScrapeProgress): Promise<MeshScrapeResult> {
+  // AREDN nodes only ever serve plain HTTP — a page loaded over HTTPS (e.g. the internet-facing
+  // domain) has every such fetch unconditionally blocked as mixed content, with no way around it
+  // from JavaScript. Detect this upfront rather than waiting out a doomed timeout: if we're on
+  // HTTPS, tell the user exactly what to do (switch to the plain-HTTP mesh address) instead of a
+  // generic "not connected" message that doesn't explain why it will never work from here.
+  if (typeof window !== 'undefined' && window.location.protocol === 'https:') {
+    throw new MeshFetchError(
+      'mixed-content',
+      'This page is loaded over HTTPS, which browsers block from reaching the mesh (plain HTTP only). Open this app at its mesh address instead, e.g. http://al0y-emcomms.local.mesh, then try scanning again.',
+    )
+  }
+
   onProgress?.('Connecting to localnode.local.mesh…')
   const statusUrl = 'http://localnode.local.mesh/a/status'
   let finalUrl = statusUrl
@@ -498,4 +516,8 @@ export async function runMeshScrape(onProgress?: MeshScrapeProgress): Promise<Me
 
 export function isNotOnMeshError(err: unknown): boolean {
   return err instanceof MeshFetchError && err.kind === 'not-on-mesh'
+}
+
+export function isMixedContentError(err: unknown): boolean {
+  return err instanceof MeshFetchError && err.kind === 'mixed-content'
 }

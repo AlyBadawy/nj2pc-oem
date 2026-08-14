@@ -1,7 +1,9 @@
 package org.nj2pc.oem.resource;
 
 import jakarta.validation.Valid;
+import org.nj2pc.oem.checkin.ResourceCheckInService;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 
@@ -12,9 +14,11 @@ import java.util.List;
 public class ResourceController {
 
     private final ResourceService resourceService;
+    private final ResourceCheckInService resourceCheckInService;
 
-    public ResourceController(ResourceService resourceService) {
+    public ResourceController(ResourceService resourceService, ResourceCheckInService resourceCheckInService) {
         this.resourceService = resourceService;
+        this.resourceCheckInService = resourceCheckInService;
     }
 
     @GetMapping
@@ -43,5 +47,12 @@ public class ResourceController {
     @ResponseStatus(HttpStatus.NO_CONTENT)
     public void delete(Authentication authentication, @PathVariable Long id) {
         resourceService.delete(authentication, id);
+    }
+
+    @GetMapping("/{id}/last-location")
+    public ResponseEntity<ResourceLastLocationResponse> lastLocation(@PathVariable Long id) {
+        return resourceCheckInService.findLastLocation(id)
+                .map(ResponseEntity::ok)
+                .orElse(ResponseEntity.noContent().build());
     }
 }

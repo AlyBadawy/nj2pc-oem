@@ -1,6 +1,6 @@
 import { useEffect, useRef } from 'react'
 import type { MeshLinkSnapshot, MeshNodeSnapshot } from '@/lib/types'
-import { LINK_TYPE_DASH, linkColor } from '@/lib/meshVisual'
+import { linkColor } from '@/lib/meshVisual'
 
 type Props = {
   nodes: MeshNodeSnapshot[]
@@ -124,15 +124,12 @@ export function MeshCanvasFallback({ nodes, links, incidentLat, incidentLng, cla
         // not the single node the whole scan started from (a fanned-out scan visits many nodes,
         // each with its own RF configuration).
         const fromNode = nodesByHost.get(link.fromHostname.toLowerCase())
-        ctx.save()
-        ctx.setLineDash(LINK_TYPE_DASH[link.linkTypeNormalized] ?? [])
-        ctx.strokeStyle = linkColor(link.linkTypeNormalized, fromNode?.band ?? null)
+        ctx.strokeStyle = linkColor(link.linkTypeNormalized, fromNode?.channel ?? null)
         ctx.lineWidth = 2
         ctx.beginPath()
         ctx.moveTo(from[0], from[1])
         ctx.lineTo(to[0], to[1])
         ctx.stroke()
-        ctx.restore()
 
         if (link.linkTypeNormalized === 'RF' && fromNode?.channel) {
           const midX = (from[0] + to[0]) / 2

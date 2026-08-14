@@ -16,14 +16,6 @@ import {
 } from 'lucide-react'
 import { hasPermission, useAuth } from '@/lib/auth-context'
 import { Button } from '@/components/ui/button'
-import {
-  DropdownMenu,
-  DropdownMenuContent,
-  DropdownMenuItem,
-  DropdownMenuLabel,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from '@/components/ui/dropdown-menu'
 import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet'
 import { cn } from '@/lib/utils'
 
@@ -88,6 +80,26 @@ function SidebarNav({ navGroups, onNavigate }: { navGroups: NavGroup[]; onNaviga
   )
 }
 
+function SidebarUserMenu({ onLogout }: { onLogout: () => void }) {
+  const { user } = useAuth()
+  return (
+    <div className="border-t px-2 py-2 shrink-0">
+      <div className="flex items-center gap-2 rounded-md px-3 py-2">
+        <div className="flex size-8 shrink-0 items-center justify-center rounded-full bg-sidebar-accent">
+          <User className="size-4" />
+        </div>
+        <div className="min-w-0 flex-1">
+          <div className="truncate text-sm font-medium">{user?.callsign}</div>
+          <div className="truncate text-xs text-sidebar-foreground/60">{user?.admin ? 'Admin' : 'Operator'}</div>
+        </div>
+        <Button variant="ghost" size="icon-sm" onClick={onLogout} aria-label="Logout" title="Logout">
+          <LogOut className="size-4" />
+        </Button>
+      </div>
+    </div>
+  )
+}
+
 export function AppLayout() {
   const { user, logout } = useAuth()
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
@@ -135,48 +147,33 @@ export function AppLayout() {
       <aside className="hidden md:flex border-r bg-sidebar text-sidebar-foreground flex-col overflow-y-auto">
         <SidebarBrand />
         <SidebarNav navGroups={navGroups} />
+        <SidebarUserMenu onLogout={logout} />
       </aside>
 
       <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
-        <SheetContent side="left" className="p-0 md:hidden">
+        <SheetContent side="left" className="p-0 md:hidden flex flex-col">
           <SheetTitle>Navigation</SheetTitle>
           <SidebarBrand />
           <SidebarNav navGroups={navGroups} onNavigate={() => setMobileNavOpen(false)} />
+          <SidebarUserMenu
+            onLogout={() => {
+              setMobileNavOpen(false)
+              logout()
+            }}
+          />
         </SheetContent>
       </Sheet>
 
       <div className="flex flex-col h-svh min-w-0 overflow-hidden">
-        <header className="flex items-center justify-between gap-2 px-4 sm:px-6 py-3 border-b shrink-0">
+        <header className="flex items-center gap-2 px-4 py-3 border-b shrink-0 md:hidden">
           <Button
             variant="outline"
             size="icon"
-            className="md:hidden"
             onClick={() => setMobileNavOpen(true)}
             aria-label="Open navigation"
           >
             <Menu className="size-4" />
           </Button>
-          <div className="flex-1 md:hidden" />
-          <DropdownMenu>
-            <DropdownMenuTrigger asChild>
-              <Button variant="outline" size="icon">
-                <User className="size-4" />
-              </Button>
-            </DropdownMenuTrigger>
-            <DropdownMenuContent align="end">
-              <DropdownMenuLabel>
-                <div className="font-medium">{user?.callsign}</div>
-                <div className="text-xs text-muted-foreground font-normal">
-                  {user?.admin ? 'Admin' : 'Operator'}
-                </div>
-              </DropdownMenuLabel>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={logout}>
-                <LogOut className="size-4" />
-                Logout
-              </DropdownMenuItem>
-            </DropdownMenuContent>
-          </DropdownMenu>
         </header>
         <main className="flex-1 p-4 sm:p-6 overflow-y-auto overflow-x-hidden">
           <Outlet />

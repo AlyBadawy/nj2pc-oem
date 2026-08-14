@@ -178,6 +178,16 @@
     }
 }
 
+/* Tailwind's preflight sets `img { max-width: 100% }`. Leaflet's tile images are absolutely
+   positioned inside a `.leaflet-tile-container` that's intentionally 0x0 (it sizes itself via
+   transforms, not layout box) — so that 100% resolves to 0 and every tile collapses to
+   zero-width, even though each `<img>` already carries its own explicit inline width/height.
+   Tiles then "load" (200s, `complete: true`) but never actually paint. This is a documented
+   Tailwind/Leaflet interaction, not a bug in either library — restore the library's own sizing. */
+.leaflet-tile {
+  max-width: none;
+}
+
 @layer components {
   .credential-micro {
     font-family: var(--font-credential-mono);

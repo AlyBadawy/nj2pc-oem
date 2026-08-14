@@ -91,6 +91,14 @@ export interface Resource {
   customFields: Record<string, unknown>
 }
 
+export interface ResourceLastLocation {
+  latitude: string | null
+  longitude: string | null
+  checkedInAt: string
+  incidentId: number
+  incidentName: string
+}
+
 export interface Vehicle {
   id: number
   operatorId: number

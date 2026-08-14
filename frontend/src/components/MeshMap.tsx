@@ -1,22 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
 import L from 'leaflet'
-import markerIconUrl from 'leaflet/dist/images/marker-icon.png?url'
-import markerIcon2xUrl from 'leaflet/dist/images/marker-icon-2x.png?url'
-import markerShadowUrl from 'leaflet/dist/images/marker-shadow.png?url'
 import { Maximize2, Minimize2 } from 'lucide-react'
 import type { MeshLinkSnapshot, MeshNodeSnapshot } from '@/lib/types'
-import { linkColor, LINK_TYPE_DASH, LINK_TYPE_LABEL } from '@/lib/meshVisual'
+import { linkColor, LINK_TYPE_LABEL } from '@/lib/meshVisual'
 import { MeshCanvasFallback } from '@/components/MeshCanvasFallback'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
-
-// Leaflet's default marker icon paths break under Vite bundling — fix on module load, before
-// any marker is ever placed, so this isn't discovered later as "map shows no markers."
-L.Icon.Default.mergeOptions({
-  iconUrl: markerIconUrl,
-  iconRetinaUrl: markerIcon2xUrl,
-  shadowUrl: markerShadowUrl,
-})
 
 type Props = {
   nodes: MeshNodeSnapshot[]
@@ -25,7 +14,28 @@ type Props = {
   incidentLng?: string | null
 }
 
-const localNodeIcon = new L.Icon.Default({ className: 'mesh-local-node-marker' })
+/** Plain inline-SVG circle markers instead of Leaflet's default raster icon set — sidesteps the
+ * well-known "broken image" issues that PNG-based Leaflet icons run into under bundlers and on
+ * some mobile browsers (no external/data-URI image to fail loading at all, just DOM + CSS). */
+function nodeDivIcon(isLocalNode: boolean): L.DivIcon {
+  const fill = isLocalNode ? '#1F4E79' : '#F7F5F0'
+  const size = isLocalNode ? 18 : 14
+  return L.divIcon({
+    className: 'mesh-node-marker',
+    html: `<svg width="${size}" height="${size}" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><circle cx="10" cy="10" r="8" fill="${fill}" stroke="#1F4E79" stroke-width="2.5" /></svg>`,
+    iconSize: [size, size],
+    iconAnchor: [size / 2, size / 2],
+  })
+}
+
+function incidentDivIcon(): L.DivIcon {
+  return L.divIcon({
+    className: 'mesh-incident-marker',
+    html: `<svg width="16" height="16" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><circle cx="10" cy="10" r="8" fill="#C4432D" stroke="#F7F5F0" stroke-width="2" /></svg>`,
+    iconSize: [16, 16],
+    iconAnchor: [8, 8],
+  })
+}
 
 function toNum(v: string | null | undefined): number | null {
   const n = v ? Number(v) : NaN
@@ -56,9 +66,17 @@ export function MeshMap({ nodes, links, incidentLat, incidentLng }: Props) {
 
   useEffect(() => {
     function handleFullscreenChange() {
-      const active = document.fullscreenElement === wrapperRef.current
-      setIsFullscreen(active)
-      requestAnimationFrame(() => mapRef.current?.invalidateSize())
+      setIsFullscreen(document.fullscreenElement === wrapperRef.current)
+      // Entering/exiting the browser's native fullscreen "top layer" can leave Leaflet's tile
+      // pane transform computed against a stale offset even after the container's reported
+      // size is correct (tiles fetch fine — 200s — but paint at the wrong position, so the map
+      // looks blank). A single invalidateSize() isn't reliably enough; re-check across the
+      // transition since layout can still be settling when the event first fires.
+      if (!mapRef.current) return
+      mapRef.current.invalidateSize()
+      for (const ms of [50, 150, 350, 700]) {
+        setTimeout(() => mapRef.current?.invalidateSize(), ms)
+      }
     }
     document.addEventListener('fullscreenchange', handleFullscreenChange)
     return () => document.removeEventListener('fullscreenchange', handleFullscreenChange)
@@ -84,13 +102,26 @@ export function MeshMap({ nodes, links, incidentLat, incidentLng }: Props) {
       maxZoom: 19,
       attribution: '&copy; OpenStreetMap contributors',
     })
-    let failed = false
+    // Only fall back to the offline canvas if tiles are genuinely unreachable — a resize (e.g.
+    // entering/exiting fullscreen) can transiently fire a spurious tileerror even when tiles are
+    // loading fine, so this requires a few failures AND zero successful loads before giving up,
+    // and never reconsiders once real tiles have shown at least once.
+    let tileLoadedOnce = false
+    let tileErrorCount = 0
+    tileLayer.on('tileload', () => {
+      tileLoadedOnce = true
+    })
     tileLayer.on('tileerror', () => {
-      if (failed) return
-      failed = true
-      setUseFallback(true)
+      if (tileLoadedOnce) return
+      tileErrorCount += 1
+      if (tileErrorCount >= 4) setUseFallback(true)
     })
     tileLayer.addTo(map)
+
+    // Robustly resize the map whenever its container's actual size changes (covers fullscreen
+    // enter/exit and any other layout shift) instead of guessing at timing around events.
+    const resizeObserver = new ResizeObserver(() => map.invalidateSize())
+    resizeObserver.observe(container)
 
     const nodesByHost = new Map(nodes.map((n) => [n.hostname.toLowerCase(), n]))
     const points: L.LatLngExpression[] = []
@@ -104,7 +135,7 @@ export function MeshMap({ nodes, links, incidentLat, incidentLng }: Props) {
       hostPos.set(n.hostname.toLowerCase(), latLng)
       points.push(latLng)
       const label = n.channel ? `${n.hostname} (${n.band ?? ''} ch ${n.channel})` : n.hostname
-      L.marker(latLng, { icon: n.isLocalNode ? localNodeIcon : new L.Icon.Default() })
+      L.marker(latLng, { icon: nodeDivIcon(n.isLocalNode) })
         .addTo(map)
         .bindTooltip(label, { permanent: false })
     }
@@ -114,9 +145,7 @@ export function MeshMap({ nodes, links, incidentLat, incidentLng }: Props) {
     if (incLat != null && incLng != null) {
       const incidentLatLng = L.latLng(incLat, incLng)
       points.push(incidentLatLng)
-      L.circleMarker(incidentLatLng, { radius: 7, color: '#C4432D', fillColor: '#C4432D', fillOpacity: 1 })
-        .addTo(map)
-        .bindTooltip('Incident location')
+      L.marker(incidentLatLng, { icon: incidentDivIcon() }).addTo(map).bindTooltip('Incident location')
     }
 
     for (const link of links) {
@@ -128,9 +157,8 @@ export function MeshMap({ nodes, links, incidentLat, incidentLng }: Props) {
       // RF configuration).
       const fromNode = nodesByHost.get(link.fromHostname.toLowerCase())
       L.polyline([from, to], {
-        color: linkColor(link.linkTypeNormalized, fromNode?.band ?? null),
+        color: linkColor(link.linkTypeNormalized, fromNode?.channel ?? null),
         weight: 3,
-        dashArray: LINK_TYPE_DASH[link.linkTypeNormalized]?.join(',') || undefined,
       })
         .addTo(map)
         .bindTooltip(linkTooltip(link, fromNode?.channel ?? null, fromNode?.band ?? null))
@@ -143,6 +171,7 @@ export function MeshMap({ nodes, links, incidentLat, incidentLng }: Props) {
     }
 
     return () => {
+      resizeObserver.disconnect()
       map.remove()
       mapRef.current = null
     }
@@ -151,7 +180,7 @@ export function MeshMap({ nodes, links, incidentLat, incidentLng }: Props) {
   return (
     <div
       ref={wrapperRef}
-      className={cn('relative', isFullscreen && 'flex flex-col bg-credential-paper p-2')}
+      className={cn('relative', isFullscreen && 'fixed inset-0 h-screen w-screen bg-credential-paper')}
     >
       <Button
         type="button"
@@ -163,23 +192,21 @@ export function MeshMap({ nodes, links, incidentLat, incidentLng }: Props) {
       >
         {isFullscreen ? <Minimize2 className="size-4" /> : <Maximize2 className="size-4" />}
       </Button>
-      {useFallback ? (
-        <MeshCanvasFallback
-          nodes={nodes}
-          links={links}
-          incidentLat={incidentLat}
-          incidentLng={incidentLng}
-          className={isFullscreen ? 'flex-1 w-full' : 'w-full h-[420px]'}
-        />
-      ) : (
-        <div
-          ref={containerRef}
-          className={cn(
-            'rounded-lg border border-credential-hairline',
-            isFullscreen ? 'flex-1 w-full' : 'w-full h-[420px]',
-          )}
-        />
-      )}
+      {/* A separate outer div carries the absolute/fixed sizing for fullscreen — Leaflet sets
+          `position: relative` as an inline style on its own container (needed for its internal
+          absolutely-positioned panes), which as an inline style always wins over any `position`
+          utility class placed directly on that same element. Keeping the sizing on a wrapper
+          one level up avoids that fight entirely. */}
+      <div className={isFullscreen ? 'absolute inset-0' : 'w-full h-[420px]'}>
+        {useFallback ? (
+          <MeshCanvasFallback nodes={nodes} links={links} incidentLat={incidentLat} incidentLng={incidentLng} className="w-full h-full" />
+        ) : (
+          <div
+            ref={containerRef}
+            className={cn('w-full h-full rounded-lg border border-credential-hairline', isFullscreen && 'rounded-none border-none')}
+          />
+        )}
+      </div>
     </div>
   )
 }

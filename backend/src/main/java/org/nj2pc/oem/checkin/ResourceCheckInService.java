@@ -7,6 +7,7 @@ import org.nj2pc.oem.incident.Incident;
 import org.nj2pc.oem.incident.IncidentRepository;
 import org.nj2pc.oem.incident.IncidentStatus;
 import org.nj2pc.oem.resource.Resource;
+import org.nj2pc.oem.resource.ResourceLastLocationResponse;
 import org.nj2pc.oem.resource.ResourceRepository;
 import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
@@ -14,6 +15,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.time.Instant;
 import java.util.List;
+import java.util.Optional;
 
 @Service
 public class ResourceCheckInService {
@@ -81,6 +83,18 @@ public class ResourceCheckInService {
         auditLogService.record(EntityType.INCIDENT, incidentId, "CHECK_OUT",
                 "Checked out resource " + checkIn.getResource().getIdentifier(), authentication.getName());
         return ResourceCheckInResponse.from(saved);
+    }
+
+    /** Most recent known deployment location for a resource, across any incident — used to
+     * default a new deployment's location instead of a possibly-outdated self-reported position
+     * (e.g. an AREDN node's own GPS setting, which can drift out of date). */
+    @Transactional(readOnly = true)
+    public Optional<ResourceLastLocationResponse> findLastLocation(Long resourceId) {
+        return resourceCheckInRepository.findFirstByResourceIdAndLatitudeIsNotNullOrderByCheckedInAtDesc(resourceId)
+                .map(c -> new ResourceLastLocationResponse(
+                        c.getLatitude(), c.getLongitude(), c.getCheckedInAt(),
+                        c.getIncident().getId(), c.getIncident().getName()
+                ));
     }
 
     @Transactional
