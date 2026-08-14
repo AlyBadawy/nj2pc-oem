@@ -246,13 +246,13 @@ export function CommsPlanDetail() {
           <ArrowLeft className="size-4" />
           Back to Communications Plans
         </Button>
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-2">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div className="flex flex-wrap items-center gap-2">
             <h1 className="text-2xl font-semibold">{plan.name}</h1>
             <Badge variant="outline">v{plan.version}</Badge>
             {!plan.active && <Badge variant="destructive">Superseded</Badge>}
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <Button
               variant="outline"
               disabled={!canManage}
@@ -295,7 +295,7 @@ export function CommsPlanDetail() {
           <CardContent>
             <ul className="flex flex-col gap-2">
               {versions.map((v) => (
-                <li key={v.id} className="flex items-center gap-2 text-sm">
+                <li key={v.id} className="flex flex-wrap items-center gap-2 text-sm">
                   <Link
                     to={`/comms-plans/${v.id}`}
                     className={cn('hover:underline', v.id === plan.id && 'font-semibold')}

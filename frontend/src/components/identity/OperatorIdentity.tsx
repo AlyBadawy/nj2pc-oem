@@ -78,9 +78,9 @@ function CredentialCard({ data, orgName }: { data: OperatorIdentityData; orgName
         )}
       </div>
 
-      <div className="grid grid-cols-[106px_1fr] gap-[18px] p-[18px]">
+      <div className="grid grid-cols-[80px_1fr] gap-3 p-3 sm:grid-cols-[106px_1fr] sm:gap-[18px] sm:p-[18px]">
         <div className="min-w-0">
-          <div className="h-[132px] w-[106px] overflow-hidden rounded-[3px] border border-credential-hairline">
+          <div className="h-[100px] w-[80px] overflow-hidden rounded-[3px] border border-credential-hairline sm:h-[132px] sm:w-[106px]">
             {photoUrl ? (
               <img src={photoUrl} alt="" className="h-full w-full object-cover" />
             ) : (
@@ -93,24 +93,24 @@ function CredentialCard({ data, orgName }: { data: OperatorIdentityData; orgName
         <div className="flex min-w-0 flex-col gap-2.5">
           <div className="min-w-0">
             <div className="credential-micro">Callsign</div>
-            <div className="truncate font-credential-mono text-[48px] font-extrabold leading-[.86] tracking-[-.03em]">
+            <div className="truncate font-credential-mono text-[30px] font-extrabold leading-[.86] tracking-[-.03em] sm:text-[48px]">
               {callsign}
             </div>
-            <div className="truncate text-[21px] font-semibold">{name}</div>
+            <div className="truncate text-[16px] font-semibold sm:text-[21px]">{name}</div>
           </div>
 
-          <div className="flex items-end justify-between gap-3 border-t border-credential-hairline pt-2.5">
+          <div className="flex flex-col gap-2 border-t border-credential-hairline pt-2.5 sm:flex-row sm:items-end sm:justify-between sm:gap-3">
             <div className="min-w-0">
               <div className="credential-micro">License Class</div>
               <div className="text-[14px]">{licenseClass || '—'}</div>
             </div>
-            <div className="shrink-0 text-right">
+            <div className="shrink-0 sm:text-right">
               <div className="credential-micro mb-1">Access Role</div>
               <RoleBadge role={role} roleColor={roleColor} roleAccessLevel={roleAccessLevel} variant="band" />
             </div>
           </div>
 
-          <div className="flex gap-6">
+          <div className="flex flex-col gap-2 sm:flex-row sm:gap-6">
             <ContactLine kind="phone" value={phone} canView={canViewContact} />
             <ContactLine kind="email" value={email} canView={canViewContact} />
           </div>

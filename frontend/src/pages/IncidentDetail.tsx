@@ -405,15 +405,15 @@ export function IncidentDetail() {
           <ArrowLeft className="size-4" />
           Back to Incidents
         </Button>
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
           <div>
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               <h1 className="text-2xl font-semibold">{incident.name}</h1>
               <Badge variant={statusVariant[incident.status]}>{incident.status}</Badge>
             </div>
             <p className="text-muted-foreground text-sm">{incident.location}</p>
           </div>
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             {canEdit && (
               <Button variant="outline" onClick={() => setPermissionsOpen(true)}>
                 <ShieldCheck className="size-4" />
@@ -761,9 +761,9 @@ export function IncidentDetail() {
               </Table>
             </TabsContent>
             <TabsContent value="comms-plan" className="flex flex-col gap-4">
-              <div className="flex items-center justify-between">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                 <p className="text-sm font-medium">Current Plan</p>
-                <div className="flex items-center gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   {activeCommsPlan && (
                     <Button
                       size="sm"
@@ -792,9 +792,9 @@ export function IncidentDetail() {
               </div>
 
               {activeCommsPlan ? (
-                <div className="flex items-center justify-between rounded-md border p-3">
-                  <div>
-                    <div className="flex items-center gap-2">
+                <div className="flex flex-col gap-2 rounded-md border p-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="min-w-0">
+                    <div className="flex flex-wrap items-center gap-2">
                       <Link
                         to={`/comms-plans/${activeCommsPlan.communicationPlanId}`}
                         className="font-medium hover:underline"

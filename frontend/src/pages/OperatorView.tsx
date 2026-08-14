@@ -101,14 +101,14 @@ export function OperatorView() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div className="flex items-center justify-between">
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <h1 className="text-2xl font-semibold">
             {operator.callsign} <span className="text-muted-foreground font-normal">— {operator.name}</span>
           </h1>
           <p className="text-muted-foreground text-sm">Operator credential.</p>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex flex-wrap items-center gap-2">
           <Button variant="outline" onClick={() => window.print()}>
             <Printer className="size-4" />
             Print
