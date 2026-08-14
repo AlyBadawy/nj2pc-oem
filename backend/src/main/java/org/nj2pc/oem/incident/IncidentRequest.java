@@ -3,6 +3,8 @@ package org.nj2pc.oem.incident;
 import jakarta.validation.constraints.NotBlank;
 
 import java.time.Instant;
+import java.util.List;
+import java.util.Map;
 
 public record IncidentRequest(
         @NotBlank String name,
@@ -11,6 +13,7 @@ public record IncidentRequest(
         Instant plannedEndTime,
         String description,
         String latitude,
-        String longitude
+        String longitude,
+        List<Map<String, String>> boundaryPoints
 ) {
 }

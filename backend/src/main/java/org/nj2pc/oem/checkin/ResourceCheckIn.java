@@ -34,6 +34,9 @@ public class ResourceCheckIn {
 
     private String longitude;
 
+    @Column(name = "off_site", nullable = false)
+    private boolean offSite = false;
+
     public Long getId() {
         return id;
     }
@@ -92,5 +95,13 @@ public class ResourceCheckIn {
 
     public void setLongitude(String longitude) {
         this.longitude = longitude;
+    }
+
+    public boolean isOffSite() {
+        return offSite;
+    }
+
+    public void setOffSite(boolean offSite) {
+        this.offSite = offSite;
     }
 }

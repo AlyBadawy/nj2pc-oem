@@ -1,9 +1,13 @@
 package org.nj2pc.oem.incident;
 
 import jakarta.persistence.*;
+import org.hibernate.annotations.JdbcTypeCode;
+import org.hibernate.type.SqlTypes;
 import org.nj2pc.oem.operator.Operator;
 
 import java.time.Instant;
+import java.util.List;
+import java.util.Map;
 
 @Entity
 @Table(name = "incidents")
@@ -39,6 +43,12 @@ public class Incident {
     private String latitude;
 
     private String longitude;
+
+    /** Ordered polygon of {latitude, longitude} points the operator drops on a map to mark the
+     * incident's operating area — distinct from the single-point latitude/longitude above. */
+    @JdbcTypeCode(SqlTypes.JSON)
+    @Column(name = "boundary_points", columnDefinition = "jsonb")
+    private List<Map<String, String>> boundaryPoints;
 
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
@@ -129,6 +139,14 @@ public class Incident {
 
     public void setLongitude(String longitude) {
         this.longitude = longitude;
+    }
+
+    public List<Map<String, String>> getBoundaryPoints() {
+        return boundaryPoints;
+    }
+
+    public void setBoundaryPoints(List<Map<String, String>> boundaryPoints) {
+        this.boundaryPoints = boundaryPoints;
     }
 
     public Instant getCreatedAt() {

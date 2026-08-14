@@ -223,5 +223,6 @@ public class IncidentService {
         incident.setDescription(request.description());
         incident.setLatitude(request.latitude());
         incident.setLongitude(request.longitude());
+        incident.setBoundaryPoints(request.boundaryPoints());
     }
 }

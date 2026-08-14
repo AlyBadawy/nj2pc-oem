@@ -4,11 +4,12 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
 import { Crosshair, Loader2 } from 'lucide-react'
 import { api } from '@/lib/api'
-import type { Incident } from '@/lib/types'
+import type { Incident, IncidentBoundaryPoint } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Textarea } from '@/components/ui/textarea'
+import { BoundaryMapEditor } from '@/components/BoundaryMapEditor'
 
 type FormState = {
   name: string
@@ -18,6 +19,7 @@ type FormState = {
   description: string
   latitude: string
   longitude: string
+  boundaryPoints: IncidentBoundaryPoint[]
 }
 
 const emptyForm: FormState = {
@@ -28,6 +30,7 @@ const emptyForm: FormState = {
   description: '',
   latitude: '',
   longitude: '',
+  boundaryPoints: [],
 }
 
 function toIso(localDateTime: string): string | null {
@@ -81,6 +84,7 @@ export function IncidentEdit() {
         description: data.description ?? '',
         latitude: data.latitude ?? '',
         longitude: data.longitude ?? '',
+        boundaryPoints: data.boundaryPoints ?? [],
       })
       setCanEdit(data.canEdit)
       setLoaded(true)
@@ -105,6 +109,7 @@ export function IncidentEdit() {
         description: form.description || null,
         latitude: form.latitude || null,
         longitude: form.longitude || null,
+        boundaryPoints: form.boundaryPoints.length > 0 ? form.boundaryPoints : null,
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['incidents'] })
@@ -196,6 +201,15 @@ export function IncidentEdit() {
               placeholder="Longitude, e.g. -74.1959347"
             />
           </div>
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <Label>Boundary</Label>
+          <BoundaryMapEditor
+            points={form.boundaryPoints}
+            onChange={(boundaryPoints) => setForm((f) => ({ ...f, boundaryPoints }))}
+            centerLat={form.latitude || incident?.latitude}
+            centerLng={form.longitude || incident?.longitude}
+          />
         </div>
         <div className="flex flex-col gap-1.5">
           <Label htmlFor="description">Description</Label>

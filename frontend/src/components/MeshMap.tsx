@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import L from 'leaflet'
 import { Maximize2, Minimize2 } from 'lucide-react'
-import type { MeshLinkSnapshot, MeshNodeSnapshot } from '@/lib/types'
+import type { IncidentBoundaryPoint, MeshLinkSnapshot, MeshNodeSnapshot } from '@/lib/types'
 import { linkColor, LINK_TYPE_LABEL } from '@/lib/meshVisual'
 import { MeshCanvasFallback } from '@/components/MeshCanvasFallback'
 import { Button } from '@/components/ui/button'
@@ -12,6 +12,7 @@ type Props = {
   links: MeshLinkSnapshot[]
   incidentLat?: string | null
   incidentLng?: string | null
+  boundaryPoints?: IncidentBoundaryPoint[] | null
 }
 
 /** Plain inline-SVG circle markers instead of Leaflet's default raster icon set — sidesteps the
@@ -57,7 +58,7 @@ function linkTooltip(link: MeshLinkSnapshot, fromNodeChannel: string | null, fro
  * already reports itself offline. Both renderers take the identical prop shape. Supports a
  * fullscreen toggle (native Fullscreen API) so either renderer can be expanded to fill the
  * whole browser viewport. */
-export function MeshMap({ nodes, links, incidentLat, incidentLng }: Props) {
+export function MeshMap({ nodes, links, incidentLat, incidentLng, boundaryPoints }: Props) {
   const wrapperRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<L.Map | null>(null)
@@ -127,6 +128,26 @@ export function MeshMap({ nodes, links, incidentLat, incidentLng }: Props) {
     const points: L.LatLngExpression[] = []
     const hostPos = new Map<string, L.LatLng>()
 
+    // The incident's boundary defines the mesh map's default view (not just the scanned nodes),
+    // so it's drawn first, underneath everything else, and its points are folded into the
+    // fitBounds() call below.
+    const boundaryLatLngs = (boundaryPoints ?? [])
+      .map((p) => {
+        const lat = toNum(p.latitude)
+        const lng = toNum(p.longitude)
+        return lat != null && lng != null ? L.latLng(lat, lng) : null
+      })
+      .filter((v): v is L.LatLng => v != null)
+    if (boundaryLatLngs.length >= 3) {
+      L.polygon(boundaryLatLngs, {
+        color: '#1F4E79',
+        weight: 2,
+        fillColor: '#1F4E79',
+        fillOpacity: 0.2,
+      }).addTo(map)
+      points.push(...boundaryLatLngs)
+    }
+
     for (const n of nodes) {
       const lat = toNum(n.latitude)
       const lng = toNum(n.longitude)
@@ -175,7 +196,7 @@ export function MeshMap({ nodes, links, incidentLat, incidentLng }: Props) {
       map.remove()
       mapRef.current = null
     }
-  }, [nodes, links, incidentLat, incidentLng, useFallback])
+  }, [nodes, links, incidentLat, incidentLng, boundaryPoints, useFallback])
 
   return (
     <div
@@ -206,7 +227,14 @@ export function MeshMap({ nodes, links, incidentLat, incidentLng }: Props) {
           one level up avoids that fight entirely. */}
       <div className={isFullscreen ? 'absolute inset-0' : 'w-full h-[420px]'}>
         {useFallback ? (
-          <MeshCanvasFallback nodes={nodes} links={links} incidentLat={incidentLat} incidentLng={incidentLng} className="w-full h-full" />
+          <MeshCanvasFallback
+            nodes={nodes}
+            links={links}
+            incidentLat={incidentLat}
+            incidentLng={incidentLng}
+            boundaryPoints={boundaryPoints}
+            className="w-full h-full"
+          />
         ) : (
           <div
             ref={containerRef}

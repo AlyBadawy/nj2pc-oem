@@ -178,6 +178,16 @@ public class MeshSessionService {
         return findById(incidentId, session.getId());
     }
 
+    @Transactional
+    public void delete(Authentication authentication, Long incidentId, Long sessionId) {
+        MeshSession session = getSessionOrThrow(incidentId, sessionId);
+        meshSessionRepository.delete(session);
+        auditLogService.record(EntityType.INCIDENT, incidentId, "MESH_SCAN_DELETE",
+                "Deleted a mesh scan from " + session.getLocalNodeHostname()
+                        + (session.getLabel() != null ? " (" + session.getLabel() + ")" : ""),
+                authentication.getName());
+    }
+
     private MeshSession getSessionOrThrow(Long incidentId, Long sessionId) {
         MeshSession session = meshSessionRepository.findById(sessionId)
                 .orElseThrow(() -> ApiException.notFound("Mesh session not found: " + sessionId));

@@ -147,9 +147,15 @@ export interface Incident {
   description: string | null
   latitude: string | null
   longitude: string | null
+  boundaryPoints: IncidentBoundaryPoint[] | null
   createdAt: string
   createdByCallsign: string | null
   canEdit: boolean
+}
+
+export interface IncidentBoundaryPoint {
+  latitude: string
+  longitude: string
 }
 
 export type Priority = 'ROUTINE' | 'PRIORITY' | 'EMERGENCY'
@@ -202,6 +208,7 @@ export interface ResourceCheckIn {
   notes: string | null
   latitude: string | null
   longitude: string | null
+  offSite: boolean
 }
 
 export type MeshLinkType = 'RF' | 'DTD' | 'TUNNEL' | 'UNKNOWN'

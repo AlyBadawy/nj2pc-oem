@@ -7,6 +7,7 @@ import org.nj2pc.oem.checkin.OperatorCheckInService;
 import org.nj2pc.oem.checkin.ResourceCheckInRequest;
 import org.nj2pc.oem.checkin.ResourceCheckInResponse;
 import org.nj2pc.oem.checkin.ResourceCheckInService;
+import org.nj2pc.oem.checkin.ResourceCheckInUpdateRequest;
 import org.nj2pc.oem.commsplan.CommunicationPlanResponse;
 import org.nj2pc.oem.commsplan.CommunicationPlanService;
 import org.nj2pc.oem.mesh.MeshSessionDetailResponse;
@@ -143,6 +144,14 @@ public class IncidentController {
         return resourceCheckInService.checkOut(authentication, id, checkInId);
     }
 
+    @PutMapping("/{id}/resource-checkins/{checkInId}")
+    public ResourceCheckInResponse updateResourceCheckIn(Authentication authentication, @PathVariable Long id,
+                                                            @PathVariable Long checkInId,
+                                                            @RequestBody ResourceCheckInUpdateRequest request) {
+        incidentService.requireEditAccess(authentication, id);
+        return resourceCheckInService.update(authentication, id, checkInId, request);
+    }
+
     @GetMapping("/{id}/mesh-sessions")
     public List<MeshSessionSummaryResponse> findMeshSessions(@PathVariable Long id) {
         return meshSessionService.findByIncident(id);
@@ -159,5 +168,12 @@ public class IncidentController {
                                                           @Valid @RequestBody MeshSessionSubmitRequest request) {
         incidentService.requireEditAccess(authentication, id);
         return meshSessionService.submit(authentication, id, request);
+    }
+
+    @DeleteMapping("/{id}/mesh-sessions/{sessionId}")
+    @ResponseStatus(HttpStatus.NO_CONTENT)
+    public void deleteMeshSession(Authentication authentication, @PathVariable Long id, @PathVariable Long sessionId) {
+        incidentService.requireEditAccess(authentication, id);
+        meshSessionService.delete(authentication, id, sessionId);
     }
 }

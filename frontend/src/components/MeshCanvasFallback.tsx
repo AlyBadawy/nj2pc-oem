@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react'
-import type { MeshLinkSnapshot, MeshNodeSnapshot } from '@/lib/types'
+import type { IncidentBoundaryPoint, MeshLinkSnapshot, MeshNodeSnapshot } from '@/lib/types'
 import { linkColor } from '@/lib/meshVisual'
 
 type Props = {
@@ -7,13 +7,14 @@ type Props = {
   links: MeshLinkSnapshot[]
   incidentLat?: string | null
   incidentLng?: string | null
+  boundaryPoints?: IncidentBoundaryPoint[] | null
   className?: string
 }
 
 /** Offline-safe map fallback: no basemap imagery, just a lat/lng grid with a distance scale —
  * always renders, even fully mesh-isolated with no path to the internet. Redraws at whatever
  * size its container is (via ResizeObserver), so it also works correctly in fullscreen. */
-export function MeshCanvasFallback({ nodes, links, incidentLat, incidentLng, className }: Props) {
+export function MeshCanvasFallback({ nodes, links, incidentLat, incidentLng, boundaryPoints, className }: Props) {
   const wrapperRef = useRef<HTMLDivElement>(null)
   const canvasRef = useRef<HTMLCanvasElement>(null)
 
@@ -54,6 +55,15 @@ export function MeshCanvasFallback({ nodes, links, incidentLat, incidentLng, cla
       const incLat = toNum(incidentLat)
       const incLng = toNum(incidentLng)
       if (incLat != null && incLng != null) points.push({ lat: incLat, lng: incLng })
+
+      const boundary: Pt[] = (boundaryPoints ?? [])
+        .map((p) => {
+          const lat = toNum(p.latitude)
+          const lng = toNum(p.longitude)
+          return lat != null && lng != null ? { lat, lng } : null
+        })
+        .filter((v): v is Pt => v != null)
+      points.push(...boundary)
 
       const nodesByHost = new Map(nodes.map((n) => [n.hostname.toLowerCase(), n]))
 
@@ -108,6 +118,21 @@ export function MeshCanvasFallback({ nodes, links, incidentLat, incidentLng, cla
       ctx.font = '11px sans-serif'
       ctx.textAlign = 'left'
       ctx.fillText(`~${scaleBarMiles} mi`, padding, height - 20)
+
+      if (boundary.length >= 3) {
+        ctx.beginPath()
+        boundary.forEach((p, i) => {
+          const [x, y] = project(p.lat, p.lng)
+          if (i === 0) ctx.moveTo(x, y)
+          else ctx.lineTo(x, y)
+        })
+        ctx.closePath()
+        ctx.fillStyle = 'rgba(31, 78, 121, 0.2)'
+        ctx.fill()
+        ctx.strokeStyle = '#1F4E79'
+        ctx.lineWidth = 1.5
+        ctx.stroke()
+      }
 
       const hostPos = new Map<string, [number, number]>()
       for (const n of nodes) {
@@ -179,7 +204,7 @@ export function MeshCanvasFallback({ nodes, links, incidentLat, incidentLng, cla
     const observer = new ResizeObserver(() => draw())
     observer.observe(wrapper)
     return () => observer.disconnect()
-  }, [nodes, links, incidentLat, incidentLng])
+  }, [nodes, links, incidentLat, incidentLng, boundaryPoints])
 
   return (
     <div ref={wrapperRef} className={className ?? 'w-full h-[420px]'}>

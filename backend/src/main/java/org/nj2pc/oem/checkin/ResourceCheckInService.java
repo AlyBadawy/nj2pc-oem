@@ -85,6 +85,20 @@ public class ResourceCheckInService {
         return ResourceCheckInResponse.from(saved);
     }
 
+    @Transactional
+    public ResourceCheckInResponse update(Authentication authentication, Long incidentId, Long checkInId,
+                                           ResourceCheckInUpdateRequest request) {
+        ResourceCheckIn checkIn = getCheckInOrThrow(incidentId, checkInId);
+        checkIn.setNotes(request.notes());
+        checkIn.setLatitude(request.latitude());
+        checkIn.setLongitude(request.longitude());
+        checkIn.setOffSite(request.offSite());
+        ResourceCheckIn saved = resourceCheckInRepository.save(checkIn);
+        auditLogService.record(EntityType.INCIDENT, incidentId, "CHECK_IN_UPDATE",
+                "Updated deployment details for " + checkIn.getResource().getIdentifier(), authentication.getName());
+        return ResourceCheckInResponse.from(saved);
+    }
+
     /** Most recent known deployment location for a resource, across any incident — used to
      * default a new deployment's location instead of a possibly-outdated self-reported position
      * (e.g. an AREDN node's own GPS setting, which can drift out of date). */

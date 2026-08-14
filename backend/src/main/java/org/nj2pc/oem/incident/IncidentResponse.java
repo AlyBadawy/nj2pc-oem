@@ -1,6 +1,8 @@
 package org.nj2pc.oem.incident;
 
 import java.time.Instant;
+import java.util.List;
+import java.util.Map;
 
 public record IncidentResponse(
         Long id,
@@ -14,6 +16,7 @@ public record IncidentResponse(
         String description,
         String latitude,
         String longitude,
+        List<Map<String, String>> boundaryPoints,
         Instant createdAt,
         String createdByCallsign,
         boolean canEdit
@@ -23,7 +26,7 @@ public record IncidentResponse(
                 i.getId(), i.getName(), i.getLocation(), i.getStatus(),
                 i.getPlannedStartTime(), i.getPlannedEndTime(),
                 i.getActualStartTime(), i.getActualEndTime(),
-                i.getDescription(), i.getLatitude(), i.getLongitude(), i.getCreatedAt(),
+                i.getDescription(), i.getLatitude(), i.getLongitude(), i.getBoundaryPoints(), i.getCreatedAt(),
                 i.getCreatedBy() != null ? i.getCreatedBy().getCallsign() : null,
                 canEdit
         );

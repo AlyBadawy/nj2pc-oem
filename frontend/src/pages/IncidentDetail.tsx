@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Plus, LogIn, LogOut, Flag, Play, Pencil, ShieldCheck, Download, Loader2, MapPin, RadioTower } from 'lucide-react'
+import { ArrowLeft, Plus, LogIn, LogOut, Flag, Play, Pencil, ShieldCheck, Download, Loader2, MapPin, RadioTower, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { api } from '@/lib/api'
 import { hasPermission, useAuth } from '@/lib/auth-context'
@@ -163,6 +163,15 @@ export function IncidentDetail() {
   const { data: meshSessions } = useQuery({
     queryKey: ['incidents', id, 'mesh-sessions'],
     queryFn: async () => (await api.get<MeshSessionSummary[]>(`/api/incidents/${id}/mesh-sessions`)).data,
+  })
+
+  const deleteMeshSessionMutation = useMutation({
+    mutationFn: async (sessionId: number) => api.delete(`/api/incidents/${id}/mesh-sessions/${sessionId}`),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['incidents', id, 'mesh-sessions'] })
+      toast.success('Mesh scan deleted')
+    },
+    onError: () => toast.error('Failed to delete mesh scan'),
   })
 
   const { data: lastRole } = useQuery({
@@ -901,10 +910,10 @@ export function IncidentDetail() {
               {meshSessions && meshSessions.length > 0 ? (
                 <ul className="flex flex-col gap-1">
                   {meshSessions.map((s) => (
-                    <li key={s.id}>
+                    <li key={s.id} className="flex items-center gap-1 rounded-md hover:bg-muted">
                       <Link
                         to={`/incidents/${id}/mesh/${s.id}`}
-                        className="flex flex-wrap items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-muted"
+                        className="flex flex-1 min-w-0 flex-wrap items-center gap-2 px-2 py-1.5 text-sm"
                       >
                         <span className="font-medium">{s.label || 'Mesh Scan'}</span>
                         <span className="text-muted-foreground">{s.localNodeHostname}</span>
@@ -918,6 +927,18 @@ export function IncidentDetail() {
                           {new Date(s.capturedAt).toLocaleString()}
                         </span>
                       </Link>
+                      {canEdit && (
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon-sm"
+                          className="mr-1 shrink-0 text-muted-foreground hover:text-destructive"
+                          title="Delete mesh scan"
+                          onClick={() => deleteMeshSessionMutation.mutate(s.id)}
+                        >
+                          <Trash2 className="size-4" />
+                        </Button>
+                      )}
                     </li>
                   ))}
                 </ul>

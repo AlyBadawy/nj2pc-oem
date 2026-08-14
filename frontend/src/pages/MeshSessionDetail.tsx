@@ -1,7 +1,7 @@
 import { useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Crosshair, Loader2, PackagePlus, Rocket } from 'lucide-react'
+import { ArrowLeft, Crosshair, Loader2, MapPin, PackagePlus, Pencil, Rocket } from 'lucide-react'
 import { toast } from 'sonner'
 import { api } from '@/lib/api'
 import type {
@@ -291,6 +291,127 @@ function DeployDialog({
   )
 }
 
+function EditDeploymentDialog({
+  checkIn,
+  incidentId,
+  open,
+  onOpenChange,
+}: {
+  checkIn: ResourceCheckIn | null
+  incidentId: string | undefined
+  open: boolean
+  onOpenChange: (open: boolean) => void
+}) {
+  const queryClient = useQueryClient()
+  const [latitude, setLatitude] = useState('')
+  const [longitude, setLongitude] = useState('')
+  const [notes, setNotes] = useState('')
+  const [offSite, setOffSite] = useState(false)
+  const [locating, setLocating] = useState(false)
+  const [lastOpenedFor, setLastOpenedFor] = useState<number | null>(null)
+
+  if (open && checkIn && lastOpenedFor !== checkIn.id) {
+    setLastOpenedFor(checkIn.id)
+    setLatitude(checkIn.latitude ?? '')
+    setLongitude(checkIn.longitude ?? '')
+    setNotes(checkIn.notes ?? '')
+    setOffSite(checkIn.offSite)
+  }
+
+  function captureLocation() {
+    if (!navigator.geolocation) {
+      toast.error('This device does not support location capture')
+      return
+    }
+    setLocating(true)
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setLatitude(String(pos.coords.latitude))
+        setLongitude(String(pos.coords.longitude))
+        setLocating(false)
+      },
+      () => {
+        toast.error('Could not get your location — enter coordinates manually')
+        setLocating(false)
+      },
+      { enableHighAccuracy: true, timeout: 10000 },
+    )
+  }
+
+  const updateMutation = useMutation({
+    mutationFn: async () =>
+      api.put(`/api/incidents/${incidentId}/resource-checkins/${checkIn?.id}`, {
+        notes: notes || null,
+        latitude: offSite ? null : latitude || null,
+        longitude: offSite ? null : longitude || null,
+        offSite,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['incidents', incidentId, 'resource-checkins'] })
+      toast.success(`${checkIn?.resourceIdentifier} deployment updated`)
+      onOpenChange(false)
+    },
+    onError: () => toast.error('Failed to update deployment'),
+  })
+
+  function handleSubmit(e: FormEvent) {
+    e.preventDefault()
+    updateMutation.mutate()
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Edit {checkIn?.resourceIdentifier} Deployment</DialogTitle>
+        </DialogHeader>
+        <form onSubmit={handleSubmit} className="flex flex-col gap-3">
+          <label className="flex items-start gap-2 text-sm">
+            <input
+              type="checkbox"
+              className="mt-0.5"
+              checked={offSite}
+              onChange={(e) => setOffSite(e.target.checked)}
+            />
+            <span>
+              Off-site
+              <span className="block text-xs text-muted-foreground">
+                Part of the mesh for this incident, but not physically at the incident location (e.g. a home
+                gateway node).
+              </span>
+            </span>
+          </label>
+          {!offSite && (
+            <>
+              <div className="flex items-center justify-between">
+                <Label>Location</Label>
+                <Button type="button" variant="ghost" size="sm" disabled={locating} onClick={captureLocation}>
+                  {locating ? <Loader2 className="size-4 animate-spin" /> : <Crosshair className="size-4" />}
+                  Capture My Location
+                </Button>
+              </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <Input value={latitude} onChange={(e) => setLatitude(e.target.value)} placeholder="Latitude" />
+                <Input value={longitude} onChange={(e) => setLongitude(e.target.value)} placeholder="Longitude" />
+              </div>
+            </>
+          )}
+          <div className="flex flex-col gap-1.5">
+            <Label htmlFor="editDeployNotes">Notes</Label>
+            <Textarea id="editDeployNotes" value={notes} onChange={(e) => setNotes(e.target.value)} />
+          </div>
+          <DialogFooter>
+            <Button type="submit" disabled={updateMutation.isPending}>
+              {updateMutation.isPending && <Loader2 className="size-4 animate-spin" />}
+              Save Changes
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
 export function MeshSessionDetail() {
   const { id, sessionId } = useParams<{ id: string; sessionId: string }>()
   const navigate = useNavigate()
@@ -299,6 +420,7 @@ export function MeshSessionDetail() {
   const [overrides, setOverrides] = useState<Record<string, NodeOverride>>({})
   const [addGearNode, setAddGearNode] = useState<MeshNodeSnapshot | null>(null)
   const [deployNode, setDeployNode] = useState<MeshNodeSnapshot | null>(null)
+  const [editDeployCheckIn, setEditDeployCheckIn] = useState<ResourceCheckIn | null>(null)
 
   const { data: incident } = useQuery({
     queryKey: ['incidents', id],
@@ -317,7 +439,9 @@ export function MeshSessionDetail() {
 
   if (!session) return null
 
-  const openResourceIds = new Set((resourceCheckIns ?? []).filter((c) => !c.checkedOutAt).map((c) => c.resourceId))
+  const openCheckIns = (resourceCheckIns ?? []).filter((c) => !c.checkedOutAt)
+  const openResourceIds = new Set(openCheckIns.map((c) => c.resourceId))
+  const openCheckInByResource = new Map(openCheckIns.map((c) => [c.resourceId, c]))
 
   const nodes: MeshNodeSnapshot[] = session.nodes.map((n) => {
     const o = overrides[n.hostname.toLowerCase()]
@@ -359,7 +483,13 @@ export function MeshSessionDetail() {
         </CardHeader>
         <CardContent className="flex flex-col gap-4 sm:flex-row">
           <div className="flex-1 min-w-0">
-            <MeshMap nodes={nodes} links={session.links} incidentLat={incident?.latitude} incidentLng={incident?.longitude} />
+            <MeshMap
+              nodes={nodes}
+              links={session.links}
+              incidentLat={incident?.latitude}
+              incidentLng={incident?.longitude}
+              boundaryPoints={incident?.boundaryPoints ?? null}
+            />
           </div>
           <div className="sm:w-48 shrink-0">
             <MeshMapLegend />
@@ -384,12 +514,16 @@ export function MeshSessionDetail() {
                 <TableHead>Channel</TableHead>
                 <TableHead>Band</TableHead>
                 <TableHead>Gear</TableHead>
+                <TableHead>Location</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {nodes.map((n) => {
                 const deployedHere = n.resourceId ? openResourceIds.has(n.resourceId) : false
+                const openCheckIn = n.resourceId ? openCheckInByResource.get(n.resourceId) : undefined
+                const mapLat = deployedHere ? openCheckIn?.latitude : n.latitude
+                const mapLng = deployedHere ? openCheckIn?.longitude : n.longitude
                 return (
                   <TableRow key={n.id}>
                     <TableCell className="font-medium">
@@ -413,22 +547,51 @@ export function MeshSessionDetail() {
                         '—'
                       )}
                     </TableCell>
+                    <TableCell className="text-sm whitespace-nowrap">
+                      {deployedHere && openCheckIn?.offSite ? (
+                        <Badge variant="secondary">Off-site</Badge>
+                      ) : mapLat && mapLng ? (
+                        <a
+                          href={`https://www.google.com/maps?q=${mapLat},${mapLng}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="inline-flex items-center gap-1 text-primary hover:underline"
+                        >
+                          <MapPin className="size-4" />
+                          Map
+                        </a>
+                      ) : (
+                        '—'
+                      )}
+                    </TableCell>
                     <TableCell className="text-right">
-                      {!n.resourceId && (
-                        <Button variant="ghost" size="sm" onClick={() => setAddGearNode(n)}>
-                          <PackagePlus className="size-4" />
-                          Add as Gear
-                        </Button>
-                      )}
-                      {n.resourceId && !deployedHere && (
-                        <Button variant="ghost" size="sm" onClick={() => setDeployNode(n)}>
-                          <Rocket className="size-4" />
-                          Deploy
-                        </Button>
-                      )}
-                      {n.resourceId && deployedHere && (
-                        <Badge variant="default">Deployed</Badge>
-                      )}
+                      <div className="flex items-center justify-end gap-2">
+                        {!n.resourceId && (
+                          <Button variant="ghost" size="sm" onClick={() => setAddGearNode(n)}>
+                            <PackagePlus className="size-4" />
+                            Add as Gear
+                          </Button>
+                        )}
+                        {n.resourceId && !deployedHere && (
+                          <Button variant="ghost" size="sm" onClick={() => setDeployNode(n)}>
+                            <Rocket className="size-4" />
+                            Deploy
+                          </Button>
+                        )}
+                        {n.resourceId && deployedHere && (
+                          <>
+                            <Badge variant="default">Deployed</Badge>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => openCheckIn && setEditDeployCheckIn(openCheckIn)}
+                            >
+                              <Pencil className="size-4" />
+                              Edit
+                            </Button>
+                          </>
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 )
@@ -502,6 +665,12 @@ export function MeshSessionDetail() {
           applyOverride(hostname, { latitude, longitude })
           queryClient.invalidateQueries({ queryKey: ['incidents', id, 'resource-checkins'] })
         }}
+      />
+      <EditDeploymentDialog
+        checkIn={editDeployCheckIn}
+        incidentId={id}
+        open={!!editDeployCheckIn}
+        onOpenChange={(open) => !open && setEditDeployCheckIn(null)}
       />
     </div>
   )

@@ -12,13 +12,14 @@ public record ResourceCheckInResponse(
         Instant checkedOutAt,
         String notes,
         String latitude,
-        String longitude
+        String longitude,
+        boolean offSite
 ) {
     public static ResourceCheckInResponse from(ResourceCheckIn c) {
         return new ResourceCheckInResponse(
                 c.getId(), c.getIncident().getId(), c.getResource().getId(), c.getResource().getIdentifier(),
                 c.getResource().getType().getName(), c.getCheckedInAt(), c.getCheckedOutAt(), c.getNotes(),
-                c.getLatitude(), c.getLongitude()
+                c.getLatitude(), c.getLongitude(), c.isOffSite()
         );
     }
 }
