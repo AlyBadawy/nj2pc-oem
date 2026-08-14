@@ -110,8 +110,9 @@ export function AppLayout() {
       : []),
   ]
 
-  // Placeholder group — no AREDN mesh feature exists yet, this just reserves the spot in nav.
-  const meshItems: NavItem[] = [{ to: '', label: 'Coming Soon', icon: Wifi, disabled: true }]
+  // Mesh scanning/viewing is incident-scoped (see each incident's Mesh tab) — there's no
+  // standalone global mesh page yet, so this just gets you to an incident to start from.
+  const meshItems: NavItem[] = [{ to: '/incidents', label: 'Go to an Incident', icon: Wifi }]
 
   const adminItems: NavItem[] = [
     // Gated on RESOURCE_TYPE_MANAGE since Equipment Types is the only settings tile today;

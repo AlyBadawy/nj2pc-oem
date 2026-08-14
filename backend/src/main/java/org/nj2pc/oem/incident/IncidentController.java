@@ -9,6 +9,10 @@ import org.nj2pc.oem.checkin.ResourceCheckInResponse;
 import org.nj2pc.oem.checkin.ResourceCheckInService;
 import org.nj2pc.oem.commsplan.CommunicationPlanResponse;
 import org.nj2pc.oem.commsplan.CommunicationPlanService;
+import org.nj2pc.oem.mesh.MeshSessionDetailResponse;
+import org.nj2pc.oem.mesh.MeshSessionService;
+import org.nj2pc.oem.mesh.MeshSessionSubmitRequest;
+import org.nj2pc.oem.mesh.MeshSessionSummaryResponse;
 import org.springframework.http.HttpStatus;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
@@ -25,17 +29,20 @@ public class IncidentController {
     private final CommunicationPlanService communicationPlanService;
     private final OperatorCheckInService operatorCheckInService;
     private final ResourceCheckInService resourceCheckInService;
+    private final MeshSessionService meshSessionService;
 
     public IncidentController(IncidentService incidentService,
                                IncidentLogService incidentLogService,
                                CommunicationPlanService communicationPlanService,
                                OperatorCheckInService operatorCheckInService,
-                               ResourceCheckInService resourceCheckInService) {
+                               ResourceCheckInService resourceCheckInService,
+                               MeshSessionService meshSessionService) {
         this.incidentService = incidentService;
         this.incidentLogService = incidentLogService;
         this.communicationPlanService = communicationPlanService;
         this.operatorCheckInService = operatorCheckInService;
         this.resourceCheckInService = resourceCheckInService;
+        this.meshSessionService = meshSessionService;
     }
 
     @GetMapping
@@ -134,5 +141,23 @@ public class IncidentController {
     public ResourceCheckInResponse checkOutResource(Authentication authentication, @PathVariable Long id,
                                                        @PathVariable Long checkInId) {
         return resourceCheckInService.checkOut(authentication, id, checkInId);
+    }
+
+    @GetMapping("/{id}/mesh-sessions")
+    public List<MeshSessionSummaryResponse> findMeshSessions(@PathVariable Long id) {
+        return meshSessionService.findByIncident(id);
+    }
+
+    @GetMapping("/{id}/mesh-sessions/{sessionId}")
+    public MeshSessionDetailResponse findMeshSession(@PathVariable Long id, @PathVariable Long sessionId) {
+        return meshSessionService.findById(id, sessionId);
+    }
+
+    @PostMapping("/{id}/mesh-sessions")
+    @ResponseStatus(HttpStatus.CREATED)
+    public MeshSessionDetailResponse submitMeshSession(Authentication authentication, @PathVariable Long id,
+                                                          @Valid @RequestBody MeshSessionSubmitRequest request) {
+        incidentService.requireEditAccess(authentication, id);
+        return meshSessionService.submit(authentication, id, request);
     }
 }

@@ -13,6 +13,8 @@ import { IncidentCreate } from '@/pages/IncidentCreate'
 import { IncidentDetail } from '@/pages/IncidentDetail'
 import { IncidentEdit } from '@/pages/IncidentEdit'
 import { DeployGear } from '@/pages/DeployGear'
+import { MeshScan } from '@/pages/MeshScan'
+import { MeshSessionDetail } from '@/pages/MeshSessionDetail'
 import { Resources } from '@/pages/Resources'
 import { AllResources } from '@/pages/AllResources'
 import { ResourceCreate } from '@/pages/ResourceCreate'
@@ -48,6 +50,8 @@ function App() {
             <Route path="incidents/:id" element={<IncidentDetail />} />
             <Route path="incidents/:id/edit" element={<IncidentEdit />} />
             <Route path="incidents/:id/deploy" element={<DeployGear />} />
+            <Route path="incidents/:id/mesh/scan" element={<MeshScan />} />
+            <Route path="incidents/:id/mesh/:sessionId" element={<MeshSessionDetail />} />
             <Route path="resources" element={<Resources />} />
             <Route path="all-resources" element={<AllResources />} />
             <Route path="resources/new" element={<ResourceCreate />} />

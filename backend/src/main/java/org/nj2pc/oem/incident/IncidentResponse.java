@@ -12,6 +12,8 @@ public record IncidentResponse(
         Instant actualStartTime,
         Instant actualEndTime,
         String description,
+        String latitude,
+        String longitude,
         Instant createdAt,
         String createdByCallsign,
         boolean canEdit
@@ -21,7 +23,7 @@ public record IncidentResponse(
                 i.getId(), i.getName(), i.getLocation(), i.getStatus(),
                 i.getPlannedStartTime(), i.getPlannedEndTime(),
                 i.getActualStartTime(), i.getActualEndTime(),
-                i.getDescription(), i.getCreatedAt(),
+                i.getDescription(), i.getLatitude(), i.getLongitude(), i.getCreatedAt(),
                 i.getCreatedBy() != null ? i.getCreatedBy().getCallsign() : null,
                 canEdit
         );

@@ -137,6 +137,8 @@ export interface Incident {
   actualStartTime: string | null
   actualEndTime: string | null
   description: string | null
+  latitude: string | null
+  longitude: string | null
   createdAt: string
   createdByCallsign: string | null
   canEdit: boolean
@@ -192,6 +194,87 @@ export interface ResourceCheckIn {
   notes: string | null
   latitude: string | null
   longitude: string | null
+}
+
+export type MeshLinkType = 'RF' | 'DTD' | 'TUNNEL' | 'UNKNOWN'
+
+export interface MeshSessionSummary {
+  id: number
+  incidentId: number
+  label: string | null
+  capturedAt: string
+  createdByCallsign: string | null
+  localNodeHostname: string
+  nodeCount: number
+  linkCount: number
+}
+
+export interface MeshNodeSnapshot {
+  id: number
+  hostname: string
+  isLocalNode: boolean
+  macAddress: string | null
+  meshIpAddress: string | null
+  linkLocalAddress: string | null
+  model: string | null
+  firmwareVersion: string | null
+  latitude: string | null
+  longitude: string | null
+  claimedDistanceMi: string | null
+  channel: string | null
+  band: string | null
+  frequencyMhz: string | null
+  channelWidth: string | null
+  rfPowerDbm: string | null
+  resourceId: number | null
+  resourceIdentifier: string | null
+  resourceOwnerCallsign: string | null
+  resourceCustomFields: Record<string, unknown> | null
+}
+
+export interface MeshLinkSnapshot {
+  id: number
+  fromHostname: string
+  toHostname: string
+  toMacAddress: string | null
+  sourceSection: 'LOCAL_NODES' | 'NEIGHBORHOOD_NODES'
+  linkTypeNormalized: MeshLinkType
+  rawLinkType: string | null
+  linkQualityStatus: string | null
+  rxPercent: string | null
+  rttMs: string | null
+  snr: string | null
+  nSnr: string | null
+  errorsPercent: string | null
+  mbps: string | null
+  distanceMiles: string | null
+  rxSuccessPercent: string | null
+  txSuccessPercent: string | null
+  rxCost: string | null
+  txCost: string | null
+  pingTimeMs: string | null
+  pingSuccessPercent: string | null
+  avgTx: string | null
+}
+
+export interface MeshLanClientSnapshot {
+  id: number
+  nodeHostname: string
+  deviceHostname: string
+  deviceUrl: string | null
+}
+
+export interface MeshSessionDetail {
+  id: number
+  incidentId: number
+  label: string | null
+  capturedAt: string
+  createdByCallsign: string | null
+  localNodeHostname: string
+  notes: string | null
+  nodes: MeshNodeSnapshot[]
+  links: MeshLinkSnapshot[]
+  lanClients: MeshLanClientSnapshot[]
 }
 
 export type IncidentPermission = 'VIEW' | 'EDIT'

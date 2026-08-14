@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Plus, LogIn, LogOut, Flag, Play, Pencil, ShieldCheck, Download, Loader2, MapPin } from 'lucide-react'
+import { ArrowLeft, Plus, LogIn, LogOut, Flag, Play, Pencil, ShieldCheck, Download, Loader2, MapPin, RadioTower } from 'lucide-react'
 import { toast } from 'sonner'
 import { api } from '@/lib/api'
 import { hasPermission, useAuth } from '@/lib/auth-context'
@@ -15,6 +15,7 @@ import type {
   IncidentLog,
   IncidentPermission,
   IncidentPermissionGrant,
+  MeshSessionSummary,
   Operator,
   OperatorCheckIn,
   OperatorRole,
@@ -157,6 +158,11 @@ export function IncidentDetail() {
   const { data: availableCommsPlans } = useQuery({
     queryKey: ['comms-plans', 'active'],
     queryFn: async () => (await api.get<CommunicationPlan[]>('/api/comms-plans', { params: { active: true } })).data,
+  })
+
+  const { data: meshSessions } = useQuery({
+    queryKey: ['incidents', id, 'mesh-sessions'],
+    queryFn: async () => (await api.get<MeshSessionSummary[]>(`/api/incidents/${id}/mesh-sessions`)).data,
   })
 
   const { data: lastRole } = useQuery({
@@ -686,6 +692,10 @@ export function IncidentDetail() {
                 </span>
               </TabsTrigger>
               <TabsTrigger value="comms-plan">Comms Plan</TabsTrigger>
+              <TabsTrigger value="mesh">
+                Mesh
+                <span className="ml-1.5 text-muted-foreground font-normal">({meshSessions?.length ?? 0})</span>
+              </TabsTrigger>
             </TabsList>
             <TabsContent value="operators">
               <Table>
@@ -872,6 +882,47 @@ export function IncidentDetail() {
                     ))}
                   </ul>
                 </div>
+              )}
+            </TabsContent>
+            <TabsContent value="mesh" className="flex flex-col gap-4">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+                <p className="text-sm font-medium">Mesh Scans</p>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={!canEdit || isClosed}
+                  title={canEdit ? 'Scan the local mesh' : 'Requires edit access to this incident'}
+                  onClick={() => navigate(`/incidents/${id}/mesh/scan`)}
+                >
+                  <RadioTower className="size-4" />
+                  Scan Mesh
+                </Button>
+              </div>
+              {meshSessions && meshSessions.length > 0 ? (
+                <ul className="flex flex-col gap-1">
+                  {meshSessions.map((s) => (
+                    <li key={s.id}>
+                      <Link
+                        to={`/incidents/${id}/mesh/${s.id}`}
+                        className="flex flex-wrap items-center gap-2 rounded-md px-2 py-1.5 text-sm hover:bg-muted"
+                      >
+                        <span className="font-medium">{s.label || 'Mesh Scan'}</span>
+                        <span className="text-muted-foreground">{s.localNodeHostname}</span>
+                        <Badge variant="outline">
+                          {s.nodeCount} node{s.nodeCount === 1 ? '' : 's'}
+                        </Badge>
+                        <Badge variant="outline">
+                          {s.linkCount} link{s.linkCount === 1 ? '' : 's'}
+                        </Badge>
+                        <span className="text-muted-foreground text-xs ml-auto">
+                          {new Date(s.capturedAt).toLocaleString()}
+                        </span>
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-sm text-muted-foreground">No mesh scans recorded yet.</p>
               )}
             </TabsContent>
           </Tabs>

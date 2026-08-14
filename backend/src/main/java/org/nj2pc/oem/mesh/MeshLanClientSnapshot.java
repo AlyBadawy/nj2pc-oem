@@ -1,0 +1,61 @@
+package org.nj2pc.oem.mesh;
+
+import jakarta.persistence.*;
+
+@Entity
+@Table(name = "mesh_lan_client_snapshots")
+public class MeshLanClientSnapshot {
+
+    @Id
+    @GeneratedValue(strategy = GenerationType.IDENTITY)
+    private Long id;
+
+    @ManyToOne(fetch = FetchType.LAZY, optional = false)
+    @JoinColumn(name = "mesh_session_id", nullable = false)
+    private MeshSession session;
+
+    @Column(name = "node_hostname", nullable = false)
+    private String nodeHostname;
+
+    @Column(name = "device_hostname", nullable = false)
+    private String deviceHostname;
+
+    @Column(name = "device_url")
+    private String deviceUrl;
+
+    public Long getId() {
+        return id;
+    }
+
+    public MeshSession getSession() {
+        return session;
+    }
+
+    public void setSession(MeshSession session) {
+        this.session = session;
+    }
+
+    public String getNodeHostname() {
+        return nodeHostname;
+    }
+
+    public void setNodeHostname(String nodeHostname) {
+        this.nodeHostname = nodeHostname;
+    }
+
+    public String getDeviceHostname() {
+        return deviceHostname;
+    }
+
+    public void setDeviceHostname(String deviceHostname) {
+        this.deviceHostname = deviceHostname;
+    }
+
+    public String getDeviceUrl() {
+        return deviceUrl;
+    }
+
+    public void setDeviceUrl(String deviceUrl) {
+        this.deviceUrl = deviceUrl;
+    }
+}

@@ -9,6 +9,8 @@ public record IncidentRequest(
         String location,
         Instant plannedStartTime,
         Instant plannedEndTime,
-        String description
+        String description,
+        String latitude,
+        String longitude
 ) {
 }

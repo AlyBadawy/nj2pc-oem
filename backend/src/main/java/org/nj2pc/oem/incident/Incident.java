@@ -36,6 +36,10 @@ public class Incident {
 
     private String description;
 
+    private String latitude;
+
+    private String longitude;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
 
@@ -109,6 +113,22 @@ public class Incident {
 
     public void setDescription(String description) {
         this.description = description;
+    }
+
+    public String getLatitude() {
+        return latitude;
+    }
+
+    public void setLatitude(String latitude) {
+        this.latitude = latitude;
+    }
+
+    public String getLongitude() {
+        return longitude;
+    }
+
+    public void setLongitude(String longitude) {
+        this.longitude = longitude;
     }
 
     public Instant getCreatedAt() {

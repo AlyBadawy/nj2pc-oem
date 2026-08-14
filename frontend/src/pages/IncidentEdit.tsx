@@ -2,6 +2,7 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
+import { Crosshair, Loader2 } from 'lucide-react'
 import { api } from '@/lib/api'
 import type { Incident } from '@/lib/types'
 import { Button } from '@/components/ui/button'
@@ -15,6 +16,8 @@ type FormState = {
   plannedStartTime: string
   plannedEndTime: string
   description: string
+  latitude: string
+  longitude: string
 }
 
 const emptyForm: FormState = {
@@ -23,6 +26,8 @@ const emptyForm: FormState = {
   plannedStartTime: '',
   plannedEndTime: '',
   description: '',
+  latitude: '',
+  longitude: '',
 }
 
 function toIso(localDateTime: string): string | null {
@@ -43,6 +48,26 @@ export function IncidentEdit() {
   const [form, setForm] = useState<FormState>(emptyForm)
   const [loaded, setLoaded] = useState(false)
   const [canEdit, setCanEdit] = useState(true)
+  const [locating, setLocating] = useState(false)
+
+  function captureLocation() {
+    if (!navigator.geolocation) {
+      toast.error('This device does not support location capture')
+      return
+    }
+    setLocating(true)
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setForm((f) => ({ ...f, latitude: String(pos.coords.latitude), longitude: String(pos.coords.longitude) }))
+        setLocating(false)
+      },
+      () => {
+        toast.error('Could not get your location — enter coordinates manually')
+        setLocating(false)
+      },
+      { enableHighAccuracy: true, timeout: 10000 },
+    )
+  }
 
   const { data: incident } = useQuery({
     queryKey: ['incidents', id],
@@ -54,6 +79,8 @@ export function IncidentEdit() {
         plannedStartTime: toLocalInput(data.plannedStartTime),
         plannedEndTime: toLocalInput(data.plannedEndTime),
         description: data.description ?? '',
+        latitude: data.latitude ?? '',
+        longitude: data.longitude ?? '',
       })
       setCanEdit(data.canEdit)
       setLoaded(true)
@@ -76,6 +103,8 @@ export function IncidentEdit() {
         plannedStartTime: toIso(form.plannedStartTime),
         plannedEndTime: toIso(form.plannedEndTime),
         description: form.description || null,
+        latitude: form.latitude || null,
+        longitude: form.longitude || null,
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['incidents'] })
@@ -142,6 +171,29 @@ export function IncidentEdit() {
               type="datetime-local"
               value={form.plannedEndTime}
               onChange={(e) => setForm({ ...form, plannedEndTime: e.target.value })}
+            />
+          </div>
+        </div>
+        <div className="flex flex-col gap-1.5">
+          <div className="flex items-center justify-between">
+            <Label>Location on Map</Label>
+            <Button type="button" variant="ghost" size="sm" disabled={locating} onClick={captureLocation}>
+              {locating ? <Loader2 className="size-4 animate-spin" /> : <Crosshair className="size-4" />}
+              Capture My Location
+            </Button>
+          </div>
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            <Input
+              id="latitude"
+              value={form.latitude}
+              onChange={(e) => setForm({ ...form, latitude: e.target.value })}
+              placeholder="Latitude, e.g. 40.8915158"
+            />
+            <Input
+              id="longitude"
+              value={form.longitude}
+              onChange={(e) => setForm({ ...form, longitude: e.target.value })}
+              placeholder="Longitude, e.g. -74.1959347"
             />
           </div>
         </div>
