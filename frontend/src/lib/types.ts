@@ -207,6 +207,20 @@ export interface ResourceCheckIn {
   latitude: string | null
   longitude: string | null
   offSite: boolean
+  deploymentLocationId: number | null
+  deploymentLocationName: string | null
+}
+
+export interface DeploymentLocation {
+  id: number
+  incidentId: number
+  name: string
+  latitude: string | null
+  longitude: string | null
+  notes: string | null
+  createdAt: string
+  createdByCallsign: string | null
+  gearCount: number
 }
 
 export type MeshLinkType = 'RF' | 'DTD' | 'TUNNEL' | 'UNKNOWN'

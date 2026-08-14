@@ -6,6 +6,7 @@ public record ResourceCheckInRequest(
         @NotNull Long resourceId,
         String notes,
         String latitude,
-        String longitude
+        String longitude,
+        Long deploymentLocationId
 ) {
 }

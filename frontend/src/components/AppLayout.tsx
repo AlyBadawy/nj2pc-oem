@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import { NavLink, Outlet } from 'react-router-dom'
+import { useQuery } from '@tanstack/react-query'
 import {
   Radio,
   User,
@@ -11,9 +12,12 @@ import {
   ScrollText,
   RadioTower,
   Wifi,
+  MapPin,
   LogOut,
   Menu,
 } from 'lucide-react'
+import { api } from '@/lib/api'
+import type { Incident } from '@/lib/types'
 import { hasPermission, useAuth } from '@/lib/auth-context'
 import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet'
@@ -34,47 +38,107 @@ function SidebarBrand() {
   )
 }
 
-function SidebarNav({ navGroups, onNavigate }: { navGroups: NavGroup[]; onNavigate?: () => void }) {
+function navLinkClassName({ isActive }: { isActive: boolean }, neverActive?: boolean) {
+  return cn(
+    'flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors',
+    isActive && !neverActive
+      ? 'bg-sidebar-accent text-sidebar-accent-foreground'
+      : 'text-sidebar-foreground/90 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
+  )
+}
+
+function NavGroupBlock({ group, bordered, onNavigate }: { group: NavGroup; bordered: boolean; onNavigate?: () => void }) {
+  return (
+    <div className={cn('flex flex-col gap-1', bordered && 'pt-3 mt-2 border-t')}>
+      {bordered && (
+        <div className="px-3 pb-1 text-xs font-semibold uppercase tracking-wide text-sidebar-foreground/65">
+          {group.heading}
+        </div>
+      )}
+      {group.items.map(({ to, label, icon: Icon, disabled, neverActive }) =>
+        disabled ? (
+          <div
+            key={label}
+            title="Coming soon"
+            className="flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-sidebar-foreground/40 cursor-not-allowed"
+          >
+            <Icon className="size-4" />
+            {label}
+          </div>
+        ) : (
+          <NavLink
+            key={label}
+            to={to}
+            end={to === '/'}
+            onClick={onNavigate}
+            className={(state) => navLinkClassName(state, neverActive)}
+          >
+            <Icon className="size-4" />
+            {label}
+          </NavLink>
+        ),
+      )}
+    </div>
+  )
+}
+
+/** Every active incident the operator can edit, each with its own quick links straight into that
+ * incident's mesh scan / gear deployment flows — replaces the old static "Go to an Incident"
+ * placeholder, which just dumped you on the incident list to find your way in manually. Incidents
+ * the operator can't edit are left out since Scan/Deploy both require edit access and would just
+ * bounce them back out with an error. */
+function MeshNavSection({ onNavigate }: { onNavigate?: () => void }) {
+  const { data: incidents } = useQuery({
+    queryKey: ['incidents'],
+    queryFn: async () => (await api.get<Incident[]>('/api/incidents')).data,
+  })
+  const activeIncidents = (incidents ?? []).filter((i) => i.status === 'ACTIVE' && i.canEdit)
+
+  return (
+    <div className="flex flex-col gap-1 pt-3 mt-2 border-t">
+      <div className="px-3 pb-1 text-xs font-semibold uppercase tracking-wide text-sidebar-foreground/65">
+        AREDN Mesh
+      </div>
+      {activeIncidents.length === 0 ? (
+        <p className="px-3 py-1 text-xs text-sidebar-foreground/50">No active incidents</p>
+      ) : (
+        activeIncidents.map((incident) => (
+          <div key={incident.id} className="flex flex-col gap-0.5 mb-1.5">
+            <div className="px-3 pt-1 text-xs font-medium text-sidebar-foreground/70 truncate" title={incident.name}>
+              {incident.name}
+            </div>
+            <NavLink to={`/incidents/${incident.id}/mesh/scan`} onClick={onNavigate} className={(state) => cn(navLinkClassName(state), 'ml-2 py-1.5')}>
+              <Wifi className="size-4" />
+              Scan AREDN Mesh
+            </NavLink>
+            <NavLink to={`/incidents/${incident.id}/deploy`} onClick={onNavigate} className={(state) => cn(navLinkClassName(state), 'ml-2 py-1.5')}>
+              <MapPin className="size-4" />
+              Deploy Gear
+            </NavLink>
+          </div>
+        ))
+      )}
+    </div>
+  )
+}
+
+function SidebarNav({
+  navGroups,
+  trailingGroups,
+  onNavigate,
+}: {
+  navGroups: NavGroup[]
+  trailingGroups: NavGroup[]
+  onNavigate?: () => void
+}) {
   return (
     <nav className="flex-1 px-2 py-3 flex flex-col gap-1 overflow-y-auto">
       {navGroups.map((group, index) => (
-        <div key={group.heading} className={cn('flex flex-col gap-1', index > 0 && 'pt-3 mt-2 border-t')}>
-          {index > 0 && (
-            <div className="px-3 pb-1 text-xs font-semibold uppercase tracking-wide text-sidebar-foreground/65">
-              {group.heading}
-            </div>
-          )}
-          {group.items.map(({ to, label, icon: Icon, disabled, neverActive }) =>
-            disabled ? (
-              <div
-                key={label}
-                title="Coming soon"
-                className="flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium text-sidebar-foreground/40 cursor-not-allowed"
-              >
-                <Icon className="size-4" />
-                {label}
-              </div>
-            ) : (
-              <NavLink
-                key={label}
-                to={to}
-                end={to === '/'}
-                onClick={onNavigate}
-                className={({ isActive }) =>
-                  cn(
-                    'flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors',
-                    isActive && !neverActive
-                      ? 'bg-sidebar-accent text-sidebar-accent-foreground'
-                      : 'text-sidebar-foreground/90 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
-                  )
-                }
-              >
-                <Icon className="size-4" />
-                {label}
-              </NavLink>
-            ),
-          )}
-        </div>
+        <NavGroupBlock key={group.heading} group={group} bordered={index > 0} onNavigate={onNavigate} />
+      ))}
+      <MeshNavSection onNavigate={onNavigate} />
+      {trailingGroups.map((group) => (
+        <NavGroupBlock key={group.heading} group={group} bordered onNavigate={onNavigate} />
       ))}
     </nav>
   )
@@ -122,13 +186,6 @@ export function AppLayout() {
       : []),
   ]
 
-  // Mesh scanning/viewing is incident-scoped (see each incident's Mesh tab) — there's no
-  // standalone global mesh page yet, so this just gets you to an incident to start from.
-  // Not a section of its own — just a shortcut into the incident list to start a mesh scan
-  // from there, so it should never light up as "active" (that would double up with the
-  // Incidents item above whenever viewing an incident, since both point at /incidents).
-  const meshItems: NavItem[] = [{ to: '/incidents', label: 'Go to an Incident', icon: Wifi, neverActive: true }]
-
   const adminItems: NavItem[] = [
     // Gated on RESOURCE_TYPE_MANAGE since Equipment Types is the only settings tile today;
     // widen this to an OR of every tile's permission as more tiles are added to /settings.
@@ -141,15 +198,17 @@ export function AppLayout() {
   const navGroups: NavGroup[] = [
     { heading: 'My Space', items: mySpaceItems },
     { heading: 'Operations', items: operationsItems },
-    { heading: 'AREDN Mesh', items: meshItems },
-    { heading: 'Administration', items: adminItems },
   ].filter((group) => group.items.length > 0)
+
+  const trailingGroups: NavGroup[] = [{ heading: 'Administration', items: adminItems }].filter(
+    (group) => group.items.length > 0,
+  )
 
   return (
     <div className="h-svh grid grid-cols-1 md:grid-cols-[220px_1fr]">
       <aside className="hidden md:flex border-r bg-sidebar text-sidebar-foreground flex-col overflow-y-auto">
         <SidebarBrand />
-        <SidebarNav navGroups={navGroups} />
+        <SidebarNav navGroups={navGroups} trailingGroups={trailingGroups} />
         <SidebarUserMenu onLogout={logout} />
       </aside>
 
@@ -157,7 +216,7 @@ export function AppLayout() {
         <SheetContent side="left" className="p-0 md:hidden flex flex-col">
           <SheetTitle>Navigation</SheetTitle>
           <SidebarBrand />
-          <SidebarNav navGroups={navGroups} onNavigate={() => setMobileNavOpen(false)} />
+          <SidebarNav navGroups={navGroups} trailingGroups={trailingGroups} onNavigate={() => setMobileNavOpen(false)} />
           <SidebarUserMenu
             onLogout={() => {
               setMobileNavOpen(false)

@@ -3,6 +3,8 @@ package org.nj2pc.oem.checkin;
 import org.nj2pc.oem.auditlog.AuditLogService;
 import org.nj2pc.oem.auditlog.EntityType;
 import org.nj2pc.oem.common.ApiException;
+import org.nj2pc.oem.deploymentlocation.DeploymentLocation;
+import org.nj2pc.oem.deploymentlocation.DeploymentLocationRepository;
 import org.nj2pc.oem.incident.Incident;
 import org.nj2pc.oem.incident.IncidentRepository;
 import org.nj2pc.oem.incident.IncidentStatus;
@@ -23,15 +25,18 @@ public class ResourceCheckInService {
     private final ResourceCheckInRepository resourceCheckInRepository;
     private final IncidentRepository incidentRepository;
     private final ResourceRepository resourceRepository;
+    private final DeploymentLocationRepository deploymentLocationRepository;
     private final AuditLogService auditLogService;
 
     public ResourceCheckInService(ResourceCheckInRepository resourceCheckInRepository,
                                    IncidentRepository incidentRepository,
                                    ResourceRepository resourceRepository,
+                                   DeploymentLocationRepository deploymentLocationRepository,
                                    AuditLogService auditLogService) {
         this.resourceCheckInRepository = resourceCheckInRepository;
         this.incidentRepository = incidentRepository;
         this.resourceRepository = resourceRepository;
+        this.deploymentLocationRepository = deploymentLocationRepository;
         this.auditLogService = auditLogService;
     }
 
@@ -66,6 +71,21 @@ public class ResourceCheckInService {
         checkIn.setNotes(request.notes());
         checkIn.setLatitude(request.latitude());
         checkIn.setLongitude(request.longitude());
+
+        if (request.deploymentLocationId() != null) {
+            DeploymentLocation location = deploymentLocationRepository.findById(request.deploymentLocationId())
+                    .orElseThrow(() -> ApiException.notFound("Deployment location not found: " + request.deploymentLocationId()));
+            if (!location.getIncident().getId().equals(incidentId)) {
+                throw ApiException.badRequest("Deployment location does not belong to this incident");
+            }
+            checkIn.setDeploymentLocation(location);
+            // Denormalized so every existing lat/lng-based consumer (last-known-location lookup,
+            // the mesh map, PDF exports, etc.) keeps working unchanged regardless of whether a
+            // check-in's location came from a shared DeploymentLocation or was entered ad hoc.
+            checkIn.setLatitude(location.getLatitude());
+            checkIn.setLongitude(location.getLongitude());
+        }
+
         ResourceCheckIn saved = resourceCheckInRepository.save(checkIn);
         auditLogService.record(EntityType.INCIDENT, incidentId, "CHECK_IN",
                 "Checked in resource " + resource.getIdentifier(), authentication.getName());

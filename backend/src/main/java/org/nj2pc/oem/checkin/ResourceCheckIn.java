@@ -1,6 +1,7 @@
 package org.nj2pc.oem.checkin;
 
 import jakarta.persistence.*;
+import org.nj2pc.oem.deploymentlocation.DeploymentLocation;
 import org.nj2pc.oem.incident.Incident;
 import org.nj2pc.oem.resource.Resource;
 
@@ -36,6 +37,10 @@ public class ResourceCheckIn {
 
     @Column(name = "off_site", nullable = false)
     private boolean offSite = false;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "deployment_location_id")
+    private DeploymentLocation deploymentLocation;
 
     public Long getId() {
         return id;
@@ -103,5 +108,13 @@ public class ResourceCheckIn {
 
     public void setOffSite(boolean offSite) {
         this.offSite = offSite;
+    }
+
+    public DeploymentLocation getDeploymentLocation() {
+        return deploymentLocation;
+    }
+
+    public void setDeploymentLocation(DeploymentLocation deploymentLocation) {
+        this.deploymentLocation = deploymentLocation;
     }
 }

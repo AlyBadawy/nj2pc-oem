@@ -13,13 +13,17 @@ public record ResourceCheckInResponse(
         String notes,
         String latitude,
         String longitude,
-        boolean offSite
+        boolean offSite,
+        Long deploymentLocationId,
+        String deploymentLocationName
 ) {
     public static ResourceCheckInResponse from(ResourceCheckIn c) {
         return new ResourceCheckInResponse(
                 c.getId(), c.getIncident().getId(), c.getResource().getId(), c.getResource().getIdentifier(),
                 c.getResource().getType().getName(), c.getCheckedInAt(), c.getCheckedOutAt(), c.getNotes(),
-                c.getLatitude(), c.getLongitude(), c.isOffSite()
+                c.getLatitude(), c.getLongitude(), c.isOffSite(),
+                c.getDeploymentLocation() != null ? c.getDeploymentLocation().getId() : null,
+                c.getDeploymentLocation() != null ? c.getDeploymentLocation().getName() : null
         );
     }
 }

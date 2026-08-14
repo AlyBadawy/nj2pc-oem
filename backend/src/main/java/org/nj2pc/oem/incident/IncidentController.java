@@ -10,6 +10,9 @@ import org.nj2pc.oem.checkin.ResourceCheckInService;
 import org.nj2pc.oem.checkin.ResourceCheckInUpdateRequest;
 import org.nj2pc.oem.commsplan.CommunicationPlanResponse;
 import org.nj2pc.oem.commsplan.CommunicationPlanService;
+import org.nj2pc.oem.deploymentlocation.DeploymentLocationRequest;
+import org.nj2pc.oem.deploymentlocation.DeploymentLocationResponse;
+import org.nj2pc.oem.deploymentlocation.DeploymentLocationService;
 import org.nj2pc.oem.mesh.MeshSessionDetailResponse;
 import org.nj2pc.oem.mesh.MeshSessionPdfRequest;
 import org.nj2pc.oem.mesh.MeshSessionPdfService;
@@ -37,6 +40,7 @@ public class IncidentController {
     private final ResourceCheckInService resourceCheckInService;
     private final MeshSessionService meshSessionService;
     private final MeshSessionPdfService meshSessionPdfService;
+    private final DeploymentLocationService deploymentLocationService;
 
     public IncidentController(IncidentService incidentService,
                                IncidentLogService incidentLogService,
@@ -44,7 +48,8 @@ public class IncidentController {
                                OperatorCheckInService operatorCheckInService,
                                ResourceCheckInService resourceCheckInService,
                                MeshSessionService meshSessionService,
-                               MeshSessionPdfService meshSessionPdfService) {
+                               MeshSessionPdfService meshSessionPdfService,
+                               DeploymentLocationService deploymentLocationService) {
         this.incidentService = incidentService;
         this.incidentLogService = incidentLogService;
         this.communicationPlanService = communicationPlanService;
@@ -52,6 +57,7 @@ public class IncidentController {
         this.resourceCheckInService = resourceCheckInService;
         this.meshSessionService = meshSessionService;
         this.meshSessionPdfService = meshSessionPdfService;
+        this.deploymentLocationService = deploymentLocationService;
     }
 
     @GetMapping
@@ -194,5 +200,18 @@ public class IncidentController {
                 .contentType(MediaType.APPLICATION_PDF)
                 .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
                 .body(pdf);
+    }
+
+    @GetMapping("/{id}/deployment-locations")
+    public List<DeploymentLocationResponse> findDeploymentLocations(@PathVariable Long id) {
+        return deploymentLocationService.findByIncident(id);
+    }
+
+    @PostMapping("/{id}/deployment-locations")
+    @ResponseStatus(HttpStatus.CREATED)
+    public DeploymentLocationResponse createDeploymentLocation(Authentication authentication, @PathVariable Long id,
+                                                                  @Valid @RequestBody DeploymentLocationRequest request) {
+        incidentService.requireEditAccess(authentication, id);
+        return deploymentLocationService.create(authentication, id, request);
     }
 }

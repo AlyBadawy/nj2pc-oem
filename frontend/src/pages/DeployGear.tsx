@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, CheckCircle2, Crosshair, ListPlus, Loader2, MapPin, PackagePlus } from 'lucide-react'
+import { ArrowLeft, CheckCircle2, Crosshair, ListPlus, Loader2, MapPin, PackagePlus, PlusCircle } from 'lucide-react'
 import { toast } from 'sonner'
 import { api } from '@/lib/api'
-import type { Incident, Operator, Resource, ResourceCheckIn, ResourceType } from '@/lib/types'
+import type { DeploymentLocation, Incident, Operator, Resource, ResourceCheckIn, ResourceType } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -35,10 +35,16 @@ export function DeployGear() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
 
-  const [phase, setPhase] = useState<'capture' | 'add'>('capture')
+  const [phase, setPhase] = useState<'location' | 'add'>('location')
+  const [locationMode, setLocationMode] = useState<'pick' | 'create'>('pick')
+  const [pickLocationId, setPickLocationId] = useState('')
+  const [newLocationName, setNewLocationName] = useState('')
+  const [newLocationNotes, setNewLocationNotes] = useState('')
   const [coords, setCoords] = useState<Coords | null>(null)
   const [geoStatus, setGeoStatus] = useState<GeoStatus>('idle')
   const [showManual, setShowManual] = useState(false)
+
+  const [activeLocation, setActiveLocation] = useState<DeploymentLocation | null>(null)
 
   const [mode, setMode] = useState<'pick' | 'create'>('pick')
   const [pickResourceId, setPickResourceId] = useState('')
@@ -74,6 +80,11 @@ export function DeployGear() {
     enabled: mode === 'create',
   })
 
+  const { data: locations } = useQuery({
+    queryKey: ['incidents', id, 'deployment-locations'],
+    queryFn: async () => (await api.get<DeploymentLocation[]>(`/api/incidents/${id}/deployment-locations`)).data,
+  })
+
   useEffect(() => {
     if (incident && (!incident.canEdit || incident.status === 'CLOSED')) {
       toast.error('You do not have permission to deploy gear on this incident')
@@ -106,14 +117,42 @@ export function DeployGear() {
     )
   }
 
+  const createLocationMutation = useMutation({
+    mutationFn: async () =>
+      (
+        await api.post<DeploymentLocation>(`/api/incidents/${id}/deployment-locations`, {
+          name: newLocationName,
+          latitude: coords?.lat ?? null,
+          longitude: coords?.lng ?? null,
+          notes: newLocationNotes || null,
+        })
+      ).data,
+    onSuccess: (location) => {
+      setActiveLocation(location)
+      queryClient.invalidateQueries({ queryKey: ['incidents', id, 'deployment-locations'] })
+      setPhase('add')
+    },
+    onError: () => toast.error('Failed to create deployment location'),
+  })
+
+  function continueWithLocation() {
+    if (locationMode === 'pick') {
+      const location = locations?.find((l) => String(l.id) === pickLocationId)
+      if (!location) return
+      setActiveLocation(location)
+      setPhase('add')
+    } else {
+      createLocationMutation.mutate()
+    }
+  }
+
   const checkInExistingMutation = useMutation({
     mutationFn: async () =>
       (
         await api.post<ResourceCheckIn>(`/api/incidents/${id}/resource-checkins`, {
           resourceId: Number(pickResourceId),
           notes: pickNotes || null,
-          latitude: coords?.lat ?? null,
-          longitude: coords?.lng ?? null,
+          deploymentLocationId: activeLocation?.id ?? null,
         })
       ).data,
     onSuccess: (checkIn) => {
@@ -121,6 +160,7 @@ export function DeployGear() {
       setPickResourceId('')
       setPickNotes('')
       queryClient.invalidateQueries({ queryKey: ['incidents', id, 'resource-checkins'] })
+      queryClient.invalidateQueries({ queryKey: ['incidents', id, 'deployment-locations'] })
       toast.success(`${checkIn.resourceIdentifier} deployed`)
     },
     onError: () => toast.error('Failed to check in equipment'),
@@ -143,8 +183,7 @@ export function DeployGear() {
           await api.post<ResourceCheckIn>(`/api/incidents/${id}/resource-checkins`, {
             resourceId: resource.id,
             notes: newResource.notes || null,
-            latitude: coords?.lat ?? null,
-            longitude: coords?.lng ?? null,
+            deploymentLocationId: activeLocation?.id ?? null,
           })
         ).data
       } catch (err) {
@@ -158,6 +197,7 @@ export function DeployGear() {
       setCustomFields({})
       queryClient.invalidateQueries({ queryKey: ['resources'] })
       queryClient.invalidateQueries({ queryKey: ['incidents', id, 'resource-checkins'] })
+      queryClient.invalidateQueries({ queryKey: ['incidents', id, 'deployment-locations'] })
       toast.success(`${checkIn.resourceIdentifier} created and deployed`)
     },
     onError: () => {},
@@ -176,78 +216,133 @@ export function DeployGear() {
         <p className="text-muted-foreground text-sm">{incident.name}</p>
       </div>
 
-      {phase === 'capture' ? (
+      {phase === 'location' ? (
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Where are you deploying this equipment?</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col gap-4">
-            <Button
-              size="lg"
-              disabled={geoStatus === 'locating'}
-              onClick={captureLocation}
-              className="w-full sm:w-auto"
-            >
-              {geoStatus === 'locating' ? (
-                <Loader2 className="size-4 animate-spin" />
-              ) : (
-                <Crosshair className="size-4" />
-              )}
-              Capture My Location
-            </Button>
+            <p className="text-sm text-muted-foreground">
+              Every piece of gear you add next will be deployed to this same location — pick an existing one
+              (e.g. a site you already set up earlier) or drop a new pin.
+            </p>
+            <div className="flex items-center rounded-md border p-0.5 w-fit">
+              <Button variant={locationMode === 'pick' ? 'default' : 'ghost'} size="sm" onClick={() => setLocationMode('pick')}>
+                <ListPlus className="size-4" />
+                Existing Location
+              </Button>
+              <Button variant={locationMode === 'create' ? 'default' : 'ghost'} size="sm" onClick={() => setLocationMode('create')}>
+                <PlusCircle className="size-4" />
+                New Location
+              </Button>
+            </div>
 
-            {geoStatus === 'granted' && coords && (
-              <p className="text-sm text-muted-foreground">
-                Captured: {coords.lat}, {coords.lng}
-              </p>
-            )}
-            {geoStatus === 'denied' && (
-              <p className="text-sm text-destructive">
-                Location access was denied. Enter coordinates manually below, or continue without one.
-              </p>
-            )}
-            {geoStatus === 'unsupported' && (
-              <p className="text-sm text-destructive">
-                This device doesn't support location capture. Enter coordinates manually below, or continue
-                without one.
-              </p>
-            )}
-
-            {!showManual && (
-              <button
-                type="button"
-                className="self-start text-sm text-muted-foreground hover:underline"
-                onClick={() => setShowManual(true)}
-              >
-                Enter coordinates manually
-              </button>
-            )}
-
-            {showManual && (
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="latitude">Latitude</Label>
-                  <Input
-                    id="latitude"
-                    value={coords?.lat ?? ''}
-                    onChange={(e) => setCoords({ lat: e.target.value, lng: coords?.lng ?? '' })}
-                    placeholder="40.8915158"
-                  />
-                </div>
-                <div className="flex flex-col gap-1.5">
-                  <Label htmlFor="longitude">Longitude</Label>
-                  <Input
-                    id="longitude"
-                    value={coords?.lng ?? ''}
-                    onChange={(e) => setCoords({ lat: coords?.lat ?? '', lng: e.target.value })}
-                    placeholder="-74.1959347"
-                  />
-                </div>
+            {locationMode === 'pick' ? (
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="pickLocationId">Deployment Location</Label>
+                <Select value={pickLocationId} onValueChange={setPickLocationId}>
+                  <SelectTrigger id="pickLocationId">
+                    <SelectValue placeholder={locations?.length ? 'Select a location' : 'No locations yet on this incident'} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {locations?.map((l) => (
+                      <SelectItem key={l.id} value={String(l.id)}>
+                        {l.name} ({l.gearCount} deployed)
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
+            ) : (
+              <>
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="newLocationName">Location Name</Label>
+                  <Input
+                    id="newLocationName"
+                    value={newLocationName}
+                    onChange={(e) => setNewLocationName(e.target.value)}
+                    placeholder="e.g. Main Stage, Repeater Site A"
+                    required
+                  />
+                </div>
+                <Button
+                  size="lg"
+                  disabled={geoStatus === 'locating'}
+                  onClick={captureLocation}
+                  className="w-full sm:w-auto"
+                >
+                  {geoStatus === 'locating' ? <Loader2 className="size-4 animate-spin" /> : <Crosshair className="size-4" />}
+                  Capture My Location
+                </Button>
+
+                {geoStatus === 'granted' && coords && (
+                  <p className="text-sm text-muted-foreground">
+                    Captured: {coords.lat}, {coords.lng}
+                  </p>
+                )}
+                {geoStatus === 'denied' && (
+                  <p className="text-sm text-destructive">
+                    Location access was denied. Enter coordinates manually below, or continue without one.
+                  </p>
+                )}
+                {geoStatus === 'unsupported' && (
+                  <p className="text-sm text-destructive">
+                    This device doesn't support location capture. Enter coordinates manually below, or continue
+                    without one.
+                  </p>
+                )}
+
+                {!showManual && (
+                  <button
+                    type="button"
+                    className="self-start text-sm text-muted-foreground hover:underline"
+                    onClick={() => setShowManual(true)}
+                  >
+                    Enter coordinates manually
+                  </button>
+                )}
+
+                {showManual && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div className="flex flex-col gap-1.5">
+                      <Label htmlFor="latitude">Latitude</Label>
+                      <Input
+                        id="latitude"
+                        value={coords?.lat ?? ''}
+                        onChange={(e) => setCoords({ lat: e.target.value, lng: coords?.lng ?? '' })}
+                        placeholder="40.8915158"
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <Label htmlFor="longitude">Longitude</Label>
+                      <Input
+                        id="longitude"
+                        value={coords?.lng ?? ''}
+                        onChange={(e) => setCoords({ lat: coords?.lat ?? '', lng: e.target.value })}
+                        placeholder="-74.1959347"
+                      />
+                    </div>
+                  </div>
+                )}
+
+                <div className="flex flex-col gap-1.5">
+                  <Label htmlFor="newLocationNotes">Notes</Label>
+                  <Textarea id="newLocationNotes" value={newLocationNotes} onChange={(e) => setNewLocationNotes(e.target.value)} />
+                </div>
+              </>
             )}
 
             <div>
-              <Button onClick={() => setPhase('add')}>Continue</Button>
+              <Button
+                onClick={continueWithLocation}
+                disabled={
+                  createLocationMutation.isPending ||
+                  (locationMode === 'pick' ? !pickLocationId : !newLocationName)
+                }
+              >
+                {createLocationMutation.isPending && <Loader2 className="size-4 animate-spin" />}
+                Continue
+              </Button>
             </div>
           </CardContent>
         </Card>
@@ -256,19 +351,20 @@ export function DeployGear() {
           <Card>
             <CardContent className="flex flex-col gap-1 pt-6 sm:flex-row sm:items-center sm:justify-between">
               <div className="text-sm">
-                {coords ? (
-                  <span className="inline-flex items-center gap-1.5">
-                    <MapPin className="size-4 text-primary" />
-                    {coords.lat}, {coords.lng}
-                  </span>
-                ) : (
-                  <span className="text-muted-foreground">No location set</span>
-                )}
+                <span className="inline-flex items-center gap-1.5">
+                  <MapPin className="size-4 text-primary" />
+                  <span className="font-medium">{activeLocation?.name}</span>
+                  {activeLocation?.latitude && activeLocation?.longitude && (
+                    <span className="text-muted-foreground">
+                      ({activeLocation.latitude}, {activeLocation.longitude})
+                    </span>
+                  )}
+                </span>
               </div>
               <button
                 type="button"
                 className="self-start text-sm text-muted-foreground hover:underline sm:self-auto"
-                onClick={() => setPhase('capture')}
+                onClick={() => setPhase('location')}
               >
                 Change Location
               </button>
