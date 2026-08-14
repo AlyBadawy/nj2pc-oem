@@ -47,8 +47,6 @@ type PdfOrientation = 'PORTRAIT' | 'LANDSCAPE'
 type PdfLinkFilter = 'ALL' | 'RF'
 
 type NodeOverride = {
-  resourceId?: number
-  resourceIdentifier?: string
   latitude?: string | null
   longitude?: string | null
 }
@@ -83,7 +81,7 @@ function AddGearDialog({
   prefillFrom?: MeshNodeSnapshot | null
   open: boolean
   onOpenChange: (open: boolean) => void
-  onCreated: (hostname: string, resource: Resource) => void
+  onCreated: (resource: Resource) => void
 }) {
   const [resourceTypeId, setResourceTypeId] = useState('')
   const [identifier, setIdentifier] = useState('')
@@ -129,7 +127,7 @@ function AddGearDialog({
         })
       ).data,
     onSuccess: (resource) => {
-      if (hostname) onCreated(hostname, resource)
+      onCreated(resource)
       toast.success(`${resource.identifier} added as gear`)
       onOpenChange(false)
     },
@@ -615,7 +613,6 @@ export function MeshSessionDetail() {
   const queryClient = useQueryClient()
 
   const [overrides, setOverrides] = useState<Record<string, NodeOverride>>({})
-  const [lanOverrides, setLanOverrides] = useState<Record<string, { resourceId: number; resourceIdentifier: string }>>({})
   const [addGearNode, setAddGearNode] = useState<MeshNodeSnapshot | null>(null)
   const [addGearLanDevice, setAddGearLanDevice] = useState<MeshLanClientSnapshot | null>(null)
   const [deployNode, setDeployNode] = useState<MeshNodeSnapshot | null>(null)
@@ -640,6 +637,17 @@ export function MeshSessionDetail() {
     queryKey: ['incidents', id, 'resource-checkins'],
     queryFn: async () => (await api.get<ResourceCheckIn[]>(`/api/incidents/${id}/resource-checkins`)).data,
   })
+
+  // Whether a node/LAN device "matches a gear" is re-checked live against current inventory on
+  // every render, rather than trusting resourceId/resourceIdentifier baked into the immutable
+  // scan snapshot — gear is often added to inventory (or renamed) after a scan was taken, and a
+  // stale match (or stale non-match) would otherwise only self-correct if the operator happened
+  // to reopen the Add-as-Gear dialog for that exact hostname again.
+  const { data: resources } = useQuery({
+    queryKey: ['resources'],
+    queryFn: async () => (await api.get<Resource[]>('/api/resources')).data,
+  })
+  const resourceByIdentifier = new Map((resources ?? []).map((r) => [r.identifier.toLowerCase(), r]))
 
   const linkTypesPresent = useMemo(
     () => Array.from(new Set((session?.links ?? []).map((l) => l.linkTypeNormalized))),
@@ -671,32 +679,36 @@ export function MeshSessionDetail() {
 
   const nodes: (MeshNodeSnapshot & { offSite?: boolean })[] = session.nodes.map((n) => {
     const o = overrides[n.hostname.toLowerCase()]
-    const deployedHere = n.resourceId ? openResourceIds.has(n.resourceId) : false
-    const openCheckIn = n.resourceId ? openCheckInByResource.get(n.resourceId) : undefined
+    const liveMatch = resourceByIdentifier.get(n.hostname.toLowerCase())
+    const resourceId = liveMatch?.id ?? null
+    const deployedHere = resourceId ? openResourceIds.has(resourceId) : false
+    const openCheckIn = resourceId ? openCheckInByResource.get(resourceId) : undefined
     const offSite = deployedHere && !!openCheckIn?.offSite
-    if (!o) return { ...n, offSite }
     return {
       ...n,
-      resourceId: o.resourceId ?? n.resourceId,
-      resourceIdentifier: o.resourceIdentifier ?? n.resourceIdentifier,
-      latitude: o.latitude !== undefined ? o.latitude : n.latitude,
-      longitude: o.longitude !== undefined ? o.longitude : n.longitude,
+      resourceId,
+      resourceIdentifier: liveMatch?.identifier ?? null,
+      resourceOwnerCallsign: liveMatch?.ownerCallsign ?? null,
+      resourceCustomFields: liveMatch?.customFields ?? null,
+      latitude: o?.latitude !== undefined ? o.latitude : n.latitude,
+      longitude: o?.longitude !== undefined ? o.longitude : n.longitude,
       offSite,
     }
   })
 
   const lanClients: MeshLanClientSnapshot[] = session.lanClients.map((c) => {
-    const o = lanOverrides[c.deviceHostname.toLowerCase()]
-    if (!o) return c
-    return { ...c, resourceId: o.resourceId, resourceIdentifier: o.resourceIdentifier }
+    const liveMatch = resourceByIdentifier.get(c.deviceHostname.toLowerCase())
+    return {
+      ...c,
+      resourceId: liveMatch?.id ?? null,
+      resourceIdentifier: liveMatch?.identifier ?? null,
+      resourceOwnerCallsign: liveMatch?.ownerCallsign ?? null,
+      resourceCustomFields: liveMatch?.customFields ?? null,
+    }
   })
 
   function applyOverride(hostname: string, patch: NodeOverride) {
     setOverrides((prev) => ({ ...prev, [hostname.toLowerCase()]: { ...prev[hostname.toLowerCase()], ...patch } }))
-  }
-
-  function applyLanOverride(hostname: string, resourceId: number, resourceIdentifier: string) {
-    setLanOverrides((prev) => ({ ...prev, [hostname.toLowerCase()]: { resourceId, resourceIdentifier } }))
   }
 
   function toggleLinkType(type: MeshLinkType) {
@@ -1023,14 +1035,7 @@ export function MeshSessionDetail() {
             setAddGearLanDevice(null)
           }
         }}
-        onCreated={(hostname, resource) => {
-          if (addGearNode) {
-            applyOverride(hostname, { resourceId: resource.id, resourceIdentifier: resource.identifier })
-          } else {
-            applyLanOverride(hostname, resource.id, resource.identifier)
-          }
-          queryClient.invalidateQueries({ queryKey: ['resources'] })
-        }}
+        onCreated={() => queryClient.invalidateQueries({ queryKey: ['resources'] })}
       />
       <DeployDialog
         node={deployNode}
