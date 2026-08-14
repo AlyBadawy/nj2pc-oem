@@ -50,10 +50,12 @@ public class IncidentService {
     @Transactional(readOnly = true)
     public List<IncidentResponse> findAll(Authentication authentication) {
         List<Incident> incidents = incidentRepository.findAll();
-        if (permissionGuard.has(authentication, Permission.INCIDENT_VIEW_ALL) || isAdmin(authentication)) {
-            return incidents.stream().map(i -> IncidentResponse.from(i, true)).toList();
-        }
         Operator caller = permissionGuard.requireCaller(authentication);
+        if (permissionGuard.has(authentication, Permission.INCIDENT_VIEW_ALL) || isAdmin(authentication)) {
+            return incidents.stream()
+                    .map(i -> IncidentResponse.from(i, canEdit(authentication, caller, i.getId())))
+                    .toList();
+        }
         return incidents.stream()
                 .filter(i -> canView(caller, i.getId()))
                 .map(i -> IncidentResponse.from(i, canEdit(authentication, caller, i.getId())))
@@ -63,10 +65,10 @@ public class IncidentService {
     @Transactional(readOnly = true)
     public IncidentResponse findById(Authentication authentication, Long id) {
         Incident incident = getIncidentOrThrow(id);
-        if (permissionGuard.has(authentication, Permission.INCIDENT_VIEW_ALL) || isAdmin(authentication)) {
-            return IncidentResponse.from(incident, true);
-        }
         Operator caller = permissionGuard.requireCaller(authentication);
+        if (permissionGuard.has(authentication, Permission.INCIDENT_VIEW_ALL) || isAdmin(authentication)) {
+            return IncidentResponse.from(incident, canEdit(authentication, caller, id));
+        }
         if (!canView(caller, id)) {
             throw ApiException.forbidden("You do not have permission to view this incident");
         }

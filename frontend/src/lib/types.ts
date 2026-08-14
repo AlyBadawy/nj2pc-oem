@@ -190,6 +190,8 @@ export interface ResourceCheckIn {
   checkedInAt: string
   checkedOutAt: string | null
   notes: string | null
+  latitude: string | null
+  longitude: string | null
 }
 
 export type IncidentPermission = 'VIEW' | 'EDIT'

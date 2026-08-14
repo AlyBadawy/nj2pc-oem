@@ -12,6 +12,7 @@ import { Incidents } from '@/pages/Incidents'
 import { IncidentCreate } from '@/pages/IncidentCreate'
 import { IncidentDetail } from '@/pages/IncidentDetail'
 import { IncidentEdit } from '@/pages/IncidentEdit'
+import { DeployGear } from '@/pages/DeployGear'
 import { Resources } from '@/pages/Resources'
 import { AllResources } from '@/pages/AllResources'
 import { ResourceCreate } from '@/pages/ResourceCreate'
@@ -45,6 +46,7 @@ function App() {
             <Route path="incidents/new" element={<IncidentCreate />} />
             <Route path="incidents/:id" element={<IncidentDetail />} />
             <Route path="incidents/:id/edit" element={<IncidentEdit />} />
+            <Route path="incidents/:id/deploy" element={<DeployGear />} />
             <Route path="resources" element={<Resources />} />
             <Route path="all-resources" element={<AllResources />} />
             <Route path="resources/new" element={<ResourceCreate />} />

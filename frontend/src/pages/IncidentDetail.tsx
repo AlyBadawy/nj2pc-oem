@@ -1,7 +1,7 @@
 import { useEffect, useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Plus, LogIn, LogOut, Flag, Play, Pencil, ShieldCheck, Download, Loader2 } from 'lucide-react'
+import { ArrowLeft, Plus, LogIn, LogOut, Flag, Play, Pencil, ShieldCheck, Download, Loader2, MapPin } from 'lucide-react'
 import { toast } from 'sonner'
 import { api } from '@/lib/api'
 import { hasPermission, useAuth } from '@/lib/auth-context'
@@ -531,10 +531,27 @@ export function IncidentDetail() {
             </span>
           </CardTitle>
           {!isClosed && (
-            <Button size="sm" onClick={() => setResourceCheckInOpen(true)}>
-              <LogIn className="size-4" />
-              Check In
-            </Button>
+            <div className="flex flex-wrap items-center gap-2">
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={!canEdit}
+                title={canEdit ? 'Deploy gear at a GPS location' : 'Requires edit access to this incident'}
+                onClick={() => navigate(`/incidents/${id}/deploy`)}
+              >
+                <MapPin className="size-4" />
+                Deploy Gear
+              </Button>
+              <Button
+                size="sm"
+                disabled={!canEdit}
+                title={canEdit ? 'Check in equipment' : 'Requires edit access to this incident'}
+                onClick={() => setResourceCheckInOpen(true)}
+              >
+                <LogIn className="size-4" />
+                Check In
+              </Button>
+            </div>
           )}
         </CardHeader>
         <CardContent>
@@ -546,13 +563,14 @@ export function IncidentDetail() {
                 <TableHead>Checked In</TableHead>
                 <TableHead>Checked Out</TableHead>
                 <TableHead>Notes</TableHead>
+                <TableHead>Location</TableHead>
                 <TableHead className="text-right">Action</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {openResourceCheckIns.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={6} className="text-center text-muted-foreground">
+                  <TableCell colSpan={7} className="text-center text-muted-foreground">
                     No equipment checked in yet.
                   </TableCell>
                 </TableRow>
@@ -569,6 +587,21 @@ export function IncidentDetail() {
                   </TableCell>
                   <TableCell className="text-muted-foreground text-sm max-w-[200px] truncate">
                     {c.notes || '—'}
+                  </TableCell>
+                  <TableCell className="text-sm whitespace-nowrap">
+                    {c.latitude && c.longitude ? (
+                      <a
+                        href={`https://www.google.com/maps?q=${c.latitude},${c.longitude}`}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex items-center gap-1 text-primary hover:underline"
+                      >
+                        <MapPin className="size-4" />
+                        Map
+                      </a>
+                    ) : (
+                      '—'
+                    )}
                   </TableCell>
                   <TableCell className="text-right">
                     <Button

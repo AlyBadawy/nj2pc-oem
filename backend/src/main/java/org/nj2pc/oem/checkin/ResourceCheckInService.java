@@ -62,6 +62,8 @@ public class ResourceCheckInService {
         checkIn.setResource(resource);
         checkIn.setCheckedInAt(Instant.now());
         checkIn.setNotes(request.notes());
+        checkIn.setLatitude(request.latitude());
+        checkIn.setLongitude(request.longitude());
         ResourceCheckIn saved = resourceCheckInRepository.save(checkIn);
         auditLogService.record(EntityType.INCIDENT, incidentId, "CHECK_IN",
                 "Checked in resource " + resource.getIdentifier(), authentication.getName());

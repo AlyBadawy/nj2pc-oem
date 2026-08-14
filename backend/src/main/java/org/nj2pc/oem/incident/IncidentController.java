@@ -126,6 +126,7 @@ public class IncidentController {
     @ResponseStatus(HttpStatus.CREATED)
     public ResourceCheckInResponse checkInResource(Authentication authentication, @PathVariable Long id,
                                                      @Valid @RequestBody ResourceCheckInRequest request) {
+        incidentService.requireEditAccess(authentication, id);
         return resourceCheckInService.checkIn(authentication, id, request);
     }
 
