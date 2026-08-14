@@ -19,7 +19,7 @@ import { Button } from '@/components/ui/button'
 import { Sheet, SheetContent, SheetTitle } from '@/components/ui/sheet'
 import { cn } from '@/lib/utils'
 
-type NavItem = { to: string; label: string; icon: typeof User; disabled?: boolean }
+type NavItem = { to: string; label: string; icon: typeof User; disabled?: boolean; neverActive?: boolean }
 type NavGroup = { heading: string; items: NavItem[] }
 
 function SidebarBrand() {
@@ -44,7 +44,7 @@ function SidebarNav({ navGroups, onNavigate }: { navGroups: NavGroup[]; onNaviga
               {group.heading}
             </div>
           )}
-          {group.items.map(({ to, label, icon: Icon, disabled }) =>
+          {group.items.map(({ to, label, icon: Icon, disabled, neverActive }) =>
             disabled ? (
               <div
                 key={label}
@@ -56,14 +56,14 @@ function SidebarNav({ navGroups, onNavigate }: { navGroups: NavGroup[]; onNaviga
               </div>
             ) : (
               <NavLink
-                key={to}
+                key={label}
                 to={to}
                 end={to === '/'}
                 onClick={onNavigate}
                 className={({ isActive }) =>
                   cn(
                     'flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors',
-                    isActive
+                    isActive && !neverActive
                       ? 'bg-sidebar-accent text-sidebar-accent-foreground'
                       : 'text-sidebar-foreground/90 hover:bg-sidebar-accent hover:text-sidebar-accent-foreground',
                   )
@@ -124,7 +124,10 @@ export function AppLayout() {
 
   // Mesh scanning/viewing is incident-scoped (see each incident's Mesh tab) — there's no
   // standalone global mesh page yet, so this just gets you to an incident to start from.
-  const meshItems: NavItem[] = [{ to: '/incidents', label: 'Go to an Incident', icon: Wifi }]
+  // Not a section of its own — just a shortcut into the incident list to start a mesh scan
+  // from there, so it should never light up as "active" (that would double up with the
+  // Incidents item above whenever viewing an incident, since both point at /incidents).
+  const meshItems: NavItem[] = [{ to: '/incidents', label: 'Go to an Incident', icon: Wifi, neverActive: true }]
 
   const adminItems: NavItem[] = [
     // Gated on RESOURCE_TYPE_MANAGE since Equipment Types is the only settings tile today;
