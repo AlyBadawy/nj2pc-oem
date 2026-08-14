@@ -31,6 +31,16 @@ export function MeshMapLegend() {
         <span className="inline-block size-2.5 rounded-full border-2 border-credential-blue-deep bg-credential-blue-deep" />
         <span>Local node (scanned from)</span>
       </div>
+      <div>
+        <div className="flex items-center gap-2">
+          <span
+            className="inline-block size-2.5 rounded-full"
+            style={{ background: '#B9B3A6', border: '2px dashed #1F4E79' }}
+          />
+          <span>Off-site (not physically at the incident)</span>
+        </div>
+        <p className="text-xs text-muted-foreground mt-0.5">Its links are also faded, but keep their normal color.</p>
+      </div>
     </div>
   )
 }

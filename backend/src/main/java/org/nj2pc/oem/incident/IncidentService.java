@@ -221,8 +221,6 @@ public class IncidentService {
         incident.setPlannedStartTime(request.plannedStartTime());
         incident.setPlannedEndTime(request.plannedEndTime());
         incident.setDescription(request.description());
-        incident.setLatitude(request.latitude());
-        incident.setLongitude(request.longitude());
         incident.setBoundaryPoints(request.boundaryPoints());
     }
 }

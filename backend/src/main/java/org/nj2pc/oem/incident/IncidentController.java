@@ -11,10 +11,15 @@ import org.nj2pc.oem.checkin.ResourceCheckInUpdateRequest;
 import org.nj2pc.oem.commsplan.CommunicationPlanResponse;
 import org.nj2pc.oem.commsplan.CommunicationPlanService;
 import org.nj2pc.oem.mesh.MeshSessionDetailResponse;
+import org.nj2pc.oem.mesh.MeshSessionPdfRequest;
+import org.nj2pc.oem.mesh.MeshSessionPdfService;
 import org.nj2pc.oem.mesh.MeshSessionService;
 import org.nj2pc.oem.mesh.MeshSessionSubmitRequest;
 import org.nj2pc.oem.mesh.MeshSessionSummaryResponse;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
+import org.springframework.http.MediaType;
+import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
@@ -31,19 +36,22 @@ public class IncidentController {
     private final OperatorCheckInService operatorCheckInService;
     private final ResourceCheckInService resourceCheckInService;
     private final MeshSessionService meshSessionService;
+    private final MeshSessionPdfService meshSessionPdfService;
 
     public IncidentController(IncidentService incidentService,
                                IncidentLogService incidentLogService,
                                CommunicationPlanService communicationPlanService,
                                OperatorCheckInService operatorCheckInService,
                                ResourceCheckInService resourceCheckInService,
-                               MeshSessionService meshSessionService) {
+                               MeshSessionService meshSessionService,
+                               MeshSessionPdfService meshSessionPdfService) {
         this.incidentService = incidentService;
         this.incidentLogService = incidentLogService;
         this.communicationPlanService = communicationPlanService;
         this.operatorCheckInService = operatorCheckInService;
         this.resourceCheckInService = resourceCheckInService;
         this.meshSessionService = meshSessionService;
+        this.meshSessionPdfService = meshSessionPdfService;
     }
 
     @GetMapping
@@ -175,5 +183,16 @@ public class IncidentController {
     public void deleteMeshSession(Authentication authentication, @PathVariable Long id, @PathVariable Long sessionId) {
         incidentService.requireEditAccess(authentication, id);
         meshSessionService.delete(authentication, id, sessionId);
+    }
+
+    @PostMapping("/{id}/mesh-sessions/{sessionId}/pdf")
+    public ResponseEntity<byte[]> downloadMeshSessionPdf(@PathVariable Long id, @PathVariable Long sessionId,
+                                                            @Valid @RequestBody MeshSessionPdfRequest request) {
+        byte[] pdf = meshSessionPdfService.generate(id, sessionId, request);
+        String filename = "Mesh-Scan-" + sessionId + ".pdf";
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_PDF)
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+                .body(pdf);
     }
 }

@@ -208,6 +208,48 @@ export function MeshScan() {
 
           <Card>
             <CardHeader>
+              <CardTitle className="text-base">LAN Devices Found</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {result.lanClients.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  No LAN devices (cameras, cellular modems, etc.) found on any scanned node.
+                </p>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="text-left text-muted-foreground">
+                        <th className="pr-4 py-1 font-medium">Device Hostname</th>
+                        <th className="pr-4 py-1 font-medium">Connected Via (Node)</th>
+                        <th className="pr-4 py-1 font-medium">URL</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {result.lanClients.map((c) => (
+                        <tr key={`${c.nodeHostname}-${c.deviceHostname}`} className="border-t">
+                          <td className="pr-4 py-1.5 font-medium whitespace-nowrap">{c.deviceHostname}</td>
+                          <td className="pr-4 py-1.5 whitespace-nowrap">{c.nodeHostname}</td>
+                          <td className="pr-4 py-1.5 whitespace-nowrap">
+                            {c.deviceUrl ? (
+                              <a href={c.deviceUrl} target="_blank" rel="noreferrer" className="text-primary hover:underline">
+                                {c.deviceUrl}
+                              </a>
+                            ) : (
+                              '—'
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
               <CardTitle className="text-base">Save This Scan</CardTitle>
             </CardHeader>
             <CardContent className="flex flex-col gap-3">

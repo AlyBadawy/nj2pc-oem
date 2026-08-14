@@ -13,7 +13,7 @@ public record MeshSessionSubmitRequest(
         String notes,
         @NotBlank String localNodeHostname,
         @NotEmpty List<NodeInput> nodes,
-        @NotEmpty List<LinkInput> links,
+        List<LinkInput> links,
         List<LanClientInput> lanClients
 ) {
     public record NodeInput(

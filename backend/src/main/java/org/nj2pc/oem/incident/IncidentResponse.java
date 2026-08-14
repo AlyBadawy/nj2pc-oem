@@ -14,8 +14,6 @@ public record IncidentResponse(
         Instant actualStartTime,
         Instant actualEndTime,
         String description,
-        String latitude,
-        String longitude,
         List<Map<String, String>> boundaryPoints,
         Instant createdAt,
         String createdByCallsign,
@@ -26,7 +24,7 @@ public record IncidentResponse(
                 i.getId(), i.getName(), i.getLocation(), i.getStatus(),
                 i.getPlannedStartTime(), i.getPlannedEndTime(),
                 i.getActualStartTime(), i.getActualEndTime(),
-                i.getDescription(), i.getLatitude(), i.getLongitude(), i.getBoundaryPoints(), i.getCreatedAt(),
+                i.getDescription(), i.getBoundaryPoints(), i.getCreatedAt(),
                 i.getCreatedBy() != null ? i.getCreatedBy().getCallsign() : null,
                 canEdit
         );

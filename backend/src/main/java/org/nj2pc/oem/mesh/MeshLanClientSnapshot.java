@@ -1,6 +1,7 @@
 package org.nj2pc.oem.mesh;
 
 import jakarta.persistence.*;
+import org.nj2pc.oem.resource.Resource;
 
 @Entity
 @Table(name = "mesh_lan_client_snapshots")
@@ -22,6 +23,10 @@ public class MeshLanClientSnapshot {
 
     @Column(name = "device_url")
     private String deviceUrl;
+
+    @ManyToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "resource_id")
+    private Resource resource;
 
     public Long getId() {
         return id;
@@ -57,5 +62,13 @@ public class MeshLanClientSnapshot {
 
     public void setDeviceUrl(String deviceUrl) {
         this.deviceUrl = deviceUrl;
+    }
+
+    public Resource getResource() {
+        return resource;
+    }
+
+    public void setResource(Resource resource) {
+        this.resource = resource;
     }
 }

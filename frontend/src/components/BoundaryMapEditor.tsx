@@ -1,6 +1,7 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import L from 'leaflet'
-import { Trash2 } from 'lucide-react'
+import { Crosshair, Loader2, Trash2 } from 'lucide-react'
+import { toast } from 'sonner'
 import type { IncidentBoundaryPoint } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 
@@ -27,9 +28,30 @@ function pointDivIcon(index: number): L.DivIcon {
  * list below the map, since a mis-placed click is otherwise hard to undo precisely. */
 export function BoundaryMapEditor({ points, onChange, centerLat, centerLng }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
+  const mapRef = useRef<L.Map | null>(null)
   const layerGroupRef = useRef<L.LayerGroup | null>(null)
   const pointsRef = useRef(points)
   pointsRef.current = points
+  const [locating, setLocating] = useState(false)
+
+  function centerOnMyLocation() {
+    if (!navigator.geolocation) {
+      toast.error('This device does not support location capture')
+      return
+    }
+    setLocating(true)
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        mapRef.current?.setView([pos.coords.latitude, pos.coords.longitude], 15)
+        setLocating(false)
+      },
+      () => {
+        toast.error('Could not get your location')
+        setLocating(false)
+      },
+      { enableHighAccuracy: true, timeout: 10000 },
+    )
+  }
 
   useEffect(() => {
     const container = containerRef.current
@@ -40,6 +62,7 @@ export function BoundaryMapEditor({ points, onChange, centerLat, centerLng }: Pr
     const initialCenter: L.LatLngExpression = hasCenter ? [lat, lng] : [39.8283, -98.5795]
 
     const map = L.map(container).setView(initialCenter, hasCenter ? 14 : 4)
+    mapRef.current = map
     L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
       attribution: '&copy; OpenStreetMap contributors',
@@ -57,6 +80,7 @@ export function BoundaryMapEditor({ points, onChange, centerLat, centerLng }: Pr
     return () => {
       resizeObserver.disconnect()
       map.remove()
+      mapRef.current = null
       layerGroupRef.current = null
     }
     // Map is initialized once; point/marker sync happens in the effect below via the layer
@@ -93,10 +117,16 @@ export function BoundaryMapEditor({ points, onChange, centerLat, centerLng }: Pr
 
   return (
     <div className="flex flex-col gap-2">
-      <div ref={containerRef} className="w-full h-[320px] rounded-lg border border-credential-hairline" />
-      <p className="text-xs text-muted-foreground">
-        Click the map to drop pins marking the incident's operating area, in order around its perimeter.
-      </p>
+      <div className="flex items-center justify-between">
+        <p className="text-xs text-muted-foreground">
+          Click the map to drop pins marking the incident's operating area, in order around its perimeter.
+        </p>
+        <Button type="button" variant="ghost" size="sm" disabled={locating} onClick={centerOnMyLocation}>
+          {locating ? <Loader2 className="size-4 animate-spin" /> : <Crosshair className="size-4" />}
+          Center on My Location
+        </Button>
+      </div>
+      <div ref={containerRef} className="w-full h-[66vh] rounded-lg border border-credential-hairline" />
       {points.length > 0 && (
         <ul className="flex flex-col gap-1">
           {points.map((p, i) => (

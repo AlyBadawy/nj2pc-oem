@@ -1,40 +1,61 @@
-import { useEffect, useRef, useState } from 'react'
+import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 'react'
 import L from 'leaflet'
 import { Maximize2, Minimize2 } from 'lucide-react'
 import type { IncidentBoundaryPoint, MeshLinkSnapshot, MeshNodeSnapshot } from '@/lib/types'
 import { linkColor, LINK_TYPE_LABEL } from '@/lib/meshVisual'
+import { findColocatedGroups } from '@/lib/meshProximity'
+import { captureLiveLeafletSnapshot } from '@/lib/meshMapCapture'
+import { computeIncidentBounds } from '@/lib/meshIncidentArea'
+import { drawMeshCanvas } from '@/lib/meshCanvasDraw'
 import { MeshCanvasFallback } from '@/components/MeshCanvasFallback'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
+type MeshMapNode = MeshNodeSnapshot & { offSite?: boolean }
+
 type Props = {
-  nodes: MeshNodeSnapshot[]
+  nodes: MeshMapNode[]
   links: MeshLinkSnapshot[]
-  incidentLat?: string | null
-  incidentLng?: string | null
   boundaryPoints?: IncidentBoundaryPoint[] | null
+}
+
+export type MeshMapHandle = {
+  /** Snapshots exactly what's currently on screen (same tiles, same pan/zoom) as a PNG data URL
+   * — used for the mesh-scan PDF export. Pass `overrides` to render a different node/link set
+   * than the live map currently shows (e.g. the PDF's "RF only" filter, or excluding off-site/
+   * far-away nodes) without disturbing the on-screen view. Returns null if there's nothing to
+   * capture yet (map not initialized). */
+  captureSnapshot: (overrides?: { nodes?: MeshMapNode[]; links?: MeshLinkSnapshot[] }) => string | null
 }
 
 /** Plain inline-SVG circle markers instead of Leaflet's default raster icon set — sidesteps the
  * well-known "broken image" issues that PNG-based Leaflet icons run into under bundlers and on
- * some mobile browsers (no external/data-URI image to fail loading at all, just DOM + CSS). */
-function nodeDivIcon(isLocalNode: boolean): L.DivIcon {
-  const fill = isLocalNode ? '#1F4E79' : '#F7F5F0'
+ * some mobile browsers (no external/data-URI image to fail loading at all, just DOM + CSS).
+ * Off-site nodes (checked in but not physically at the incident) get a dashed outline and a
+ * muted fill instead of the usual local/other distinction — a marker icon is a fixed-size DOM
+ * element that doesn't get reprojected on zoom, so a dash pattern is safe here (unlike the
+ * polylines below, which lose dash patterns across zoom levels). */
+function nodeDivIcon(isLocalNode: boolean, offSite: boolean): L.DivIcon {
+  const fill = offSite ? '#B9B3A6' : isLocalNode ? '#1F4E79' : '#F7F5F0'
   const size = isLocalNode ? 18 : 14
+  const dash = offSite ? ' stroke-dasharray="2.5,2"' : ''
   return L.divIcon({
     className: 'mesh-node-marker',
-    html: `<svg width="${size}" height="${size}" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><circle cx="10" cy="10" r="8" fill="${fill}" stroke="#1F4E79" stroke-width="2.5" /></svg>`,
+    html: `<svg width="${size}" height="${size}" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><circle cx="10" cy="10" r="8" fill="${fill}" stroke="#1F4E79" stroke-width="2.5"${dash} /></svg>`,
     iconSize: [size, size],
     iconAnchor: [size / 2, size / 2],
   })
 }
 
-function incidentDivIcon(): L.DivIcon {
+/** Nodes within ~10ft of each other (e.g. stacked on the same mast) would otherwise render as
+ * fully overlapping markers with nothing to indicate more than one node is there. This badge
+ * sits permanently above the cluster — no hover required — unlike the per-marker tooltips. */
+function proximityBadgeDivIcon(count: number): L.DivIcon {
+  const label = `⚠ ${count} co-located`
   return L.divIcon({
-    className: 'mesh-incident-marker',
-    html: `<svg width="16" height="16" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><circle cx="10" cy="10" r="8" fill="#C4432D" stroke="#F7F5F0" stroke-width="2" /></svg>`,
-    iconSize: [16, 16],
-    iconAnchor: [8, 8],
+    className: 'mesh-proximity-badge',
+    html: `<div style="display:inline-flex;align-items:center;white-space:nowrap;background:#C4432D;color:#fff;font:700 10px sans-serif;padding:2px 7px;border-radius:9999px;border:1.5px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,0.35);">${label}</div>`,
+    iconAnchor: [0, 28],
   })
 }
 
@@ -43,27 +64,73 @@ function toNum(v: string | null | undefined): number | null {
   return Number.isNaN(n) ? null : n
 }
 
-function linkTooltip(link: MeshLinkSnapshot, fromNodeChannel: string | null, fromNodeBand: string | null): string {
+function linkTooltip(
+  link: MeshLinkSnapshot,
+  fromNodeChannel: string | null,
+  fromNodeBand: string | null,
+  fromOffSite: boolean,
+  toOffSite: boolean,
+): string {
   const parts = [LINK_TYPE_LABEL[link.linkTypeNormalized]]
   if (link.linkTypeNormalized === 'RF') {
     if (fromNodeBand) parts.push(fromNodeBand)
     if (fromNodeChannel) parts.push(`ch ${fromNodeChannel}`)
   }
   if (link.rxPercent) parts.push(`rx ${link.rxPercent}`)
-  return `${link.fromHostname} → ${link.toHostname}: ${parts.join(' · ')}`
+  const from = fromOffSite ? `${link.fromHostname} (off-site)` : link.fromHostname
+  const to = toOffSite ? `${link.toHostname} (off-site)` : link.toHostname
+  return `${from} → ${to}: ${parts.join(' · ')}`
 }
 
 /** Hybrid map: tries Leaflet + OpenStreetMap tiles first, falls back to the offline canvas
  * renderer if tiles fail to load (mesh-isolated, no path to the internet) or if the browser
  * already reports itself offline. Both renderers take the identical prop shape. Supports a
  * fullscreen toggle (native Fullscreen API) so either renderer can be expanded to fill the
- * whole browser viewport. */
-export function MeshMap({ nodes, links, incidentLat, incidentLng, boundaryPoints }: Props) {
+ * whole browser viewport. Exposes `captureSnapshot()` via ref for the mesh-scan PDF export. */
+export const MeshMap = forwardRef<MeshMapHandle, Props>(function MeshMap({ nodes, links, boundaryPoints }, forwardedRef) {
   const wrapperRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<L.Map | null>(null)
+  const fallbackCanvasRef = useRef<HTMLCanvasElement>(null)
   const [useFallback, setUseFallback] = useState(() => typeof navigator !== 'undefined' && navigator.onLine === false)
   const [isFullscreen, setIsFullscreen] = useState(false)
+
+  useImperativeHandle(forwardedRef, () => ({
+    captureSnapshot: (overrides) => {
+      const effectiveNodes = overrides?.nodes ?? nodes
+      const effectiveLinks = overrides?.links ?? links
+      if (useFallback) {
+        // No overrides: the live fallback canvas is already an exact match for what's on
+        // screen, so just grab it directly instead of re-rendering. With overrides, redraw
+        // offscreen at the same size so the export can differ from the live view (e.g. the PDF
+        // excluding off-site/far nodes) without disturbing what's actually shown on screen.
+        if (!overrides) {
+          return fallbackCanvasRef.current?.toDataURL('image/png') ?? null
+        }
+        const liveCanvas = fallbackCanvasRef.current
+        if (!liveCanvas) return null
+        const canvas = document.createElement('canvas')
+        canvas.width = liveCanvas.width
+        canvas.height = liveCanvas.height
+        const ctx = canvas.getContext('2d')
+        if (!ctx) return null
+        const dpr = window.devicePixelRatio || 1
+        ctx.scale(dpr, dpr)
+        const width = liveCanvas.width / dpr
+        const height = liveCanvas.height / dpr
+        ctx.fillStyle = '#F7F5F0'
+        ctx.fillRect(0, 0, width, height)
+        drawMeshCanvas(ctx, width, height, { nodes: effectiveNodes, links: effectiveLinks, boundaryPoints })
+        return canvas.toDataURL('image/png')
+      }
+      if (!mapRef.current || !containerRef.current) return null
+      return captureLiveLeafletSnapshot(mapRef.current, containerRef.current, {
+        nodes: effectiveNodes,
+        links: effectiveLinks,
+        boundaryPoints,
+      })
+    },
+  }))
 
   useEffect(() => {
     function handleFullscreenChange() {
@@ -102,6 +169,10 @@ export function MeshMap({ nodes, links, incidentLat, incidentLng, boundaryPoints
     const tileLayer = L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
       maxZoom: 19,
       attribution: '&copy; OpenStreetMap contributors',
+      // Required for the PDF export to be able to read tile pixels back out of the canvas —
+      // without this, even though OSM sends CORS headers, the browser still treats the canvas
+      // as tainted and toDataURL() throws.
+      crossOrigin: true,
     })
     // Only fall back to the offline canvas if tiles are genuinely unreachable — a resize (e.g.
     // entering/exiting fullscreen) can transiently fire a spurious tileerror even when tiles are
@@ -155,18 +226,25 @@ export function MeshMap({ nodes, links, incidentLat, incidentLng, boundaryPoints
       const latLng = L.latLng(lat, lng)
       hostPos.set(n.hostname.toLowerCase(), latLng)
       points.push(latLng)
-      const label = n.channel ? `${n.hostname} (${n.band ?? ''} ch ${n.channel})` : n.hostname
-      L.marker(latLng, { icon: nodeDivIcon(n.isLocalNode) })
+      const baseLabel = n.channel ? `${n.hostname} (${n.band ?? ''} ch ${n.channel})` : n.hostname
+      const label = n.offSite ? `${baseLabel} (off-site)` : baseLabel
+      L.marker(latLng, { icon: nodeDivIcon(n.isLocalNode, !!n.offSite) })
         .addTo(map)
         .bindTooltip(label, { permanent: false })
     }
 
-    const incLat = toNum(incidentLat)
-    const incLng = toNum(incidentLng)
-    if (incLat != null && incLng != null) {
-      const incidentLatLng = L.latLng(incLat, incLng)
-      points.push(incidentLatLng)
-      L.marker(incidentLatLng, { icon: incidentDivIcon() }).addTo(map).bindTooltip('Incident location')
+    const proximityPoints = nodes
+      .map((n) => {
+        const lat = toNum(n.latitude)
+        const lng = toNum(n.longitude)
+        return lat != null && lng != null ? { hostname: n.hostname, lat, lng } : null
+      })
+      .filter((v): v is { hostname: string; lat: number; lng: number } => v != null)
+    for (const group of findColocatedGroups(proximityPoints)) {
+      const center = L.latLng(group.centerLat, group.centerLng)
+      L.marker(center, { icon: proximityBadgeDivIcon(group.hostnames.length) })
+        .addTo(map)
+        .bindTooltip(group.hostnames.join(', '))
     }
 
     for (const link of links) {
@@ -177,15 +255,33 @@ export function MeshMap({ nodes, links, incidentLat, incidentLng, boundaryPoints
       // not a single "the" local node (a fanned-out scan visits many nodes, each with its own
       // RF configuration).
       const fromNode = nodesByHost.get(link.fromHostname.toLowerCase())
+      const toNode = nodesByHost.get(link.toHostname.toLowerCase())
+      const involvesOffSite = !!fromNode?.offSite || !!toNode?.offSite
       L.polyline([from, to], {
         color: linkColor(link.linkTypeNormalized, fromNode?.channel ?? null),
-        weight: 3,
+        weight: involvesOffSite ? 2 : 3,
+        opacity: involvesOffSite ? 0.45 : 1,
       })
         .addTo(map)
-        .bindTooltip(linkTooltip(link, fromNode?.channel ?? null, fromNode?.band ?? null))
+        .bindTooltip(
+          linkTooltip(link, fromNode?.channel ?? null, fromNode?.band ?? null, !!fromNode?.offSite, !!toNode?.offSite),
+        )
     }
 
-    if (points.length > 0) {
+    // Default view prioritizes the incident's own area (boundary, or on-site nodes if no
+    // boundary is drawn yet) over the full point set — a single far-off relay/gateway node
+    // shouldn't zoom the map out to the point the actual incident site is a speck. Every node
+    // is still plotted and reachable by panning/zooming out, this only affects the initial view.
+    const incidentBounds = computeIncidentBounds(boundaryPoints, nodes)
+    if (incidentBounds) {
+      map.fitBounds(
+        L.latLngBounds(
+          L.latLng(incidentBounds.minLat, incidentBounds.minLng),
+          L.latLng(incidentBounds.maxLat, incidentBounds.maxLng),
+        ),
+        { padding: [30, 30], maxZoom: 16 },
+      )
+    } else if (points.length > 0) {
       map.fitBounds(L.latLngBounds(points), { padding: [30, 30], maxZoom: 15 })
     } else {
       map.setView([0, 0], 2)
@@ -196,7 +292,7 @@ export function MeshMap({ nodes, links, incidentLat, incidentLng, boundaryPoints
       map.remove()
       mapRef.current = null
     }
-  }, [nodes, links, incidentLat, incidentLng, boundaryPoints, useFallback])
+  }, [nodes, links, boundaryPoints, useFallback])
 
   return (
     <div
@@ -225,13 +321,12 @@ export function MeshMap({ nodes, links, incidentLat, incidentLng, boundaryPoints
           absolutely-positioned panes), which as an inline style always wins over any `position`
           utility class placed directly on that same element. Keeping the sizing on a wrapper
           one level up avoids that fight entirely. */}
-      <div className={isFullscreen ? 'absolute inset-0' : 'w-full h-[420px]'}>
+      <div className={isFullscreen ? 'absolute inset-0' : 'w-full h-[66vh]'}>
         {useFallback ? (
           <MeshCanvasFallback
+            ref={fallbackCanvasRef}
             nodes={nodes}
             links={links}
-            incidentLat={incidentLat}
-            incidentLng={incidentLng}
             boundaryPoints={boundaryPoints}
             className="w-full h-full"
           />
@@ -244,4 +339,4 @@ export function MeshMap({ nodes, links, incidentLat, incidentLng, boundaryPoints
       </div>
     </div>
   )
-}
+})

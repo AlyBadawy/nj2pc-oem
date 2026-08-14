@@ -118,7 +118,7 @@ public class MeshSessionService {
             node.setChannelWidth(input.channelWidth());
             node.setRfPowerDbm(input.rfPowerDbm());
             node.setRawJson(input.rawJson());
-            resourceRepository.findByIdentifierIgnoreCase(input.hostname()).ifPresent(resource -> {
+            resourceRepository.findFirstByIdentifierIgnoreCase(input.hostname()).ifPresent(resource -> {
                 node.setResource(resource);
                 // Prefer the gear's own last-known deployment location over whatever GPS the
                 // node itself self-reports — that setting can go stale (manually configured
@@ -132,32 +132,34 @@ public class MeshSessionService {
             meshNodeSnapshotRepository.save(node);
         }
 
-        for (MeshSessionSubmitRequest.LinkInput input : request.links()) {
-            MeshLinkSnapshot link = new MeshLinkSnapshot();
-            link.setSession(session);
-            link.setFromHostname(input.fromHostname());
-            link.setToHostname(input.toHostname());
-            link.setToMacAddress(input.toMacAddress());
-            link.setSourceSection(input.sourceSection());
-            link.setLinkTypeNormalized(input.linkTypeNormalized());
-            link.setRawLinkType(input.rawLinkType());
-            link.setLinkQualityStatus(input.linkQualityStatus());
-            link.setRxPercent(input.rxPercent());
-            link.setRttMs(input.rttMs());
-            link.setSnr(input.snr());
-            link.setNSnr(input.nSnr());
-            link.setErrorsPercent(input.errorsPercent());
-            link.setMbps(input.mbps());
-            link.setDistanceMiles(input.distanceMiles());
-            link.setRxSuccessPercent(input.rxSuccessPercent());
-            link.setTxSuccessPercent(input.txSuccessPercent());
-            link.setRxCost(input.rxCost());
-            link.setTxCost(input.txCost());
-            link.setPingTimeMs(input.pingTimeMs());
-            link.setPingSuccessPercent(input.pingSuccessPercent());
-            link.setAvgTx(input.avgTx());
-            link.setRawJson(input.rawJson());
-            meshLinkSnapshotRepository.save(link);
+        if (request.links() != null) {
+            for (MeshSessionSubmitRequest.LinkInput input : request.links()) {
+                MeshLinkSnapshot link = new MeshLinkSnapshot();
+                link.setSession(session);
+                link.setFromHostname(input.fromHostname());
+                link.setToHostname(input.toHostname());
+                link.setToMacAddress(input.toMacAddress());
+                link.setSourceSection(input.sourceSection());
+                link.setLinkTypeNormalized(input.linkTypeNormalized());
+                link.setRawLinkType(input.rawLinkType());
+                link.setLinkQualityStatus(input.linkQualityStatus());
+                link.setRxPercent(input.rxPercent());
+                link.setRttMs(input.rttMs());
+                link.setSnr(input.snr());
+                link.setNSnr(input.nSnr());
+                link.setErrorsPercent(input.errorsPercent());
+                link.setMbps(input.mbps());
+                link.setDistanceMiles(input.distanceMiles());
+                link.setRxSuccessPercent(input.rxSuccessPercent());
+                link.setTxSuccessPercent(input.txSuccessPercent());
+                link.setRxCost(input.rxCost());
+                link.setTxCost(input.txCost());
+                link.setPingTimeMs(input.pingTimeMs());
+                link.setPingSuccessPercent(input.pingSuccessPercent());
+                link.setAvgTx(input.avgTx());
+                link.setRawJson(input.rawJson());
+                meshLinkSnapshotRepository.save(link);
+            }
         }
 
         if (request.lanClients() != null) {
@@ -167,12 +169,15 @@ public class MeshSessionService {
                 client.setNodeHostname(input.nodeHostname());
                 client.setDeviceHostname(input.deviceHostname());
                 client.setDeviceUrl(input.deviceUrl());
+                resourceRepository.findFirstByIdentifierIgnoreCase(input.deviceHostname())
+                        .ifPresent(client::setResource);
                 meshLanClientSnapshotRepository.save(client);
             }
         }
 
+        int linkCount = request.links() != null ? request.links().size() : 0;
         auditLogService.record(EntityType.INCIDENT, incidentId, "MESH_SCAN",
-                "Recorded a mesh scan (" + request.nodes().size() + " nodes, " + request.links().size() + " links) from "
+                "Recorded a mesh scan (" + request.nodes().size() + " nodes, " + linkCount + " links) from "
                         + request.localNodeHostname(), authentication.getName());
 
         return findById(incidentId, session.getId());

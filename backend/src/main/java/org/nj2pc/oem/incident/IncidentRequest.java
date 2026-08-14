@@ -12,8 +12,6 @@ public record IncidentRequest(
         Instant plannedStartTime,
         Instant plannedEndTime,
         String description,
-        String latitude,
-        String longitude,
         List<Map<String, String>> boundaryPoints
 ) {
 }

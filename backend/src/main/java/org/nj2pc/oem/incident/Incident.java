@@ -40,12 +40,8 @@ public class Incident {
 
     private String description;
 
-    private String latitude;
-
-    private String longitude;
-
     /** Ordered polygon of {latitude, longitude} points the operator drops on a map to mark the
-     * incident's operating area — distinct from the single-point latitude/longitude above. */
+     * incident's operating area — an incident's location is this area, not a single point. */
     @JdbcTypeCode(SqlTypes.JSON)
     @Column(name = "boundary_points", columnDefinition = "jsonb")
     private List<Map<String, String>> boundaryPoints;
@@ -123,22 +119,6 @@ public class Incident {
 
     public void setDescription(String description) {
         this.description = description;
-    }
-
-    public String getLatitude() {
-        return latitude;
-    }
-
-    public void setLatitude(String latitude) {
-        this.latitude = latitude;
-    }
-
-    public String getLongitude() {
-        return longitude;
-    }
-
-    public void setLongitude(String longitude) {
-        this.longitude = longitude;
     }
 
     public List<Map<String, String>> getBoundaryPoints() {

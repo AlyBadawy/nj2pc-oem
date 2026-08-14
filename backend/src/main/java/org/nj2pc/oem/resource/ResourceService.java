@@ -96,6 +96,11 @@ public class ResourceService {
         ResourceType type = resourceTypeRepository.findById(request.resourceTypeId())
                 .orElseThrow(() -> ApiException.notFound("Resource type not found: " + request.resourceTypeId()));
         resource.setType(type);
+        resourceRepository.findFirstByIdentifierIgnoreCase(request.identifier())
+                .filter(existing -> !existing.getId().equals(resource.getId()))
+                .ifPresent(existing -> {
+                    throw ApiException.conflict("Another resource already uses identifier " + request.identifier());
+                });
         resource.setIdentifier(request.identifier());
         resource.setSerialNumber(request.serialNumber());
         resource.setNotes(request.notes());

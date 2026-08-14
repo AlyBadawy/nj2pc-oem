@@ -8,6 +8,7 @@ import { hasPermission, useAuth } from '@/lib/auth-context'
 import { tierRank } from '@/lib/roleTier'
 import { incidentRef, type OperatorIdentityData } from '@/lib/identity'
 import { OperatorIdentity } from '@/components/identity/OperatorIdentity'
+import { MeshMap } from '@/components/MeshMap'
 import type {
   CommunicationPlan,
   Incident,
@@ -705,6 +706,7 @@ export function IncidentDetail() {
                 Mesh
                 <span className="ml-1.5 text-muted-foreground font-normal">({meshSessions?.length ?? 0})</span>
               </TabsTrigger>
+              <TabsTrigger value="map">Map</TabsTrigger>
             </TabsList>
             <TabsContent value="operators">
               <Table>
@@ -945,6 +947,26 @@ export function IncidentDetail() {
               ) : (
                 <p className="text-sm text-muted-foreground">No mesh scans recorded yet.</p>
               )}
+            </TabsContent>
+            <TabsContent value="map" className="flex flex-col gap-2">
+              {incident.boundaryPoints && incident.boundaryPoints.length >= 3 ? (
+                <p className="text-sm text-muted-foreground">
+                  Incident boundary. To change it, go to{' '}
+                  <Link to={`/incidents/${id}/edit`} className="text-primary hover:underline">
+                    Edit Incident
+                  </Link>
+                  .
+                </p>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  No boundary set yet.{' '}
+                  <Link to={`/incidents/${id}/edit`} className="text-primary hover:underline">
+                    Edit Incident
+                  </Link>{' '}
+                  to draw one.
+                </p>
+              )}
+              <MeshMap nodes={[]} links={[]} boundaryPoints={incident.boundaryPoints} />
             </TabsContent>
           </Tabs>
         </CardContent>

@@ -2,7 +2,6 @@ import { useEffect, useState, type FormEvent } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useParams } from 'react-router-dom'
 import { toast } from 'sonner'
-import { Crosshair, Loader2 } from 'lucide-react'
 import { api } from '@/lib/api'
 import type { Incident, IncidentBoundaryPoint } from '@/lib/types'
 import { Button } from '@/components/ui/button'
@@ -17,8 +16,6 @@ type FormState = {
   plannedStartTime: string
   plannedEndTime: string
   description: string
-  latitude: string
-  longitude: string
   boundaryPoints: IncidentBoundaryPoint[]
 }
 
@@ -28,8 +25,6 @@ const emptyForm: FormState = {
   plannedStartTime: '',
   plannedEndTime: '',
   description: '',
-  latitude: '',
-  longitude: '',
   boundaryPoints: [],
 }
 
@@ -44,6 +39,13 @@ function toLocalInput(iso: string | null): string {
   return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`
 }
 
+function centroid(points: IncidentBoundaryPoint[]): { lat: string; lng: string } | null {
+  if (points.length === 0) return null
+  const lat = points.reduce((sum, p) => sum + Number(p.latitude), 0) / points.length
+  const lng = points.reduce((sum, p) => sum + Number(p.longitude), 0) / points.length
+  return { lat: String(lat), lng: String(lng) }
+}
+
 export function IncidentEdit() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
@@ -51,26 +53,6 @@ export function IncidentEdit() {
   const [form, setForm] = useState<FormState>(emptyForm)
   const [loaded, setLoaded] = useState(false)
   const [canEdit, setCanEdit] = useState(true)
-  const [locating, setLocating] = useState(false)
-
-  function captureLocation() {
-    if (!navigator.geolocation) {
-      toast.error('This device does not support location capture')
-      return
-    }
-    setLocating(true)
-    navigator.geolocation.getCurrentPosition(
-      (pos) => {
-        setForm((f) => ({ ...f, latitude: String(pos.coords.latitude), longitude: String(pos.coords.longitude) }))
-        setLocating(false)
-      },
-      () => {
-        toast.error('Could not get your location — enter coordinates manually')
-        setLocating(false)
-      },
-      { enableHighAccuracy: true, timeout: 10000 },
-    )
-  }
 
   const { data: incident } = useQuery({
     queryKey: ['incidents', id],
@@ -82,8 +64,6 @@ export function IncidentEdit() {
         plannedStartTime: toLocalInput(data.plannedStartTime),
         plannedEndTime: toLocalInput(data.plannedEndTime),
         description: data.description ?? '',
-        latitude: data.latitude ?? '',
-        longitude: data.longitude ?? '',
         boundaryPoints: data.boundaryPoints ?? [],
       })
       setCanEdit(data.canEdit)
@@ -107,8 +87,6 @@ export function IncidentEdit() {
         plannedStartTime: toIso(form.plannedStartTime),
         plannedEndTime: toIso(form.plannedEndTime),
         description: form.description || null,
-        latitude: form.latitude || null,
-        longitude: form.longitude || null,
         boundaryPoints: form.boundaryPoints.length > 0 ? form.boundaryPoints : null,
       }),
     onSuccess: () => {
@@ -131,6 +109,8 @@ export function IncidentEdit() {
   }
 
   if (!loaded || !canEdit || incident?.status === 'CLOSED') return null
+
+  const center = centroid(form.boundaryPoints)
 
   return (
     <div className="flex flex-col gap-6">
@@ -180,35 +160,12 @@ export function IncidentEdit() {
           </div>
         </div>
         <div className="flex flex-col gap-1.5">
-          <div className="flex items-center justify-between">
-            <Label>Location on Map</Label>
-            <Button type="button" variant="ghost" size="sm" disabled={locating} onClick={captureLocation}>
-              {locating ? <Loader2 className="size-4 animate-spin" /> : <Crosshair className="size-4" />}
-              Capture My Location
-            </Button>
-          </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <Input
-              id="latitude"
-              value={form.latitude}
-              onChange={(e) => setForm({ ...form, latitude: e.target.value })}
-              placeholder="Latitude, e.g. 40.8915158"
-            />
-            <Input
-              id="longitude"
-              value={form.longitude}
-              onChange={(e) => setForm({ ...form, longitude: e.target.value })}
-              placeholder="Longitude, e.g. -74.1959347"
-            />
-          </div>
-        </div>
-        <div className="flex flex-col gap-1.5">
           <Label>Boundary</Label>
           <BoundaryMapEditor
             points={form.boundaryPoints}
             onChange={(boundaryPoints) => setForm((f) => ({ ...f, boundaryPoints }))}
-            centerLat={form.latitude || incident?.latitude}
-            centerLng={form.longitude || incident?.longitude}
+            centerLat={center?.lat}
+            centerLng={center?.lng}
           />
         </div>
         <div className="flex flex-col gap-1.5">

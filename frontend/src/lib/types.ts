@@ -145,8 +145,6 @@ export interface Incident {
   actualStartTime: string | null
   actualEndTime: string | null
   description: string | null
-  latitude: string | null
-  longitude: string | null
   boundaryPoints: IncidentBoundaryPoint[] | null
   createdAt: string
   createdByCallsign: string | null
@@ -277,6 +275,10 @@ export interface MeshLanClientSnapshot {
   nodeHostname: string
   deviceHostname: string
   deviceUrl: string | null
+  resourceId: number | null
+  resourceIdentifier: string | null
+  resourceOwnerCallsign: string | null
+  resourceCustomFields: Record<string, unknown> | null
 }
 
 export interface MeshSessionDetail {
