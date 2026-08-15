@@ -1,8 +1,12 @@
 package org.nj2pc.oem.config;
 
+import com.fasterxml.jackson.databind.ObjectMapper;
+import jakarta.servlet.http.HttpServletResponse;
+import org.nj2pc.oem.common.ErrorResponse;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.http.HttpMethod;
+import org.springframework.http.MediaType;
 import org.springframework.security.authentication.AuthenticationManager;
 import org.springframework.security.authentication.AuthenticationProvider;
 import org.springframework.security.authentication.dao.DaoAuthenticationProvider;
@@ -14,7 +18,9 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.userdetails.UserDetailsService;
 import org.springframework.security.crypto.bcrypt.BCryptPasswordEncoder;
 import org.springframework.security.crypto.password.PasswordEncoder;
+import org.springframework.security.web.AuthenticationEntryPoint;
 import org.springframework.security.web.SecurityFilterChain;
+import org.springframework.security.web.access.AccessDeniedHandler;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
@@ -65,12 +71,45 @@ public class SecurityConfig {
         return source;
     }
 
+    /** Missing/invalid/expired JWT — no authentication at all. Without this explicitly
+     * configured, Spring Security's fallback entry point (Http403ForbiddenEntryPoint) returns a
+     * bare 403 for this case instead of 401, which is indistinguishable from a genuine
+     * authenticated-but-forbidden response and breaks the frontend's "401 -> redirect to login"
+     * handling. */
     @Bean
-    public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
+    public AuthenticationEntryPoint authenticationEntryPoint(ObjectMapper objectMapper) {
+        return (request, response, authException) -> writeError(response, objectMapper,
+                HttpServletResponse.SC_UNAUTHORIZED, "Unauthorized", "Authentication required");
+    }
+
+    /** Authenticated, but denied — e.g. a future filter-chain-level `.hasRole(...)` rule.
+     * Method-level `@PreAuthorize`/`PermissionGuard` denials already return 403 via
+     * GlobalExceptionHandler; this only covers denials Spring Security itself raises before a
+     * controller method is even invoked. */
+    @Bean
+    public AccessDeniedHandler accessDeniedHandler(ObjectMapper objectMapper) {
+        return (request, response, accessDeniedException) -> writeError(response, objectMapper,
+                HttpServletResponse.SC_FORBIDDEN, "Forbidden", "You do not have permission to perform this action");
+    }
+
+    private void writeError(HttpServletResponse response, ObjectMapper objectMapper, int status, String error,
+                             String message) throws java.io.IOException {
+        response.setStatus(status);
+        response.setContentType(MediaType.APPLICATION_JSON_VALUE);
+        response.getWriter().write(objectMapper.writeValueAsString(ErrorResponse.of(status, error, message)));
+    }
+
+    @Bean
+    public SecurityFilterChain securityFilterChain(HttpSecurity http, AuthenticationEntryPoint authenticationEntryPoint,
+                                                     AccessDeniedHandler accessDeniedHandler) throws Exception {
         http
                 .csrf(csrf -> csrf.disable())
                 .cors(cors -> {})
                 .sessionManagement(sm -> sm.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                .exceptionHandling(ex -> ex
+                        .authenticationEntryPoint(authenticationEntryPoint)
+                        .accessDeniedHandler(accessDeniedHandler)
+                )
                 .authorizeHttpRequests(auth -> auth
                         .requestMatchers("/api/auth/**").permitAll()
                         .requestMatchers("/actuator/health").permitAll()
