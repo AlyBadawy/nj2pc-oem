@@ -28,7 +28,7 @@ import type {
   ResourceLastLocation,
   ResourceType,
 } from '@/lib/types'
-import { LINK_TYPE_LABEL } from '@/lib/meshVisual'
+import { LINK_TYPE_LABEL, resolveLinkChannel } from '@/lib/meshVisual'
 import { computeIncidentBounds, isFarFromIncident } from '@/lib/meshIncidentArea'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
@@ -696,6 +696,16 @@ export function MeshSessionDetail() {
     }
   })
 
+  const nodeByHostname = new Map(nodes.map((n) => [n.hostname.toLowerCase(), n]))
+  function linkTypeLabel(l: MeshLinkSnapshot): string {
+    const channel = resolveLinkChannel(
+      l.linkTypeNormalized,
+      nodeByHostname.get(l.fromHostname.toLowerCase())?.channel,
+      nodeByHostname.get(l.toHostname.toLowerCase())?.channel,
+    )
+    return channel ? `${LINK_TYPE_LABEL[l.linkTypeNormalized]} (${channel})` : LINK_TYPE_LABEL[l.linkTypeNormalized]
+  }
+
   const lanClients: MeshLanClientSnapshot[] = session.lanClients.map((c) => {
     const liveMatch = resourceByIdentifier.get(c.deviceHostname.toLowerCase())
     return {
@@ -949,7 +959,7 @@ export function MeshSessionDetail() {
                   <TableCell>{l.fromHostname}</TableCell>
                   <TableCell>{l.toHostname}</TableCell>
                   <TableCell>
-                    <Badge variant="outline">{LINK_TYPE_LABEL[l.linkTypeNormalized]}</Badge>
+                    <Badge variant="outline">{linkTypeLabel(l)}</Badge>
                   </TableCell>
                   <TableCell className="text-muted-foreground text-sm">{l.linkQualityStatus || '—'}</TableCell>
                   <TableCell>{l.rxPercent || '—'}</TableCell>
