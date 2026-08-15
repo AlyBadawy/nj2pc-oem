@@ -19,6 +19,9 @@ metadata:
     homelab/stack: nj2pc-oem
   annotations:
     nginx.ingress.kubernetes.io/ssl-redirect: "false"
+    # Same reasoning as ingress.yaml: the mesh-scan PDF export's captured map image can exceed
+    # nginx's default 1m body size.
+    nginx.ingress.kubernetes.io/proxy-body-size: "20m"
 spec:
   ingressClassName: nginx
   rules:

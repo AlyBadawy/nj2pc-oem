@@ -9,6 +9,9 @@ metadata:
   annotations:
     nginx.ingress.kubernetes.io/ssl-redirect: "true"
     nginx.ingress.kubernetes.io/force-ssl-redirect: "true"
+    # Default (1m) is too small for the mesh-scan PDF export's captured map image, a base64 PNG/
+    # JPEG POSTed to the backend — a single scan's image alone has hit ~1.1MB.
+    nginx.ingress.kubernetes.io/proxy-body-size: "20m"
 spec:
   ingressClassName: nginx
   rules:

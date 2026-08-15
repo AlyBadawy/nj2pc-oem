@@ -1,9 +1,16 @@
 import type L from 'leaflet'
 import { drawMeshOverlay, type MeshCanvasDrawInput } from '@/lib/meshCanvasDraw'
 
+// JPEG, not PNG: this is photographic tile imagery, not flat UI graphics, so JPEG compresses it
+// far smaller for the same visual quality — a real capture ran ~1.1MB as PNG (large enough to
+// trip nginx's default request body size limit on its own) vs. well under 300KB as JPEG at this
+// quality.
+const EXPORT_IMAGE_MIME = 'image/jpeg'
+const EXPORT_IMAGE_QUALITY = 0.85
+
 /** Composites the live Leaflet map (whatever tiles are currently loaded, at the current pan/zoom
  * the operator is looking at) plus our own overlay (links/nodes/proximity badges/boundary) into a
- * single PNG data URL — used for the mesh-scan PDF export so the map in the PDF matches what was
+ * single JPEG data URL — used for the mesh-scan PDF export so the map in the PDF matches what was
  * actually on screen, rather than a freshly-recomputed view.
  *
  * Tiles are read directly from the DOM (`.leaflet-tile-loaded` `<img>` elements) via
@@ -48,5 +55,5 @@ export function captureLiveLeafletSnapshot(map: L.Map, container: HTMLElement, i
     return [point.x, point.y]
   })
 
-  return canvas.toDataURL('image/png')
+  return canvas.toDataURL(EXPORT_IMAGE_MIME, EXPORT_IMAGE_QUALITY)
 }
