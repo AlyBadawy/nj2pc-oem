@@ -46,3 +46,22 @@ export function linkColor(linkType: MeshLinkType, channel: string | null): strin
   if (linkType === 'RF' && channel) return channelColor(channel)
   return LINK_TYPE_COLOR[linkType]
 }
+
+/** Resolves an RF link's channel from its two endpoint nodes' own `channel` fields (a link
+ * snapshot doesn't carry a channel itself — channel is a property of a node's radio). If both
+ * endpoints report a channel and agree, that's the link's channel. If they disagree — a scan
+ * artifact, or a node that changed channel mid-scan — we don't guess which side is right; the
+ * link is treated as having no resolved channel rather than silently picking one endpoint's
+ * answer. If only one endpoint reports a channel, that's used as the best available answer.
+ * Non-RF link types have no channel by definition. */
+export function resolveLinkChannel(
+  linkType: MeshLinkType,
+  fromChannel: string | null | undefined,
+  toChannel: string | null | undefined,
+): string | null {
+  if (linkType !== 'RF') return null
+  const from = fromChannel ?? null
+  const to = toChannel ?? null
+  if (from && to) return from === to ? from : null
+  return from ?? to
+}

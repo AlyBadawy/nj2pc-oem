@@ -1,5 +1,5 @@
 import type { IncidentBoundaryPoint, MeshLinkSnapshot, MeshNodeSnapshot } from '@/lib/types'
-import { linkColor } from '@/lib/meshVisual'
+import { linkColor, resolveLinkChannel } from '@/lib/meshVisual'
 import { findColocatedGroups } from '@/lib/meshProximity'
 
 export type MeshCanvasNode = MeshNodeSnapshot & { offSite?: boolean }
@@ -65,7 +65,8 @@ export function drawMeshOverlay(ctx: CanvasRenderingContext2D, input: MeshCanvas
     const fromNode = nodesByHost.get(link.fromHostname.toLowerCase())
     const toNode = nodesByHost.get(link.toHostname.toLowerCase())
     const involvesOffSite = !!fromNode?.offSite || !!toNode?.offSite
-    ctx.strokeStyle = linkColor(link.linkTypeNormalized, fromNode?.channel ?? null)
+    const linkChannel = resolveLinkChannel(link.linkTypeNormalized, fromNode?.channel, toNode?.channel)
+    ctx.strokeStyle = linkColor(link.linkTypeNormalized, linkChannel)
     ctx.lineWidth = involvesOffSite ? 1.5 : 2
     ctx.globalAlpha = involvesOffSite ? 0.45 : 1
     ctx.beginPath()
@@ -74,12 +75,12 @@ export function drawMeshOverlay(ctx: CanvasRenderingContext2D, input: MeshCanvas
     ctx.stroke()
     ctx.globalAlpha = 1
 
-    if (link.linkTypeNormalized === 'RF' && fromNode?.channel) {
+    if (link.linkTypeNormalized === 'RF' && linkChannel) {
       const midX = (from[0] + to[0]) / 2
       const midY = (from[1] + to[1]) / 2
       ctx.font = '10px sans-serif'
       ctx.textAlign = 'center'
-      const label = `ch ${fromNode.channel}`
+      const label = `ch ${linkChannel}`
       const metrics = ctx.measureText(label)
       ctx.fillStyle = '#F7F5F0'
       ctx.fillRect(midX - metrics.width / 2 - 3, midY - 12, metrics.width + 6, 14)

@@ -2,7 +2,7 @@ import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 're
 import L from 'leaflet'
 import { Maximize2, Minimize2 } from 'lucide-react'
 import type { IncidentBoundaryPoint, MeshLinkSnapshot, MeshNodeSnapshot } from '@/lib/types'
-import { linkColor, LINK_TYPE_LABEL } from '@/lib/meshVisual'
+import { linkColor, LINK_TYPE_LABEL, resolveLinkChannel } from '@/lib/meshVisual'
 import { findColocatedGroups } from '@/lib/meshProximity'
 import { captureLiveLeafletSnapshot } from '@/lib/meshMapCapture'
 import { computeIncidentBounds } from '@/lib/meshIncidentArea'
@@ -257,15 +257,14 @@ export const MeshMap = forwardRef<MeshMapHandle, Props>(function MeshMap({ nodes
       const fromNode = nodesByHost.get(link.fromHostname.toLowerCase())
       const toNode = nodesByHost.get(link.toHostname.toLowerCase())
       const involvesOffSite = !!fromNode?.offSite || !!toNode?.offSite
+      const linkChannel = resolveLinkChannel(link.linkTypeNormalized, fromNode?.channel, toNode?.channel)
       L.polyline([from, to], {
-        color: linkColor(link.linkTypeNormalized, fromNode?.channel ?? null),
+        color: linkColor(link.linkTypeNormalized, linkChannel),
         weight: involvesOffSite ? 2 : 3,
         opacity: involvesOffSite ? 0.45 : 1,
       })
         .addTo(map)
-        .bindTooltip(
-          linkTooltip(link, fromNode?.channel ?? null, fromNode?.band ?? null, !!fromNode?.offSite, !!toNode?.offSite),
-        )
+        .bindTooltip(linkTooltip(link, linkChannel, fromNode?.band ?? null, !!fromNode?.offSite, !!toNode?.offSite))
     }
 
     // Default view prioritizes the incident's own area (boundary, or on-site nodes if no
