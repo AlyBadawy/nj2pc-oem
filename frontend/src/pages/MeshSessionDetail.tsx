@@ -8,15 +8,18 @@ import {
   ChevronsUpDown,
   Crosshair,
   FileDown,
+  ListPlus,
   Loader2,
   MapPin,
   PackagePlus,
   Pencil,
+  PlusCircle,
   Rocket,
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { api } from '@/lib/api'
 import type {
+  DeploymentLocation,
   Incident,
   MeshLanClientSnapshot,
   MeshLinkSnapshot,
@@ -25,7 +28,6 @@ import type {
   MeshSessionDetail as MeshSessionDetailType,
   Resource,
   ResourceCheckIn,
-  ResourceLastLocation,
   ResourceType,
 } from '@/lib/types'
 import { LINK_TYPE_LABEL, resolveLinkChannel } from '@/lib/meshVisual'
@@ -38,18 +40,14 @@ import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 import { CustomFieldInputs, type CustomFieldValues } from '@/components/CustomFieldInputs'
+import { LocationPinMap } from '@/components/LocationPinMap'
 import { MeshMap, type MeshMapHandle } from '@/components/MeshMap'
 import { MeshMapLegend } from '@/components/MeshMapLegend'
 
 type PdfOrientation = 'PORTRAIT' | 'LANDSCAPE'
 type PdfLinkFilter = 'ALL' | 'RF'
-
-type NodeOverride = {
-  latitude?: string | null
-  longitude?: string | null
-}
 
 /** Best-effort prefill from scraped node data into a resource type's custom fields, matched by
  * loose name substring — exact field names/schemas are admin-defined and vary, this just saves
@@ -188,80 +186,99 @@ function AddGearDialog({
   )
 }
 
-function DeployDialog({
-  node,
+type DeployTarget = {
+  resourceId: number
+  resourceIdentifier: string | null
+}
+
+type Coords = { lat: string; lng: string }
+type GeoStatus = 'idle' | 'locating' | 'granted' | 'denied' | 'unsupported'
+
+/** Deploys a piece of gear (mesh node or LAN device) to a deployment location — never raw GPS
+ * coordinates directly, so every deployment on an incident stays organized under the same
+ * location model used on the Gear & Equipment page. `suggestedLocation`, when present (a LAN
+ * device whose "connected via" node is itself already deployed), preselects that location so the
+ * common case — "put this on the same site as the node it's plugged into" — is just a confirm. */
+function DeployToLocationDialog({
+  target,
   incidentId,
+  suggestedLocation,
   open,
   onOpenChange,
   onDeployed,
 }: {
-  node: MeshNodeSnapshot | null
+  target: DeployTarget | null
   incidentId: string | undefined
+  suggestedLocation?: { id: number; name: string } | null
   open: boolean
   onOpenChange: (open: boolean) => void
-  onDeployed: (hostname: string, latitude: string | null, longitude: string | null) => void
+  onDeployed: () => void
 }) {
-  const [latitude, setLatitude] = useState('')
-  const [longitude, setLongitude] = useState('')
+  const [locationMode, setLocationMode] = useState<'pick' | 'create'>('pick')
+  const [pickLocationId, setPickLocationId] = useState('')
+  const [newLocationName, setNewLocationName] = useState('')
+  const [newLocationNotes, setNewLocationNotes] = useState('')
+  const [coords, setCoords] = useState<Coords | null>(null)
+  const [geoStatus, setGeoStatus] = useState<GeoStatus>('idle')
   const [notes, setNotes] = useState('')
-  const [locating, setLocating] = useState(false)
   const [lastOpenedFor, setLastOpenedFor] = useState<number | null>(null)
 
-  const { data: lastLocation } = useQuery({
-    queryKey: ['resources', node?.resourceId, 'last-location'],
-    queryFn: async () => {
-      const res = await api.get<ResourceLastLocation>(`/api/resources/${node?.resourceId}/last-location`, {
-        validateStatus: (status) => status === 200 || status === 204,
-      })
-      return res.status === 204 ? null : res.data
-    },
-    enabled: open && !!node?.resourceId,
+  const { data: locations } = useQuery({
+    queryKey: ['incidents', incidentId, 'deployment-locations'],
+    queryFn: async () => (await api.get<DeploymentLocation[]>(`/api/incidents/${incidentId}/deployment-locations`)).data,
+    enabled: open,
   })
 
-  if (open && node?.resourceId && lastOpenedFor !== node.resourceId) {
-    setLastOpenedFor(node.resourceId)
-    // Defensive: only prefill from the node's own scraped location if it actually looks like a
-    // coordinate — older saved sessions may have non-numeric placeholder text baked in from
-    // before the scraper validated this (AREDN renders "Unknown" literally when no GPS is set).
-    const isCoordinate = (v: string | null | undefined) => !!v && /^-?\d+(\.\d+)?$/.test(v)
-    const fallbackLat = isCoordinate(node.latitude) ? node.latitude : ''
-    const fallbackLng = isCoordinate(node.longitude) ? node.longitude : ''
-    setLatitude(lastLocation?.latitude ?? fallbackLat ?? '')
-    setLongitude(lastLocation?.longitude ?? fallbackLng ?? '')
+  if (open && target && lastOpenedFor !== target.resourceId) {
+    setLastOpenedFor(target.resourceId)
+    setLocationMode('pick')
+    setPickLocationId(suggestedLocation ? String(suggestedLocation.id) : '')
+    setNewLocationName('')
+    setNewLocationNotes('')
+    setCoords(null)
+    setGeoStatus('idle')
     setNotes('')
   }
 
   function captureLocation() {
     if (!navigator.geolocation) {
-      toast.error('This device does not support location capture')
+      setGeoStatus('unsupported')
       return
     }
-    setLocating(true)
+    setGeoStatus('locating')
     navigator.geolocation.getCurrentPosition(
       (pos) => {
-        setLatitude(String(pos.coords.latitude))
-        setLongitude(String(pos.coords.longitude))
-        setLocating(false)
+        setCoords({ lat: String(pos.coords.latitude), lng: String(pos.coords.longitude) })
+        setGeoStatus('granted')
       },
-      () => {
-        toast.error('Could not get your location — enter coordinates manually')
-        setLocating(false)
-      },
+      () => setGeoStatus('denied'),
       { enableHighAccuracy: true, timeout: 10000 },
     )
   }
 
   const deployMutation = useMutation({
-    mutationFn: async () =>
-      api.post<ResourceCheckIn>(`/api/incidents/${incidentId}/resource-checkins`, {
-        resourceId: node?.resourceId,
+    mutationFn: async () => {
+      let deploymentLocationId = locationMode === 'pick' ? Number(pickLocationId) : null
+      if (locationMode === 'create') {
+        const location = (
+          await api.post<DeploymentLocation>(`/api/incidents/${incidentId}/deployment-locations`, {
+            name: newLocationName,
+            latitude: coords?.lat ?? null,
+            longitude: coords?.lng ?? null,
+            notes: newLocationNotes || null,
+          })
+        ).data
+        deploymentLocationId = location.id
+      }
+      return api.post<ResourceCheckIn>(`/api/incidents/${incidentId}/resource-checkins`, {
+        resourceId: target?.resourceId,
         notes: notes || null,
-        latitude: latitude || null,
-        longitude: longitude || null,
-      }),
+        deploymentLocationId,
+      })
+    },
     onSuccess: () => {
-      if (node) onDeployed(node.hostname, latitude || null, longitude || null)
-      toast.success(`${node?.resourceIdentifier} deployed`)
+      onDeployed()
+      toast.success(`${target?.resourceIdentifier} deployed`)
       onOpenChange(false)
     },
     onError: () => toast.error('Failed to deploy'),
@@ -276,38 +293,128 @@ function DeployDialog({
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="sm:max-w-md">
         <DialogHeader>
-          <DialogTitle>Deploy {node?.resourceIdentifier}</DialogTitle>
+          <DialogTitle>Deploy {target?.resourceIdentifier}</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="flex flex-col gap-3">
-          {lastLocation && (
+          {suggestedLocation && (
             <p className="text-xs text-muted-foreground">
-              Prefilled from its last deployment ({lastLocation.incidentName},{' '}
-              {new Date(lastLocation.checkedInAt).toLocaleDateString()}) — not the node's own reported GPS, which
-              can go stale.
+              Suggested: same location as its connected node — {suggestedLocation.name}.
             </p>
           )}
-          <div className="flex items-center justify-between">
-            <Label>Location</Label>
-            <Button type="button" variant="ghost" size="sm" disabled={locating} onClick={captureLocation}>
-              {locating ? <Loader2 className="size-4 animate-spin" /> : <Crosshair className="size-4" />}
-              Capture My Location
+          <div className="flex items-center rounded-md border p-0.5 w-fit">
+            <Button type="button" variant={locationMode === 'pick' ? 'default' : 'ghost'} size="sm" onClick={() => setLocationMode('pick')}>
+              <ListPlus className="size-4" />
+              Existing Location
+            </Button>
+            <Button type="button" variant={locationMode === 'create' ? 'default' : 'ghost'} size="sm" onClick={() => setLocationMode('create')}>
+              <PlusCircle className="size-4" />
+              New Location
             </Button>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-            <Input value={latitude} onChange={(e) => setLatitude(e.target.value)} placeholder="Latitude" />
-            <Input value={longitude} onChange={(e) => setLongitude(e.target.value)} placeholder="Longitude" />
-          </div>
+
+          {locationMode === 'pick' ? (
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="deployLocationId">Deployment Location</Label>
+              <Select value={pickLocationId} onValueChange={setPickLocationId}>
+                <SelectTrigger id="deployLocationId">
+                  <SelectValue placeholder={locations?.length ? 'Select a location' : 'No locations yet on this incident'} />
+                </SelectTrigger>
+                <SelectContent>
+                  {locations?.map((l) => (
+                    <SelectItem key={l.id} value={String(l.id)}>
+                      {l.name} ({l.gearCount} deployed)
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          ) : (
+            <>
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="deployNewLocationName">Location Name</Label>
+                <Input
+                  id="deployNewLocationName"
+                  value={newLocationName}
+                  onChange={(e) => setNewLocationName(e.target.value)}
+                  placeholder="e.g. Main Stage, Repeater Site A"
+                  required
+                />
+              </div>
+              <Button type="button" variant="outline" disabled={geoStatus === 'locating'} onClick={captureLocation}>
+                {geoStatus === 'locating' ? <Loader2 className="size-4 animate-spin" /> : <Crosshair className="size-4" />}
+                Capture My Location
+              </Button>
+              {geoStatus === 'denied' && (
+                <p className="text-sm text-destructive">Location access was denied. Place the pin manually below.</p>
+              )}
+              {geoStatus === 'unsupported' && (
+                <p className="text-sm text-destructive">This device doesn't support location capture. Place the pin manually below.</p>
+              )}
+              <LocationPinMap latitude={coords?.lat ?? ''} longitude={coords?.lng ?? ''} onChange={(lat, lng) => setCoords({ lat, lng })} />
+              <div className="flex flex-col gap-1.5">
+                <Label htmlFor="deployNewLocationNotes">Location Notes</Label>
+                <Textarea id="deployNewLocationNotes" value={newLocationNotes} onChange={(e) => setNewLocationNotes(e.target.value)} />
+              </div>
+            </>
+          )}
+
           <div className="flex flex-col gap-1.5">
             <Label htmlFor="deployNotes">Notes</Label>
             <Textarea id="deployNotes" value={notes} onChange={(e) => setNotes(e.target.value)} />
           </div>
           <DialogFooter>
-            <Button type="submit" disabled={deployMutation.isPending}>
+            <Button
+              type="submit"
+              disabled={
+                deployMutation.isPending || (locationMode === 'pick' ? !pickLocationId : !newLocationName)
+              }
+            >
               {deployMutation.isPending && <Loader2 className="size-4 animate-spin" />}
               Deploy
             </Button>
           </DialogFooter>
         </form>
+      </DialogContent>
+    </Dialog>
+  )
+}
+
+/** Shown right after adding a LAN device as gear, only when the node it connects via is itself
+ * already deployed somewhere on this incident — a one-tap way to place the new gear at the same
+ * site rather than making the operator repeat the location picker for the common case. */
+function ConfirmSameLocationDialog({
+  target,
+  open,
+  onOpenChange,
+  onConfirm,
+  pending,
+}: {
+  target: { resourceIdentifier: string; locationName: string; nodeHostname: string } | null
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  onConfirm: () => void
+  pending: boolean
+}) {
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-sm">
+        <DialogHeader>
+          <DialogTitle>Deploy to the same location?</DialogTitle>
+          <DialogDescription>
+            {target?.nodeHostname} (the node {target?.resourceIdentifier} connects via) is deployed at{' '}
+            <span className="font-medium text-foreground">{target?.locationName}</span>. Deploy {target?.resourceIdentifier}{' '}
+            there too?
+          </DialogDescription>
+        </DialogHeader>
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>
+            Not now
+          </Button>
+          <Button disabled={pending} onClick={onConfirm}>
+            {pending && <Loader2 className="size-4 animate-spin" />}
+            Deploy Here
+          </Button>
+        </DialogFooter>
       </DialogContent>
     </Dialog>
   )
@@ -612,10 +719,17 @@ export function MeshSessionDetail() {
   const navigate = useNavigate()
   const queryClient = useQueryClient()
 
-  const [overrides, setOverrides] = useState<Record<string, NodeOverride>>({})
   const [addGearNode, setAddGearNode] = useState<MeshNodeSnapshot | null>(null)
   const [addGearLanDevice, setAddGearLanDevice] = useState<MeshLanClientSnapshot | null>(null)
-  const [deployNode, setDeployNode] = useState<MeshNodeSnapshot | null>(null)
+  const [deployTarget, setDeployTarget] = useState<DeployTarget | null>(null)
+  const [deploySuggestedLocation, setDeploySuggestedLocation] = useState<{ id: number; name: string } | null>(null)
+  const [confirmSameLocation, setConfirmSameLocation] = useState<{
+    resourceId: number
+    resourceIdentifier: string
+    locationId: number
+    locationName: string
+    nodeHostname: string
+  } | null>(null)
   const [editDeployCheckIn, setEditDeployCheckIn] = useState<ResourceCheckIn | null>(null)
   const [pdfDialogOpen, setPdfDialogOpen] = useState(false)
   const [excludedLinkTypes, setExcludedLinkTypes] = useState<Set<MeshLinkType>>(new Set())
@@ -671,6 +785,20 @@ export function MeshSessionDetail() {
     return sorted
   }, [session, excludedLinkTypes, excludedLinkStatuses, linkSort])
 
+  const confirmDeployMutation = useMutation({
+    mutationFn: async () =>
+      api.post(`/api/incidents/${id}/resource-checkins`, {
+        resourceId: confirmSameLocation?.resourceId,
+        deploymentLocationId: confirmSameLocation?.locationId,
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['incidents', id, 'resource-checkins'] })
+      toast.success(`${confirmSameLocation?.resourceIdentifier} deployed`)
+      setConfirmSameLocation(null)
+    },
+    onError: () => toast.error('Failed to deploy'),
+  })
+
   if (!session) return null
 
   const openCheckIns = (resourceCheckIns ?? []).filter((c) => !c.checkedOutAt)
@@ -678,7 +806,6 @@ export function MeshSessionDetail() {
   const openCheckInByResource = new Map(openCheckIns.map((c) => [c.resourceId, c]))
 
   const nodes: (MeshNodeSnapshot & { offSite?: boolean })[] = session.nodes.map((n) => {
-    const o = overrides[n.hostname.toLowerCase()]
     const liveMatch = resourceByIdentifier.get(n.hostname.toLowerCase())
     const resourceId = liveMatch?.id ?? null
     const deployedHere = resourceId ? openResourceIds.has(resourceId) : false
@@ -690,8 +817,6 @@ export function MeshSessionDetail() {
       resourceIdentifier: liveMatch?.identifier ?? null,
       resourceOwnerCallsign: liveMatch?.ownerCallsign ?? null,
       resourceCustomFields: liveMatch?.customFields ?? null,
-      latitude: o?.latitude !== undefined ? o.latitude : n.latitude,
-      longitude: o?.longitude !== undefined ? o.longitude : n.longitude,
       offSite,
     }
   })
@@ -717,8 +842,14 @@ export function MeshSessionDetail() {
     }
   })
 
-  function applyOverride(hostname: string, patch: NodeOverride) {
-    setOverrides((prev) => ({ ...prev, [hostname.toLowerCase()]: { ...prev[hostname.toLowerCase()], ...patch } }))
+  /** The connected-via node's own deployment, if any — used both to render a link in the
+   * "Connected Via" column and to suggest/offer "deploy at the same location" for LAN devices. */
+  function connectedNodeDeployment(nodeHostname: string) {
+    const node = nodeByHostname.get(nodeHostname.toLowerCase())
+    if (!node?.resourceId) return null
+    const openCheckIn = openCheckInByResource.get(node.resourceId)
+    if (!openCheckIn?.deploymentLocationId || !openCheckIn.deploymentLocationName) return null
+    return { id: openCheckIn.deploymentLocationId, name: openCheckIn.deploymentLocationName }
   }
 
   function toggleLinkType(type: MeshLinkType) {
@@ -861,7 +992,14 @@ export function MeshSessionDetail() {
                           </Button>
                         )}
                         {n.resourceId && !deployedHere && (
-                          <Button variant="ghost" size="sm" onClick={() => setDeployNode(n)}>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              setDeployTarget({ resourceId: n.resourceId as number, resourceIdentifier: n.resourceIdentifier })
+                              setDeploySuggestedLocation(null)
+                            }}
+                          >
                             <Rocket className="size-4" />
                             Deploy
                           </Button>
@@ -991,37 +1129,84 @@ export function MeshSessionDetail() {
                   </TableCell>
                 </TableRow>
               )}
-              {lanClients.map((c) => (
-                <TableRow key={c.id}>
-                  <TableCell className="font-medium">
-                    {c.resourceId ? (
-                      <Button variant="link" size="sm" className="h-auto p-0" onClick={() => navigate(`/resources/${c.resourceId}`)}>
-                        {c.resourceIdentifier}
-                      </Button>
-                    ) : (
-                      c.deviceHostname
-                    )}
-                  </TableCell>
-                  <TableCell>{c.nodeHostname}</TableCell>
-                  <TableCell>
-                    {c.deviceUrl ? (
-                      <a href={c.deviceUrl} target="_blank" rel="noreferrer" className="text-primary hover:underline">
-                        {c.deviceUrl}
-                      </a>
-                    ) : (
-                      '—'
-                    )}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    {!c.resourceId && (
-                      <Button variant="ghost" size="sm" onClick={() => setAddGearLanDevice(c)}>
-                        <PackagePlus className="size-4" />
-                        Add as Gear
-                      </Button>
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))}
+              {lanClients.map((c) => {
+                const connectedNode = nodeByHostname.get(c.nodeHostname.toLowerCase())
+                const lanDeployedHere = c.resourceId ? openResourceIds.has(c.resourceId) : false
+                const lanOpenCheckIn = c.resourceId ? openCheckInByResource.get(c.resourceId) : undefined
+                const connectedLocation = connectedNodeDeployment(c.nodeHostname)
+                return (
+                  <TableRow key={c.id}>
+                    <TableCell className="font-medium">
+                      {c.resourceId ? (
+                        <Button variant="link" size="sm" className="h-auto p-0" onClick={() => navigate(`/resources/${c.resourceId}`)}>
+                          {c.resourceIdentifier}
+                        </Button>
+                      ) : (
+                        c.deviceHostname
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {connectedNode?.resourceId ? (
+                        <Button
+                          variant="link"
+                          size="sm"
+                          className="h-auto p-0"
+                          onClick={() => navigate(`/resources/${connectedNode.resourceId}`)}
+                        >
+                          {connectedNode.resourceIdentifier}
+                        </Button>
+                      ) : (
+                        c.nodeHostname
+                      )}
+                    </TableCell>
+                    <TableCell>
+                      {c.deviceUrl ? (
+                        <a href={c.deviceUrl} target="_blank" rel="noreferrer" className="text-primary hover:underline">
+                          {c.deviceUrl}
+                        </a>
+                      ) : (
+                        '—'
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <div className="flex items-center justify-end gap-2">
+                        {!c.resourceId && (
+                          <Button variant="ghost" size="sm" onClick={() => setAddGearLanDevice(c)}>
+                            <PackagePlus className="size-4" />
+                            Add as Gear
+                          </Button>
+                        )}
+                        {c.resourceId && !lanDeployedHere && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => {
+                              setDeployTarget({ resourceId: c.resourceId as number, resourceIdentifier: c.resourceIdentifier })
+                              setDeploySuggestedLocation(connectedLocation)
+                            }}
+                          >
+                            <Rocket className="size-4" />
+                            Deploy
+                          </Button>
+                        )}
+                        {c.resourceId && lanDeployedHere && (
+                          <>
+                            <Badge variant="default">Deployed</Badge>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => lanOpenCheckIn && setEditDeployCheckIn(lanOpenCheckIn)}
+                            >
+                              <Pencil className="size-4" />
+                              Edit
+                            </Button>
+                          </>
+                        )}
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                )
+              })}
             </TableBody>
           </Table>
         </CardContent>
@@ -1037,17 +1222,36 @@ export function MeshSessionDetail() {
             setAddGearLanDevice(null)
           }
         }}
-        onCreated={() => queryClient.invalidateQueries({ queryKey: ['resources'] })}
-      />
-      <DeployDialog
-        node={deployNode}
-        incidentId={id}
-        open={!!deployNode}
-        onOpenChange={(open) => !open && setDeployNode(null)}
-        onDeployed={(hostname, latitude, longitude) => {
-          applyOverride(hostname, { latitude, longitude })
-          queryClient.invalidateQueries({ queryKey: ['incidents', id, 'resource-checkins'] })
+        onCreated={(resource) => {
+          queryClient.invalidateQueries({ queryKey: ['resources'] })
+          if (addGearLanDevice) {
+            const suggested = connectedNodeDeployment(addGearLanDevice.nodeHostname)
+            if (suggested) {
+              setConfirmSameLocation({
+                resourceId: resource.id,
+                resourceIdentifier: resource.identifier,
+                locationId: suggested.id,
+                locationName: suggested.name,
+                nodeHostname: addGearLanDevice.nodeHostname,
+              })
+            }
+          }
         }}
+      />
+      <DeployToLocationDialog
+        target={deployTarget}
+        incidentId={id}
+        suggestedLocation={deploySuggestedLocation}
+        open={!!deployTarget}
+        onOpenChange={(open) => !open && setDeployTarget(null)}
+        onDeployed={() => queryClient.invalidateQueries({ queryKey: ['incidents', id, 'resource-checkins'] })}
+      />
+      <ConfirmSameLocationDialog
+        target={confirmSameLocation}
+        open={!!confirmSameLocation}
+        onOpenChange={(open) => !open && setConfirmSameLocation(null)}
+        onConfirm={() => confirmDeployMutation.mutate()}
+        pending={confirmDeployMutation.isPending}
       />
       <EditDeploymentDialog
         checkIn={editDeployCheckIn}
