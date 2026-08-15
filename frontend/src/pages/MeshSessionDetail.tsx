@@ -792,12 +792,10 @@ export function MeshSessionDetail() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Hostname</TableHead>
-                <TableHead>Model</TableHead>
+                <TableHead>Hostname / Gear</TableHead>
                 <TableHead>Firmware</TableHead>
                 <TableHead>Channel</TableHead>
                 <TableHead>Band</TableHead>
-                <TableHead>Gear</TableHead>
                 <TableHead>Location</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
@@ -811,26 +809,22 @@ export function MeshSessionDetail() {
                 return (
                   <TableRow key={n.id}>
                     <TableCell className="font-medium">
-                      {n.hostname}
+                      {n.resourceId ? (
+                        <Button variant="link" size="sm" className="h-auto p-0" onClick={() => navigate(`/resources/${n.resourceId}`)}>
+                          {n.resourceIdentifier}
+                        </Button>
+                      ) : (
+                        n.hostname
+                      )}
                       {n.isLocalNode && (
                         <Badge variant="secondary" className="ml-2">
                           Local
                         </Badge>
                       )}
                     </TableCell>
-                    <TableCell>{n.model || '—'}</TableCell>
                     <TableCell>{n.firmwareVersion || '—'}</TableCell>
                     <TableCell>{n.channel || '—'}</TableCell>
                     <TableCell>{n.band || '—'}</TableCell>
-                    <TableCell>
-                      {n.resourceId ? (
-                        <Button variant="link" size="sm" className="h-auto p-0" onClick={() => navigate(`/resources/${n.resourceId}`)}>
-                          {n.resourceIdentifier}
-                        </Button>
-                      ) : (
-                        '—'
-                      )}
-                    </TableCell>
                     <TableCell className="text-sm whitespace-nowrap">
                       {deployedHere && openCheckIn?.offSite ? (
                         <Badge variant="secondary">Off-site</Badge>
@@ -973,39 +967,37 @@ export function MeshSessionDetail() {
           <Table>
             <TableHeader>
               <TableRow>
-                <TableHead>Device Hostname</TableHead>
+                <TableHead>Device Hostname / Gear</TableHead>
                 <TableHead>Connected Via (Node)</TableHead>
                 <TableHead>URL</TableHead>
-                <TableHead>Gear</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               {lanClients.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center text-muted-foreground">
+                  <TableCell colSpan={4} className="text-center text-muted-foreground">
                     No LAN devices recorded.
                   </TableCell>
                 </TableRow>
               )}
               {lanClients.map((c) => (
                 <TableRow key={c.id}>
-                  <TableCell className="font-medium">{c.deviceHostname}</TableCell>
+                  <TableCell className="font-medium">
+                    {c.resourceId ? (
+                      <Button variant="link" size="sm" className="h-auto p-0" onClick={() => navigate(`/resources/${c.resourceId}`)}>
+                        {c.resourceIdentifier}
+                      </Button>
+                    ) : (
+                      c.deviceHostname
+                    )}
+                  </TableCell>
                   <TableCell>{c.nodeHostname}</TableCell>
                   <TableCell>
                     {c.deviceUrl ? (
                       <a href={c.deviceUrl} target="_blank" rel="noreferrer" className="text-primary hover:underline">
                         {c.deviceUrl}
                       </a>
-                    ) : (
-                      '—'
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    {c.resourceId ? (
-                      <Button variant="link" size="sm" className="h-auto p-0" onClick={() => navigate(`/resources/${c.resourceId}`)}>
-                        {c.resourceIdentifier}
-                      </Button>
                     ) : (
                       '—'
                     )}
