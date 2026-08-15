@@ -214,4 +214,12 @@ public class IncidentController {
         incidentService.requireEditAccess(authentication, id);
         return deploymentLocationService.create(authentication, id, request);
     }
+
+    @PutMapping("/{id}/deployment-locations/{locationId}")
+    public DeploymentLocationResponse updateDeploymentLocation(Authentication authentication, @PathVariable Long id,
+                                                                  @PathVariable Long locationId,
+                                                                  @Valid @RequestBody DeploymentLocationRequest request) {
+        incidentService.requireEditAccess(authentication, id);
+        return deploymentLocationService.update(authentication, id, locationId, request);
+    }
 }

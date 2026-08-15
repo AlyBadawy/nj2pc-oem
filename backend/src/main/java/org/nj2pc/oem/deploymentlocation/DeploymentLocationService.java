@@ -57,4 +57,22 @@ public class DeploymentLocationService {
         DeploymentLocation saved = deploymentLocationRepository.save(location);
         return DeploymentLocationResponse.from(saved, 0);
     }
+
+    @Transactional
+    public DeploymentLocationResponse update(Authentication authentication, Long incidentId, Long locationId,
+                                              DeploymentLocationRequest request) {
+        DeploymentLocation location = deploymentLocationRepository.findById(locationId)
+                .orElseThrow(() -> ApiException.notFound("Deployment location not found: " + locationId));
+        if (!location.getIncident().getId().equals(incidentId)) {
+            throw ApiException.notFound("Deployment location not found: " + locationId);
+        }
+
+        location.setName(request.name());
+        location.setLatitude(request.latitude());
+        location.setLongitude(request.longitude());
+        location.setNotes(request.notes());
+        DeploymentLocation saved = deploymentLocationRepository.save(location);
+        long gearCount = resourceCheckInRepository.countByDeploymentLocationIdAndCheckedOutAtIsNull(saved.getId());
+        return DeploymentLocationResponse.from(saved, gearCount);
+    }
 }
