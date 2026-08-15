@@ -1,10 +1,14 @@
+import { api } from '@/lib/api'
 import type { MeshLinkType } from '@/lib/types'
 
 /**
  * Client-side scraper for AREDN node status pages. Runs entirely in the browser — AREDN nodes
  * send `Access-Control-Allow-Origin: *` on every relevant endpoint (confirmed live), so this
  * works from whatever device the operator is using while actually connected to the mesh. Never
- * routed through the app's own backend (`@/lib/api`) — these are separate `.local.mesh` origins.
+ * routed through the app's own backend (`@/lib/api`) for the node/link crawl itself — these are
+ * separate `.local.mesh` origins. The one deliberate exception is the LAN ping-sweep at the end:
+ * browsers have no ICMP capability, so that one step calls our own backend instead, which can
+ * actually ping.
  */
 
 export type MeshNodeInput = {
@@ -183,6 +187,7 @@ type LocalStatusParsed = {
   channelWidth: string | null
   localDevices: MeshLanClientInput[]
   neighborRows: NeighborRowRaw[]
+  lanRangeIps: string[]
 }
 
 /** The node's own `#location` block is a standalone div (not a `.section-title`/`.section`
@@ -198,6 +203,45 @@ function parseOwnLocation(doc: Document): { latitude: string | null; longitude: 
     latitude: isCoordinate(lat) ? lat : null,
     longitude: isCoordinate(lng) ? lng : null,
   }
+}
+
+function ipToInt(ip: string): number {
+  return ip.split('.').reduce((acc, octet) => (acc << 8) + Number(octet), 0) >>> 0
+}
+
+function intToIp(n: number): string {
+  return [(n >>> 24) & 255, (n >>> 16) & 255, (n >>> 8) & 255, n & 255].join('.')
+}
+
+const IP_PATTERN = /^\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}$/
+
+/** Expands an inclusive "start - end" range into individual addresses. Capped at 32 — a mesh
+ * LAN's DHCP range is always small (a /29 has 5 usable addresses; even a /24 would be unusual
+ * for a node's own LAN) — this is a sanity guard against a malformed range, not a real ceiling. */
+function expandIpRange(start: string, end: string): string[] {
+  if (!IP_PATTERN.test(start) || !IP_PATTERN.test(end)) return []
+  const s = ipToInt(start)
+  const e = ipToInt(end)
+  if (e < s || e - s > 32) return []
+  const ips: string[] = []
+  for (let i = s; i <= e; i++) ips.push(intToIp(i))
+  return ips
+}
+
+/** AREDN's own "LAN DHCP" section already computes and displays the usable host range for the
+ * node's LAN subnet (e.g. gateway "10.6.229.9 / 29" → range "10.6.229.10 - 10.6.229.14") —
+ * parsing that text directly avoids re-deriving CIDR math ourselves. Returns an empty list if
+ * DHCP isn't active/present on this node (nothing to sweep). */
+function parseLanDhcpRange(doc: Document): string[] {
+  const dhcpSection = findSection(doc, 'LAN DHCP')
+  if (!dhcpSection) return []
+  const status = readLabeledValue(dhcpSection, 'status')
+  if (!status || !/active/i.test(status)) return []
+  const rangeText = readLabeledValue(dhcpSection, 'range')
+  if (!rangeText) return []
+  const [start, end] = rangeText.split('-').map((s) => s.trim())
+  if (!start || !end) return []
+  return expandIpRange(start, end)
 }
 
 function parseStatusPage(html: string, localHostname: string): LocalStatusParsed {
@@ -238,8 +282,20 @@ function parseStatusPage(html: string, localHostname: string): LocalStatusParsed
   ]
 
   const { latitude, longitude } = parseOwnLocation(doc)
+  const lanRangeIps = parseLanDhcpRange(doc)
 
-  return { model, firmwareVersion, latitude, longitude, channel, frequencyMhz, channelWidth, localDevices, neighborRows }
+  return {
+    model,
+    firmwareVersion,
+    latitude,
+    longitude,
+    channel,
+    frequencyMhz,
+    channelWidth,
+    localDevices,
+    neighborRows,
+    lanRangeIps,
+  }
 }
 
 type NeighborDetailParsed = {
@@ -338,6 +394,7 @@ type NodeScanResult = {
   node: MeshNodeInput
   links: MeshLinkInput[]
   lanClients: MeshLanClientInput[]
+  lanRangeIps: string[]
 }
 
 /** Scans one node: its own status page (model/firmware/self RF config/neighbors/LAN clients),
@@ -411,7 +468,7 @@ async function scanNode(hostname: string, isLocalNode: boolean): Promise<NodeSca
     })
   }
 
-  return { node, links, lanClients: parsed.localDevices }
+  return { node, links, lanClients: parsed.localDevices, lanRangeIps: parsed.lanRangeIps }
 }
 
 export async function runMeshScrape(onProgress?: MeshScrapeProgress): Promise<MeshScrapeResult> {
@@ -473,12 +530,40 @@ export async function runMeshScrape(onProgress?: MeshScrapeProgress): Promise<Me
     }),
   )
 
+  const lanSweepTargets: { nodeHostname: string; ips: string[] }[] = []
   for (const result of results) {
     if (result.status !== 'fulfilled') continue
-    const { node, links: nodeLinks, lanClients: nodeLanClients } = result.value
+    const { node, links: nodeLinks, lanClients: nodeLanClients, lanRangeIps } = result.value
     nodesByHostname.set(node.hostname.toLowerCase(), node)
     links.push(...nodeLinks)
     lanClients.push(...nodeLanClients)
+    if (lanRangeIps.length > 0) {
+      lanSweepTargets.push({ nodeHostname: node.hostname, ips: lanRangeIps })
+    }
+  }
+
+  // A device that's up but hasn't (or no longer) advertises itself under "Local Devices" would
+  // otherwise never show up — this actively probes each node's LAN DHCP range for anything live,
+  // in addition to whatever was already advertised. Runs against our own backend, not the mesh
+  // node, since browsers can't send ICMP themselves — see the module comment up top.
+  if (lanSweepTargets.length > 0) {
+    onProgress?.('Checking for LAN devices…')
+    try {
+      const advertisedIps = new Set(
+        lanClients.map((c) => c.deviceHostname.toLowerCase()).filter((h) => IP_PATTERN.test(h)),
+      )
+      const response = await api.post<{ results: { nodeHostname: string; ip: string }[] }>(
+        '/api/mesh/lan-ping-sweep',
+        { targets: lanSweepTargets },
+      )
+      for (const { nodeHostname, ip } of response.data.results) {
+        if (advertisedIps.has(ip.toLowerCase())) continue
+        lanClients.push({ nodeHostname, deviceHostname: ip, deviceUrl: `http://${ip}/` })
+      }
+    } catch {
+      // A failed sweep shouldn't fail the whole scan — advertised LAN devices (already collected
+      // above) and everything else still get submitted normally.
+    }
   }
 
   // Every link endpoint should have a node entry, even if that node couldn't be scanned
