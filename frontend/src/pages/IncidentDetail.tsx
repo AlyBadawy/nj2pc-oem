@@ -23,6 +23,8 @@ import type {
   IncidentLog,
   IncidentPermission,
   IncidentPermissionGrant,
+  MeshNodeSnapshot,
+  MeshSessionDetail as MeshSessionDetailType,
   MeshSessionSummary,
   Operator,
   OperatorCheckIn,
@@ -118,6 +120,21 @@ export function IncidentDetail() {
     queryFn: async () => (await api.get<MeshSessionSummary[]>(`/api/incidents/${id}/mesh-sessions`)).data,
   })
 
+  // The dashboard map overlays the incident's own gear (at each piece's currently-deployed
+  // location) with the AREDN links from the most recent scan — a live-vs-snapshot mix, not a
+  // rebroadcast of any one scan's node positions. Only the scan's link list and per-node radio
+  // metadata (channel/band, for link tooltips/coloring) are pulled from that latest session.
+  const latestMeshSession = (meshSessions ?? [])
+    .slice()
+    .sort((a, b) => new Date(b.capturedAt).getTime() - new Date(a.capturedAt).getTime())[0]
+
+  const { data: latestMeshSessionDetail } = useQuery({
+    queryKey: ['incidents', id, 'mesh-sessions', latestMeshSession?.id],
+    queryFn: async () =>
+      (await api.get<MeshSessionDetailType>(`/api/incidents/${id}/mesh-sessions/${latestMeshSession?.id}`)).data,
+    enabled: !!latestMeshSession,
+  })
+
   const { data: permissionGrants } = useQuery({
     queryKey: ['incidents', id, 'permissions'],
     queryFn: async () => (await api.get<IncidentPermissionGrant[]>(`/api/incidents/${id}/permissions`)).data,
@@ -185,6 +202,45 @@ export function IncidentDetail() {
 
   const openOperatorCheckIns = operatorCheckIns?.filter((c) => !c.checkedOutAt) ?? []
   const openResourceCheckIns = resourceCheckIns?.filter((c) => !c.checkedOutAt) ?? []
+
+  // One marker per currently-deployed piece of gear, placed at its own checkin's lat/lng (which
+  // the backend denormalizes from its deployment location) — not the scan's node positions, so a
+  // gear item moved to a new location since the last scan still shows up where it actually is
+  // now. When a deployed item's identifier matches a hostname from the latest scan, its radio
+  // metadata (channel/band) is borrowed from that scan node purely for link tooltip/color
+  // accuracy — position always comes from the checkin.
+  const scanNodeByHostname = new Map(
+    (latestMeshSessionDetail?.nodes ?? []).map((n) => [n.hostname.toLowerCase(), n]),
+  )
+  const dashboardMapNodes: (MeshNodeSnapshot & { offSite?: boolean })[] = openResourceCheckIns
+    .filter((c) => c.latitude && c.longitude)
+    .map((c) => {
+      const scanNode = scanNodeByHostname.get(c.resourceIdentifier.toLowerCase())
+      return {
+        id: c.id,
+        hostname: c.resourceIdentifier,
+        isLocalNode: false,
+        macAddress: null,
+        meshIpAddress: null,
+        linkLocalAddress: null,
+        model: null,
+        firmwareVersion: null,
+        latitude: c.latitude,
+        longitude: c.longitude,
+        claimedDistanceMi: null,
+        channel: scanNode?.channel ?? null,
+        band: scanNode?.band ?? null,
+        frequencyMhz: scanNode?.frequencyMhz ?? null,
+        channelWidth: scanNode?.channelWidth ?? null,
+        rfPowerDbm: scanNode?.rfPowerDbm ?? null,
+        resourceId: c.resourceId,
+        resourceIdentifier: c.resourceIdentifier,
+        resourceOwnerCallsign: null,
+        resourceCustomFields: null,
+        offSite: c.offSite,
+      }
+    })
+  const dashboardMapLinks = latestMeshSessionDetail?.links ?? []
 
   const fmt = (v: string | null) =>
     v ? new Date(v).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' }) : '—'
@@ -290,7 +346,7 @@ export function IncidentDetail() {
             <CardTitle className="text-base">Map</CardTitle>
           </CardHeader>
           <CardContent>
-            <MeshMap nodes={[]} links={[]} boundaryPoints={incident.boundaryPoints} />
+            <MeshMap nodes={dashboardMapNodes} links={dashboardMapLinks} boundaryPoints={incident.boundaryPoints} />
           </CardContent>
         </Card>
       </div>
