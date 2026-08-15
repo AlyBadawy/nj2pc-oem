@@ -12,6 +12,11 @@ import { Incidents } from '@/pages/Incidents'
 import { IncidentCreate } from '@/pages/IncidentCreate'
 import { IncidentDetail } from '@/pages/IncidentDetail'
 import { IncidentEdit } from '@/pages/IncidentEdit'
+import { IncidentOperators } from '@/pages/IncidentOperators'
+import { IncidentGear } from '@/pages/IncidentGear'
+import { IncidentMessageLogs } from '@/pages/IncidentMessageLogs'
+import { IncidentCommsPlan } from '@/pages/IncidentCommsPlan'
+import { IncidentMesh } from '@/pages/IncidentMesh'
 import { DeployGear } from '@/pages/DeployGear'
 import { MeshScan } from '@/pages/MeshScan'
 import { MeshSessionDetail } from '@/pages/MeshSessionDetail'
@@ -49,6 +54,11 @@ function App() {
             <Route path="incidents/new" element={<IncidentCreate />} />
             <Route path="incidents/:id" element={<IncidentDetail />} />
             <Route path="incidents/:id/edit" element={<IncidentEdit />} />
+            <Route path="incidents/:id/operators" element={<IncidentOperators />} />
+            <Route path="incidents/:id/gear" element={<IncidentGear />} />
+            <Route path="incidents/:id/logs" element={<IncidentMessageLogs />} />
+            <Route path="incidents/:id/comms-plan" element={<IncidentCommsPlan />} />
+            <Route path="incidents/:id/mesh" element={<IncidentMesh />} />
             <Route path="incidents/:id/deploy" element={<DeployGear />} />
             <Route path="incidents/:id/mesh/scan" element={<MeshScan />} />
             <Route path="incidents/:id/mesh/:sessionId" element={<MeshSessionDetail />} />
