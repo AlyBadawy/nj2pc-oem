@@ -33,6 +33,17 @@ function formatRange(start: string | null, end: string | null): string {
   return `Until ${fmt(end as string)}`
 }
 
+/** The incident's "start date" for sorting purposes — once it's actually started, that's more
+ * meaningful than what was originally planned; before then, the planned date is all there is. */
+function startDate(incident: Incident): number {
+  const value = incident.actualStartTime ?? incident.plannedStartTime
+  return value ? new Date(value).getTime() : -Infinity
+}
+
+function sortByStartDateDesc(incidents: Incident[]): Incident[] {
+  return [...incidents].sort((a, b) => startDate(b) - startDate(a))
+}
+
 export function Incidents() {
   const { user } = useAuth()
   const canCreate = hasPermission(user, 'INCIDENT_CREATE')
@@ -64,6 +75,87 @@ export function Incidents() {
     onError: () => toast.error('Failed to end incident'),
   })
 
+  const activeIncidents = sortByStartDateDesc((incidents ?? []).filter((i) => i.status === 'ACTIVE'))
+  const allIncidents = sortByStartDateDesc(incidents ?? [])
+
+  function renderTable(rows: Incident[], emptyMessage: string) {
+    return (
+      <Table>
+        <TableHeader>
+          <TableRow>
+            <TableHead>Name</TableHead>
+            <TableHead>Location</TableHead>
+            <TableHead>Status</TableHead>
+            <TableHead>Planned</TableHead>
+            <TableHead>Actual</TableHead>
+            <TableHead className="text-right">Actions</TableHead>
+          </TableRow>
+        </TableHeader>
+        <TableBody>
+          {isLoading && (
+            <TableRow>
+              <TableCell colSpan={6} className="text-center text-muted-foreground">
+                Loading…
+              </TableCell>
+            </TableRow>
+          )}
+          {rows.length === 0 && !isLoading && (
+            <TableRow>
+              <TableCell colSpan={6} className="text-center text-muted-foreground">
+                {emptyMessage}
+              </TableCell>
+            </TableRow>
+          )}
+          {rows.map((incident) => (
+            <TableRow
+              key={incident.id}
+              className="cursor-pointer"
+              onClick={() => navigate(`/incidents/${incident.id}`)}
+            >
+              <TableCell className="font-medium">{incident.name}</TableCell>
+              <TableCell>{incident.location || '—'}</TableCell>
+              <TableCell>
+                <Badge variant={statusVariant[incident.status]}>{incident.status}</Badge>
+              </TableCell>
+              <TableCell className="text-muted-foreground text-sm whitespace-nowrap">
+                {formatRange(incident.plannedStartTime, incident.plannedEndTime)}
+              </TableCell>
+              <TableCell className="text-muted-foreground text-sm whitespace-nowrap">
+                {formatRange(incident.actualStartTime, incident.actualEndTime)}
+              </TableCell>
+              <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
+                {incident.status === 'PLANNED' && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={!incident.canEdit || startMutation.isPending}
+                    title={incident.canEdit ? 'Start incident' : 'Requires edit access to this incident'}
+                    onClick={() => startMutation.mutate(incident.id)}
+                  >
+                    <Play className="size-4" />
+                    Start
+                  </Button>
+                )}
+                {incident.status === 'ACTIVE' && (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    disabled={!incident.canEdit}
+                    title={incident.canEdit ? 'End incident' : 'Requires edit access to this incident'}
+                    onClick={() => setEndTarget(incident)}
+                  >
+                    <Flag className="size-4" />
+                    End
+                  </Button>
+                )}
+              </TableCell>
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
+    )
+  }
+
   return (
     <div className="flex flex-col gap-6">
       <div className="flex items-center justify-between">
@@ -85,83 +177,22 @@ export function Incidents() {
 
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">All Incidents</CardTitle>
+          <CardTitle className="text-base">
+            Active Incidents
+            <span className="ml-2 text-muted-foreground font-normal text-sm">({activeIncidents.length})</span>
+          </CardTitle>
         </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Name</TableHead>
-                <TableHead>Location</TableHead>
-                <TableHead>Status</TableHead>
-                <TableHead>Planned</TableHead>
-                <TableHead>Actual</TableHead>
-                <TableHead className="text-right">Actions</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {isLoading && (
-                <TableRow>
-                  <TableCell colSpan={6} className="text-center text-muted-foreground">
-                    Loading…
-                  </TableCell>
-                </TableRow>
-              )}
-              {incidents?.length === 0 && !isLoading && (
-                <TableRow>
-                  <TableCell colSpan={6} className="text-center text-muted-foreground">
-                    No incidents visible to you yet.
-                  </TableCell>
-                </TableRow>
-              )}
-              {incidents?.map((incident) => (
-                <TableRow
-                  key={incident.id}
-                  className="cursor-pointer"
-                  onClick={() => navigate(`/incidents/${incident.id}`)}
-                >
-                  <TableCell className="font-medium">{incident.name}</TableCell>
-                  <TableCell>{incident.location || '—'}</TableCell>
-                  <TableCell>
-                    <Badge variant={statusVariant[incident.status]}>{incident.status}</Badge>
-                  </TableCell>
-                  <TableCell className="text-muted-foreground text-sm whitespace-nowrap">
-                    {formatRange(incident.plannedStartTime, incident.plannedEndTime)}
-                  </TableCell>
-                  <TableCell className="text-muted-foreground text-sm whitespace-nowrap">
-                    {formatRange(incident.actualStartTime, incident.actualEndTime)}
-                  </TableCell>
-                  <TableCell className="text-right" onClick={(e) => e.stopPropagation()}>
-                    {incident.status === 'PLANNED' && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={!incident.canEdit || startMutation.isPending}
-                        title={incident.canEdit ? 'Start incident' : 'Requires edit access to this incident'}
-                        onClick={() => startMutation.mutate(incident.id)}
-                      >
-                        <Play className="size-4" />
-                        Start
-                      </Button>
-                    )}
-                    {incident.status === 'ACTIVE' && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        disabled={!incident.canEdit}
-                        title={incident.canEdit ? 'End incident' : 'Requires edit access to this incident'}
-                        onClick={() => setEndTarget(incident)}
-                      >
-                        <Flag className="size-4" />
-                        End
-                      </Button>
-                    )}
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
+        <CardContent>{renderTable(activeIncidents, 'No active incidents right now.')}</CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">
+            All Incidents
+            <span className="ml-2 text-muted-foreground font-normal text-sm">({allIncidents.length})</span>
+          </CardTitle>
+        </CardHeader>
+        <CardContent>{renderTable(allIncidents, 'No incidents visible to you yet.')}</CardContent>
       </Card>
 
       <Dialog open={!!endTarget} onOpenChange={(open) => !open && setEndTarget(null)}>
