@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, CheckCircle2, Crosshair, ListPlus, Loader2, MapPin, PackagePlus, PlusCircle } from 'lucide-react'
+import { ArrowLeft, CheckCircle2, Crosshair, ListPlus, Loader2, MapPin, PackagePlus, PlusCircle, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { api } from '@/lib/api'
 import type { DeploymentLocation, Incident, Operator, Resource, ResourceCheckIn, ResourceType } from '@/lib/types'
@@ -12,6 +12,7 @@ import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { CustomFieldInputs, type CustomFieldValues } from '@/components/CustomFieldInputs'
+import { LocationPinMap } from '@/components/LocationPinMap'
 
 type Coords = { lat: string; lng: string }
 type GeoStatus = 'idle' | 'locating' | 'granted' | 'denied' | 'unsupported'
@@ -47,6 +48,7 @@ export function DeployGear() {
   const [activeLocation, setActiveLocation] = useState<DeploymentLocation | null>(null)
 
   const [mode, setMode] = useState<'pick' | 'create'>('pick')
+  const [pickResourceTypeId, setPickResourceTypeId] = useState('')
   const [pickResourceId, setPickResourceId] = useState('')
   const [pickNotes, setPickNotes] = useState('')
   const [newResource, setNewResource] = useState<NewResourceForm>(emptyNewResourceForm)
@@ -77,7 +79,6 @@ export function DeployGear() {
   const { data: resourceTypes } = useQuery({
     queryKey: ['resource-types'],
     queryFn: async () => (await api.get<ResourceType[]>('/api/resource-types')).data,
-    enabled: mode === 'create',
   })
 
   const { data: locations } = useQuery({
@@ -95,6 +96,9 @@ export function DeployGear() {
   const openResourceCheckIns = resourceCheckIns?.filter((c) => !c.checkedOutAt) ?? []
   const checkedInResourceIds = new Set(openResourceCheckIns.map((c) => c.resourceId))
   const availableResources = resources?.filter((r) => !checkedInResourceIds.has(r.id)) ?? []
+  const availableResourcesOfPickedType = availableResources.filter(
+    (r) => String(r.resourceTypeId) === pickResourceTypeId,
+  )
   const selectedType = resourceTypes?.find((t) => String(t.id) === newResource.resourceTypeId)
 
   function captureLocation() {
@@ -157,6 +161,7 @@ export function DeployGear() {
       ).data,
     onSuccess: (checkIn) => {
       setAddedItems((items) => [checkIn, ...items])
+      setPickResourceTypeId('')
       setPickResourceId('')
       setPickNotes('')
       queryClient.invalidateQueries({ queryKey: ['incidents', id, 'resource-checkins'] })
@@ -164,6 +169,18 @@ export function DeployGear() {
       toast.success(`${checkIn.resourceIdentifier} deployed`)
     },
     onError: () => toast.error('Failed to check in equipment'),
+  })
+
+  const removeMutation = useMutation({
+    mutationFn: async (checkInId: number) =>
+      api.post(`/api/incidents/${id}/resource-checkins/${checkInId}/checkout`),
+    onSuccess: (_response, checkInId) => {
+      setAddedItems((items) => items.filter((item) => item.id !== checkInId))
+      queryClient.invalidateQueries({ queryKey: ['incidents', id, 'resource-checkins'] })
+      queryClient.invalidateQueries({ queryKey: ['incidents', id, 'deployment-locations'] })
+      toast.success('Removed from this deployment')
+    },
+    onError: () => toast.error('Failed to remove — try again'),
   })
 
   const createAndCheckInMutation = useMutation({
@@ -292,6 +309,12 @@ export function DeployGear() {
                   </p>
                 )}
 
+                <LocationPinMap
+                  latitude={coords?.lat ?? ''}
+                  longitude={coords?.lng ?? ''}
+                  onChange={(lat, lng) => setCoords({ lat, lng })}
+                />
+
                 {!showManual && (
                   <button
                     type="button"
@@ -399,20 +422,51 @@ export function DeployGear() {
                   }}
                   className="flex flex-col gap-3"
                 >
-                  <div className="flex flex-col gap-1.5">
-                    <Label htmlFor="pickResourceId">Equipment</Label>
-                    <Select value={pickResourceId} onValueChange={setPickResourceId}>
-                      <SelectTrigger id="pickResourceId">
-                        <SelectValue placeholder="Select equipment" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {availableResources.map((r) => (
-                          <SelectItem key={r.id} value={String(r.id)}>
-                            {r.identifier} ({r.resourceTypeName})
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="flex flex-col gap-1.5">
+                      <Label htmlFor="pickResourceTypeId">Equipment Type</Label>
+                      <Select
+                        value={pickResourceTypeId}
+                        onValueChange={(value) => {
+                          setPickResourceTypeId(value)
+                          setPickResourceId('')
+                        }}
+                      >
+                        <SelectTrigger id="pickResourceTypeId">
+                          <SelectValue placeholder="Select a type" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {resourceTypes?.map((t) => (
+                            <SelectItem key={t.id} value={String(t.id)}>
+                              {t.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="flex flex-col gap-1.5">
+                      <Label htmlFor="pickResourceId">Equipment</Label>
+                      <Select value={pickResourceId} onValueChange={setPickResourceId} disabled={!pickResourceTypeId}>
+                        <SelectTrigger id="pickResourceId">
+                          <SelectValue
+                            placeholder={
+                              !pickResourceTypeId
+                                ? 'Pick a type first'
+                                : availableResourcesOfPickedType.length
+                                  ? 'Select equipment'
+                                  : 'None available of this type'
+                            }
+                          />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {availableResourcesOfPickedType.map((r) => (
+                            <SelectItem key={r.id} value={String(r.id)}>
+                              {r.identifier}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
                   <div className="flex flex-col gap-1.5">
                     <Label htmlFor="pickNotes">Notes</Label>
@@ -513,12 +567,23 @@ export function DeployGear() {
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                <ul className="flex flex-col gap-2">
+                <ul className="flex flex-col gap-1">
                   {addedItems.map((item) => (
-                    <li key={item.id} className="flex items-center gap-2 text-sm">
+                    <li key={item.id} className="flex items-center gap-2 rounded-md px-1 py-1 text-sm hover:bg-muted">
                       <CheckCircle2 className="size-4 text-primary shrink-0" />
                       <span className="font-medium">{item.resourceIdentifier}</span>
                       <span className="text-muted-foreground">({item.resourceTypeName})</span>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="icon-sm"
+                        className="ml-auto shrink-0 text-muted-foreground hover:text-destructive"
+                        title="Remove — this was added by mistake"
+                        disabled={removeMutation.isPending}
+                        onClick={() => removeMutation.mutate(item.id)}
+                      >
+                        <X className="size-4" />
+                      </Button>
                     </li>
                   ))}
                 </ul>
