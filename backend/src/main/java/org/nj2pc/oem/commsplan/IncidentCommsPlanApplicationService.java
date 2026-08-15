@@ -58,7 +58,12 @@ public class IncidentCommsPlanApplicationService {
         applicationRepository.findByIncidentIdAndRevokedAtIsNull(incidentId).ifPresent(current -> {
             current.setRevokedAt(Instant.now());
             current.setRevokedBy(caller);
-            applicationRepository.save(current);
+            // Flush immediately: within a single flush, Hibernate always executes inserts before
+            // updates regardless of call order. Without this, the new application row inserted
+            // below would hit the database before this row's revoked_at UPDATE, momentarily
+            // leaving two rows with revoked_at IS NULL for the same incident and violating the
+            // partial unique index uq_incident_comms_plan_active.
+            applicationRepository.saveAndFlush(current);
         });
 
         Incident incident = incidentRepository.findById(incidentId)
