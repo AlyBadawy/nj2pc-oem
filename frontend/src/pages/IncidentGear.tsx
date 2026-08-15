@@ -1,11 +1,14 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, LogIn, LogOut, MapPin } from 'lucide-react'
+import { Link, useNavigate, useParams } from 'react-router-dom'
+import { ArrowLeft, Crosshair, Loader2, MapPin, Plus, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { api } from '@/lib/api'
-import type { Incident, Resource, ResourceCheckIn } from '@/lib/types'
+import type { DeploymentLocation, Incident, Resource, ResourceCheckIn, ResourceType } from '@/lib/types'
+import { LocationPreviewMap } from '@/components/LocationPreviewMap'
+import { LocationPinMap } from '@/components/LocationPinMap'
 import { Button } from '@/components/ui/button'
+import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
 import { Textarea } from '@/components/ui/textarea'
@@ -14,13 +17,140 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 
+type Coords = { lat: string; lng: string }
+type GeoStatus = 'idle' | 'locating' | 'granted' | 'denied' | 'unsupported'
+
+function DeploymentLocationCard({
+  location,
+  checkIns,
+  resourceTypes,
+  availableResources,
+  canEdit,
+  onAdd,
+  onRemove,
+  addPending,
+  removePending,
+}: {
+  location: DeploymentLocation
+  checkIns: ResourceCheckIn[]
+  resourceTypes: ResourceType[]
+  availableResources: Resource[]
+  canEdit: boolean
+  onAdd: (resourceId: number) => void
+  onRemove: (checkInId: number) => void
+  addPending: boolean
+  removePending: boolean
+}) {
+  const [typeId, setTypeId] = useState('')
+  const [resourceId, setResourceId] = useState('')
+  const availableOfType = availableResources.filter((r) => String(r.resourceTypeId) === typeId)
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="text-base flex items-center gap-2">
+          <MapPin className="size-4 text-primary shrink-0" />
+          {location.name}
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-3">
+        <LocationPreviewMap latitude={location.latitude} longitude={location.longitude} />
+        {location.notes && <p className="text-sm text-muted-foreground">{location.notes}</p>}
+
+        <ul className="flex flex-col gap-1">
+          {checkIns.length === 0 && <li className="text-sm text-muted-foreground">No equipment here yet.</li>}
+          {checkIns.map((c) => (
+            <li key={c.id} className="flex items-center gap-2 rounded-md px-1 py-1 text-sm hover:bg-muted">
+              <Link to={`/resources/${c.resourceId}`} className="font-medium hover:underline truncate">
+                {c.resourceIdentifier}
+              </Link>
+              <span className="text-muted-foreground truncate">({c.resourceTypeName})</span>
+              {canEdit && (
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon-sm"
+                  className="ml-auto shrink-0 text-muted-foreground hover:text-destructive"
+                  title="Remove from this location"
+                  disabled={removePending}
+                  onClick={() => onRemove(c.id)}
+                >
+                  <X className="size-4" />
+                </Button>
+              )}
+            </li>
+          ))}
+        </ul>
+
+        {canEdit && (
+          <div className="flex flex-col gap-2 border-t pt-3 sm:flex-row sm:items-end">
+            <div className="flex flex-col gap-1.5 flex-1">
+              <Label className="text-xs text-muted-foreground">Type</Label>
+              <Select
+                value={typeId}
+                onValueChange={(v) => {
+                  setTypeId(v)
+                  setResourceId('')
+                }}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Type" />
+                </SelectTrigger>
+                <SelectContent>
+                  {resourceTypes.map((t) => (
+                    <SelectItem key={t.id} value={String(t.id)}>
+                      {t.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="flex flex-col gap-1.5 flex-1">
+              <Label className="text-xs text-muted-foreground">Equipment</Label>
+              <Select value={resourceId} onValueChange={setResourceId} disabled={!typeId}>
+                <SelectTrigger>
+                  <SelectValue
+                    placeholder={!typeId ? 'Pick a type first' : availableOfType.length ? 'Select' : 'None available'}
+                  />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableOfType.map((r) => (
+                    <SelectItem key={r.id} value={String(r.id)}>
+                      {r.identifier}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <Button
+              size="sm"
+              disabled={!resourceId || addPending}
+              onClick={() => {
+                onAdd(Number(resourceId))
+                setTypeId('')
+                setResourceId('')
+              }}
+            >
+              <Plus className="size-4" />
+              Add
+            </Button>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  )
+}
+
 export function IncidentGear() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
-  const [checkInOpen, setCheckInOpen] = useState(false)
-  const [checkInId, setCheckInId] = useState('')
-  const [checkInNotes, setCheckInNotes] = useState('')
+
+  const [createOpen, setCreateOpen] = useState(false)
+  const [newName, setNewName] = useState('')
+  const [newNotes, setNewNotes] = useState('')
+  const [coords, setCoords] = useState<Coords | null>(null)
+  const [geoStatus, setGeoStatus] = useState<GeoStatus>('idle')
 
   const { data: incident } = useQuery({
     queryKey: ['incidents', id],
@@ -32,28 +162,55 @@ export function IncidentGear() {
     queryFn: async () => (await api.get<Resource[]>('/api/resources')).data,
   })
 
+  const { data: resourceTypes } = useQuery({
+    queryKey: ['resource-types'],
+    queryFn: async () => (await api.get<ResourceType[]>('/api/resource-types')).data,
+  })
+
   const { data: resourceCheckIns } = useQuery({
     queryKey: ['incidents', id, 'resource-checkins'],
     queryFn: async () => (await api.get<ResourceCheckIn[]>(`/api/incidents/${id}/resource-checkins`)).data,
   })
 
-  const checkInMutation = useMutation({
+  const { data: locations } = useQuery({
+    queryKey: ['incidents', id, 'deployment-locations'],
+    queryFn: async () => (await api.get<DeploymentLocation[]>(`/api/incidents/${id}/deployment-locations`)).data,
+  })
+
+  const createLocationMutation = useMutation({
     mutationFn: async () =>
-      api.post(`/api/incidents/${id}/resource-checkins`, {
-        resourceId: Number(checkInId),
-        notes: checkInNotes || null,
-      }),
+      (
+        await api.post<DeploymentLocation>(`/api/incidents/${id}/deployment-locations`, {
+          name: newName,
+          latitude: coords?.lat ?? null,
+          longitude: coords?.lng ?? null,
+          notes: newNotes || null,
+        })
+      ).data,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['incidents', id, 'deployment-locations'] })
+      toast.success('Deployment location created')
+      setCreateOpen(false)
+      setNewName('')
+      setNewNotes('')
+      setCoords(null)
+      setGeoStatus('idle')
+    },
+    onError: () => toast.error('Failed to create deployment location'),
+  })
+
+  const checkInMutation = useMutation({
+    mutationFn: async ({ resourceId, deploymentLocationId }: { resourceId: number; deploymentLocationId: number }) =>
+      api.post(`/api/incidents/${id}/resource-checkins`, { resourceId, deploymentLocationId }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['incidents', id, 'resource-checkins'] })
+      queryClient.invalidateQueries({ queryKey: ['incidents', id, 'deployment-locations'] })
       queryClient.invalidateQueries({ queryKey: ['resources'] })
-      toast.success('Equipment checked in')
-      setCheckInOpen(false)
-      setCheckInId('')
-      setCheckInNotes('')
+      toast.success('Equipment deployed')
     },
     onError: (err: unknown) => {
       const message =
-        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Failed to check in resource'
+        (err as { response?: { data?: { message?: string } } })?.response?.data?.message ?? 'Failed to deploy equipment'
       toast.error(message)
     },
   })
@@ -62,19 +219,36 @@ export function IncidentGear() {
     mutationFn: async (checkInId: number) => api.post(`/api/incidents/${id}/resource-checkins/${checkInId}/checkout`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['incidents', id, 'resource-checkins'] })
+      queryClient.invalidateQueries({ queryKey: ['incidents', id, 'deployment-locations'] })
       queryClient.invalidateQueries({ queryKey: ['resources'] })
       toast.success('Equipment checked out')
     },
     onError: () => toast.error('Failed to check out resource'),
   })
 
+  function captureLocation() {
+    if (!navigator.geolocation) {
+      setGeoStatus('unsupported')
+      return
+    }
+    setGeoStatus('locating')
+    navigator.geolocation.getCurrentPosition(
+      (pos) => {
+        setCoords({ lat: String(pos.coords.latitude), lng: String(pos.coords.longitude) })
+        setGeoStatus('granted')
+      },
+      () => setGeoStatus('denied'),
+      { enableHighAccuracy: true, timeout: 10000 },
+    )
+  }
+
   if (!incident) return null
 
   const canEdit = incident.canEdit
-  const isClosed = incident.status === 'CLOSED'
-  const openResourceCheckIns = resourceCheckIns?.filter((c) => !c.checkedOutAt) ?? []
-  const checkedInResourceIds = new Set(openResourceCheckIns.map((c) => c.resourceId))
+  const openCheckIns = resourceCheckIns?.filter((c) => !c.checkedOutAt) ?? []
+  const checkedInResourceIds = new Set(openCheckIns.map((c) => c.resourceId))
   const availableResources = resources?.filter((r) => !checkedInResourceIds.has(r.id)) ?? []
+  const sortedLocations = [...(locations ?? [])].sort((a, b) => a.name.localeCompare(b.name))
 
   return (
     <div className="flex flex-col gap-6">
@@ -86,89 +260,33 @@ export function IncidentGear() {
         <h1 className="text-2xl font-semibold">Gear &amp; Equipment</h1>
       </div>
 
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
-          <CardTitle className="text-base">
-            Currently Deployed
-            <span className="ml-2 text-muted-foreground font-normal text-sm">({openResourceCheckIns.length} deployed)</span>
-          </CardTitle>
-          {!isClosed && (
-            <div className="flex flex-wrap items-center gap-2">
-              <Button
-                size="sm"
-                variant="outline"
-                disabled={!canEdit}
-                title={canEdit ? 'Deploy gear at a GPS location' : 'Requires edit access to this incident'}
-                onClick={() => navigate(`/incidents/${id}/deploy`)}
-              >
-                <MapPin className="size-4" />
-                Deploy Gear
-              </Button>
-              <Button
-                size="sm"
-                disabled={!canEdit}
-                title={canEdit ? 'Check in equipment' : 'Requires edit access to this incident'}
-                onClick={() => setCheckInOpen(true)}
-              >
-                <LogIn className="size-4" />
-                Check In
-              </Button>
-            </div>
-          )}
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>Equipment</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead>Checked In</TableHead>
-                <TableHead>Notes</TableHead>
-                <TableHead>Location</TableHead>
-                <TableHead className="text-right">Action</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {openResourceCheckIns.length === 0 && (
-                <TableRow>
-                  <TableCell colSpan={6} className="text-center text-muted-foreground">
-                    No equipment checked in yet.
-                  </TableCell>
-                </TableRow>
-              )}
-              {openResourceCheckIns.map((c) => (
-                <TableRow key={c.id}>
-                  <TableCell className="font-medium">{c.resourceIdentifier}</TableCell>
-                  <TableCell>{c.resourceTypeName}</TableCell>
-                  <TableCell className="text-sm whitespace-nowrap">{new Date(c.checkedInAt).toLocaleString()}</TableCell>
-                  <TableCell className="text-muted-foreground text-sm max-w-[200px] truncate">{c.notes || '—'}</TableCell>
-                  <TableCell className="text-sm whitespace-nowrap">
-                    {c.latitude && c.longitude ? (
-                      <a
-                        href={`https://www.google.com/maps?q=${c.latitude},${c.longitude}`}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="inline-flex items-center gap-1 text-primary hover:underline"
-                      >
-                        <MapPin className="size-4" />
-                        Map
-                      </a>
-                    ) : (
-                      '—'
-                    )}
-                  </TableCell>
-                  <TableCell className="text-right">
-                    <Button variant="ghost" size="sm" onClick={() => checkOutMutation.mutate(c.id)}>
-                      <LogOut className="size-4" />
-                      Check Out
-                    </Button>
-                  </TableCell>
-                </TableRow>
-              ))}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
+      <div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
+        {sortedLocations.map((location) => (
+          <DeploymentLocationCard
+            key={location.id}
+            location={location}
+            checkIns={openCheckIns.filter((c) => c.deploymentLocationId === location.id)}
+            resourceTypes={resourceTypes ?? []}
+            availableResources={availableResources}
+            canEdit={!!canEdit}
+            addPending={checkInMutation.isPending}
+            removePending={checkOutMutation.isPending}
+            onAdd={(resourceId) => checkInMutation.mutate({ resourceId, deploymentLocationId: location.id })}
+            onRemove={(checkInId) => checkOutMutation.mutate(checkInId)}
+          />
+        ))}
+
+        {canEdit && (
+          <button
+            type="button"
+            onClick={() => setCreateOpen(true)}
+            className="flex min-h-[220px] flex-col items-center justify-center gap-2 rounded-lg border border-dashed text-muted-foreground transition-colors hover:bg-muted/60 hover:text-foreground hover:border-primary/40"
+          >
+            <Plus className="size-6" />
+            <span className="text-sm font-medium">New Deployment Location</span>
+          </button>
+        )}
+      </div>
 
       <Card>
         <CardHeader>
@@ -185,7 +303,7 @@ export function IncidentGear() {
                 <TableHead>Type</TableHead>
                 <TableHead>Checked In</TableHead>
                 <TableHead>Checked Out</TableHead>
-                <TableHead>Notes</TableHead>
+                <TableHead>Deployment Location</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -198,13 +316,17 @@ export function IncidentGear() {
               )}
               {resourceCheckIns?.map((c) => (
                 <TableRow key={c.id}>
-                  <TableCell className="font-medium">{c.resourceIdentifier}</TableCell>
+                  <TableCell className="font-medium">
+                    <Link to={`/resources/${c.resourceId}`} className="hover:underline">
+                      {c.resourceIdentifier}
+                    </Link>
+                  </TableCell>
                   <TableCell>{c.resourceTypeName}</TableCell>
                   <TableCell className="text-sm whitespace-nowrap">{new Date(c.checkedInAt).toLocaleString()}</TableCell>
                   <TableCell className="text-sm whitespace-nowrap">
                     {c.checkedOutAt ? new Date(c.checkedOutAt).toLocaleString() : <Badge variant="default">On Scene</Badge>}
                   </TableCell>
-                  <TableCell className="text-muted-foreground text-sm max-w-[200px] truncate">{c.notes || '—'}</TableCell>
+                  <TableCell className="text-muted-foreground text-sm">{c.deploymentLocationName || '—'}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -212,40 +334,47 @@ export function IncidentGear() {
         </CardContent>
       </Card>
 
-      <Dialog open={checkInOpen} onOpenChange={setCheckInOpen}>
+      <Dialog open={createOpen} onOpenChange={setCreateOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Check In Equipment</DialogTitle>
+            <DialogTitle>New Deployment Location</DialogTitle>
           </DialogHeader>
           <form
             onSubmit={(e) => {
               e.preventDefault()
-              checkInMutation.mutate()
+              createLocationMutation.mutate()
             }}
             className="flex flex-col gap-3"
           >
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="checkInResourceId">Equipment</Label>
-              <Select value={checkInId} onValueChange={setCheckInId}>
-                <SelectTrigger id="checkInResourceId">
-                  <SelectValue placeholder="Select equipment" />
-                </SelectTrigger>
-                <SelectContent>
-                  {availableResources.map((r) => (
-                    <SelectItem key={r.id} value={String(r.id)}>
-                      {r.identifier} ({r.resourceTypeName})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Label htmlFor="newLocationName">Location Name</Label>
+              <Input
+                id="newLocationName"
+                value={newName}
+                onChange={(e) => setNewName(e.target.value)}
+                placeholder="e.g. Main Stage, Repeater Site A"
+                required
+              />
             </div>
+            <Button type="button" variant="outline" disabled={geoStatus === 'locating'} onClick={captureLocation}>
+              {geoStatus === 'locating' ? <Loader2 className="size-4 animate-spin" /> : <Crosshair className="size-4" />}
+              Capture My Location
+            </Button>
+            {geoStatus === 'denied' && (
+              <p className="text-sm text-destructive">Location access was denied. Place the pin manually below.</p>
+            )}
+            {geoStatus === 'unsupported' && (
+              <p className="text-sm text-destructive">This device doesn't support location capture. Place the pin manually below.</p>
+            )}
+            <LocationPinMap latitude={coords?.lat ?? ''} longitude={coords?.lng ?? ''} onChange={(lat, lng) => setCoords({ lat, lng })} />
             <div className="flex flex-col gap-1.5">
-              <Label htmlFor="checkInResourceNotes">Notes</Label>
-              <Textarea id="checkInResourceNotes" value={checkInNotes} onChange={(e) => setCheckInNotes(e.target.value)} />
+              <Label htmlFor="newLocationNotes">Notes</Label>
+              <Textarea id="newLocationNotes" value={newNotes} onChange={(e) => setNewNotes(e.target.value)} />
             </div>
             <DialogFooter>
-              <Button type="submit" disabled={!checkInId || checkInMutation.isPending}>
-                Check In
+              <Button type="submit" disabled={!newName || createLocationMutation.isPending}>
+                {createLocationMutation.isPending && <Loader2 className="size-4 animate-spin" />}
+                Create
               </Button>
             </DialogFooter>
           </form>
