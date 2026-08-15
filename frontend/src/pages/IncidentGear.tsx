@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, Crosshair, Loader2, MapPin, Plus, X } from 'lucide-react'
+import { ArrowLeft, Crosshair, Loader2, MapPin, Pencil, Plus, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { api } from '@/lib/api'
 import type { DeploymentLocation, Incident, Resource, ResourceCheckIn, ResourceType } from '@/lib/types'
@@ -28,6 +28,7 @@ function DeploymentLocationCard({
   canEdit,
   onAdd,
   onRemove,
+  onEdit,
   addPending,
   removePending,
 }: {
@@ -38,6 +39,7 @@ function DeploymentLocationCard({
   canEdit: boolean
   onAdd: (resourceId: number) => void
   onRemove: (checkInId: number) => void
+  onEdit: () => void
   addPending: boolean
   removePending: boolean
 }) {
@@ -50,7 +52,19 @@ function DeploymentLocationCard({
       <CardHeader>
         <CardTitle className="text-base flex items-center gap-2">
           <MapPin className="size-4 text-primary shrink-0" />
-          {location.name}
+          <span className="truncate">{location.name}</span>
+          {canEdit && (
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon-sm"
+              className="ml-auto shrink-0 text-muted-foreground"
+              title="Edit location"
+              onClick={onEdit}
+            >
+              <Pencil className="size-4" />
+            </Button>
+          )}
         </CardTitle>
       </CardHeader>
       <CardContent className="flex flex-col gap-3">
@@ -152,6 +166,20 @@ export function IncidentGear() {
   const [coords, setCoords] = useState<Coords | null>(null)
   const [geoStatus, setGeoStatus] = useState<GeoStatus>('idle')
 
+  const [editingLocation, setEditingLocation] = useState<DeploymentLocation | null>(null)
+  const [editName, setEditName] = useState('')
+  const [editNotes, setEditNotes] = useState('')
+  const [editCoords, setEditCoords] = useState<Coords | null>(null)
+
+  function openEdit(location: DeploymentLocation) {
+    setEditingLocation(location)
+    setEditName(location.name)
+    setEditNotes(location.notes ?? '')
+    setEditCoords(
+      location.latitude && location.longitude ? { lat: location.latitude, lng: location.longitude } : null,
+    )
+  }
+
   const { data: incident } = useQuery({
     queryKey: ['incidents', id],
     queryFn: async () => (await api.get<Incident>(`/api/incidents/${id}`)).data,
@@ -197,6 +225,24 @@ export function IncidentGear() {
       setGeoStatus('idle')
     },
     onError: () => toast.error('Failed to create deployment location'),
+  })
+
+  const updateLocationMutation = useMutation({
+    mutationFn: async () =>
+      (
+        await api.put<DeploymentLocation>(`/api/incidents/${id}/deployment-locations/${editingLocation?.id}`, {
+          name: editName,
+          latitude: editCoords?.lat ?? null,
+          longitude: editCoords?.lng ?? null,
+          notes: editNotes || null,
+        })
+      ).data,
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['incidents', id, 'deployment-locations'] })
+      toast.success('Deployment location updated')
+      setEditingLocation(null)
+    },
+    onError: () => toast.error('Failed to update deployment location'),
   })
 
   const checkInMutation = useMutation({
@@ -265,7 +311,13 @@ export function IncidentGear() {
           <DeploymentLocationCard
             key={location.id}
             location={location}
-            checkIns={openCheckIns.filter((c) => c.deploymentLocationId === location.id)}
+            checkIns={openCheckIns
+              .filter((c) => c.deploymentLocationId === location.id)
+              .sort(
+                (a, b) =>
+                  a.resourceTypeName.localeCompare(b.resourceTypeName) ||
+                  a.resourceIdentifier.localeCompare(b.resourceIdentifier),
+              )}
             resourceTypes={resourceTypes ?? []}
             availableResources={availableResources}
             canEdit={!!canEdit}
@@ -273,6 +325,7 @@ export function IncidentGear() {
             removePending={checkOutMutation.isPending}
             onAdd={(resourceId) => checkInMutation.mutate({ resourceId, deploymentLocationId: location.id })}
             onRemove={(checkInId) => checkOutMutation.mutate(checkInId)}
+            onEdit={() => openEdit(location)}
           />
         ))}
 
@@ -375,6 +428,47 @@ export function IncidentGear() {
               <Button type="submit" disabled={!newName || createLocationMutation.isPending}>
                 {createLocationMutation.isPending && <Loader2 className="size-4 animate-spin" />}
                 Create
+              </Button>
+            </DialogFooter>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!editingLocation} onOpenChange={(open) => !open && setEditingLocation(null)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Edit Deployment Location</DialogTitle>
+          </DialogHeader>
+          <form
+            onSubmit={(e) => {
+              e.preventDefault()
+              updateLocationMutation.mutate()
+            }}
+            className="flex flex-col gap-3"
+          >
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="editLocationName">Location Name</Label>
+              <Input
+                id="editLocationName"
+                value={editName}
+                onChange={(e) => setEditName(e.target.value)}
+                placeholder="e.g. Main Stage, Repeater Site A"
+                required
+              />
+            </div>
+            <LocationPinMap
+              latitude={editCoords?.lat ?? ''}
+              longitude={editCoords?.lng ?? ''}
+              onChange={(lat, lng) => setEditCoords({ lat, lng })}
+            />
+            <div className="flex flex-col gap-1.5">
+              <Label htmlFor="editLocationNotes">Notes</Label>
+              <Textarea id="editLocationNotes" value={editNotes} onChange={(e) => setEditNotes(e.target.value)} />
+            </div>
+            <DialogFooter>
+              <Button type="submit" disabled={!editName || updateLocationMutation.isPending}>
+                {updateLocationMutation.isPending && <Loader2 className="size-4 animate-spin" />}
+                Save
               </Button>
             </DialogFooter>
           </form>
