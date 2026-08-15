@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import L from 'leaflet'
+import { cn } from '@/lib/utils'
 
 type Props = {
   latitude: string | null
@@ -71,5 +72,10 @@ export function LocationPreviewMap({ latitude, longitude, className }: Props) {
     )
   }
 
-  return <div ref={containerRef} className={className ?? 'w-full h-32 rounded-md border border-credential-hairline'} />
+  return (
+    <div
+      ref={containerRef}
+      className={cn('isolate relative z-0', className ?? 'w-full h-32 rounded-md border border-credential-hairline')}
+    />
+  )
 }
