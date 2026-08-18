@@ -1,0 +1,433 @@
+package org.nj2pc.oem.incident;
+
+import org.nj2pc.oem.checkin.OperatorCheckInResponse;
+import org.nj2pc.oem.checkin.OperatorCheckInService;
+import org.nj2pc.oem.checkin.ResourceCheckInResponse;
+import org.nj2pc.oem.checkin.ResourceCheckInService;
+import org.nj2pc.oem.commsplan.CommunicationChannel;
+import org.nj2pc.oem.commsplan.CommunicationChannelRepository;
+import org.nj2pc.oem.commsplan.Ics205PdfService;
+import org.nj2pc.oem.commsplan.IncidentCommsPlanApplicationResponse;
+import org.nj2pc.oem.commsplan.IncidentCommsPlanApplicationService;
+import org.nj2pc.oem.common.ApiException;
+import org.nj2pc.oem.deploymentlocation.DeploymentLocationResponse;
+import org.nj2pc.oem.deploymentlocation.DeploymentLocationService;
+import org.nj2pc.oem.mesh.MeshNodeSnapshotResponse;
+import org.nj2pc.oem.mesh.MeshSessionDetailResponse;
+import org.nj2pc.oem.mesh.MeshSessionService;
+import org.nj2pc.oem.mesh.MeshSessionSummaryResponse;
+import org.nj2pc.oem.pdf.MeshMapPdfSupport;
+import org.nj2pc.oem.pdf.PdfSupport;
+import org.nj2pc.oem.pdf.PdfTheme;
+import org.openpdf.text.Document;
+import org.openpdf.text.DocumentException;
+import org.openpdf.text.Element;
+import org.openpdf.text.PageSize;
+import org.openpdf.text.Paragraph;
+import org.openpdf.text.Phrase;
+import org.openpdf.text.pdf.PdfPCell;
+import org.openpdf.text.pdf.PdfPTable;
+import org.openpdf.text.pdf.PdfWriter;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.awt.Color;
+import java.io.ByteArrayOutputStream;
+import java.util.List;
+import java.util.Map;
+import java.util.Objects;
+import java.util.stream.Collectors;
+
+@Service
+public class IncidentSummaryPdfService {
+
+    private record ScanSummary(MeshSessionSummaryResponse summary, List<String> bandsUsed) {
+    }
+
+    private final IncidentRepository incidentRepository;
+    private final OperatorCheckInService operatorCheckInService;
+    private final IncidentLogService incidentLogService;
+    private final MeshSessionService meshSessionService;
+    private final ResourceCheckInService resourceCheckInService;
+    private final DeploymentLocationService deploymentLocationService;
+    private final IncidentCommsPlanApplicationService incidentCommsPlanApplicationService;
+    private final CommunicationChannelRepository communicationChannelRepository;
+
+    public IncidentSummaryPdfService(IncidentRepository incidentRepository,
+                                      OperatorCheckInService operatorCheckInService,
+                                      IncidentLogService incidentLogService,
+                                      MeshSessionService meshSessionService,
+                                      ResourceCheckInService resourceCheckInService,
+                                      DeploymentLocationService deploymentLocationService,
+                                      IncidentCommsPlanApplicationService incidentCommsPlanApplicationService,
+                                      CommunicationChannelRepository communicationChannelRepository) {
+        this.incidentRepository = incidentRepository;
+        this.operatorCheckInService = operatorCheckInService;
+        this.incidentLogService = incidentLogService;
+        this.meshSessionService = meshSessionService;
+        this.resourceCheckInService = resourceCheckInService;
+        this.deploymentLocationService = deploymentLocationService;
+        this.incidentCommsPlanApplicationService = incidentCommsPlanApplicationService;
+        this.communicationChannelRepository = communicationChannelRepository;
+    }
+
+    @Transactional(readOnly = true)
+    public byte[] generate(Long incidentId, IncidentPdfRequest request) {
+        Incident incident = incidentRepository.findById(incidentId)
+                .orElseThrow(() -> ApiException.notFound("Incident not found: " + incidentId));
+
+        List<OperatorCheckInResponse> operatorCheckIns = operatorCheckInService.findByIncident(incidentId);
+        List<IncidentLogResponse> logs = incidentLogService.findByIncident(incidentId);
+        List<MeshSessionSummaryResponse> meshSessions = meshSessionService.findByIncident(incidentId);
+        List<ResourceCheckInResponse> resourceCheckIns = resourceCheckInService.findByIncident(incidentId);
+        List<DeploymentLocationResponse> deploymentLocations = deploymentLocationService.findByIncident(incidentId);
+
+        IncidentCommsPlanApplicationResponse activeCommsPlan =
+                incidentCommsPlanApplicationService.findActive(incidentId).orElse(null);
+        List<CommunicationChannel> commsChannels = activeCommsPlan != null
+                ? communicationChannelRepository.findByPlanIdOrderByChannelNumberAsc(activeCommsPlan.communicationPlanId())
+                : List.of();
+
+        // Mesh scan list only carries node/link counts — bands live per-node on each scan's own
+        // detail response, so pull each scan's detail once to aggregate its distinct bands. Same
+        // per-session access pattern MeshSessionPdfService already uses; incident scan counts are
+        // small in practice so this stays a handful of extra reads, not a real N+1 concern.
+        List<ScanSummary> scanSummaries = meshSessions.stream()
+                .map(s -> {
+                    MeshSessionDetailResponse detail = meshSessionService.findById(incidentId, s.id());
+                    List<String> bands = detail.nodes().stream()
+                            .map(MeshNodeSnapshotResponse::band)
+                            .filter(b -> b != null && !b.isBlank())
+                            .distinct().sorted().toList();
+                    return new ScanSummary(s, bands);
+                }).toList();
+
+        // Only currently-deployed gear — matches the dashboard map's own "what's here right now"
+        // convention (IncidentDetail.tsx's openResourceCheckIns), not the full historical list.
+        List<ResourceCheckInResponse> deployedGear = resourceCheckIns.stream()
+                .filter(c -> c.checkedOutAt() == null)
+                .toList();
+        Map<Long, List<ResourceCheckInResponse>> gearByLocationId = deployedGear.stream()
+                .filter(c -> c.deploymentLocationId() != null)
+                .collect(Collectors.groupingBy(ResourceCheckInResponse::deploymentLocationId));
+        List<String> mapNodeTypes = deployedGear.stream()
+                .map(ResourceCheckInResponse::resourceTypeName)
+                .filter(Objects::nonNull)
+                .distinct().sorted().toList();
+
+        boolean rotateMapContent = "PORTRAIT".equalsIgnoreCase(request.orientation());
+
+        Document document = new Document(PageSize.LETTER.rotate(),
+                PdfSupport.MARGIN_LEFT, PdfSupport.MARGIN_RIGHT, PdfSupport.MARGIN_TOP, PdfSupport.MARGIN_BOTTOM);
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        try {
+            PdfWriter writer = PdfWriter.getInstance(document, out);
+            writer.setPageEvent(new PdfSupport.PaperBackground());
+            document.open();
+
+            addSummaryPage(document, incident);
+
+            document.newPage();
+            if (rotateMapContent) {
+                MeshMapPdfSupport.addRotatedMapPage(document, writer.getDirectContent(),
+                        buildHeaderBlock(incident, "INCIDENT MAP"), request.mapImageBase64(), mapNodeTypes);
+            } else {
+                PdfPTable header = buildHeaderBlock(incident, "INCIDENT MAP");
+                float availableWidth = document.getPageSize().getWidth() - document.leftMargin() - document.rightMargin();
+                header.setTotalWidth(availableWidth);
+                float headerHeight = header.getTotalHeight();
+                document.add(header);
+                float spacerHeight = 8f;
+                document.add(PdfSupport.spacer(spacerHeight));
+                float availableHeight = document.getPageSize().getHeight() - document.topMargin() - document.bottomMargin()
+                        - headerHeight - spacerHeight;
+                document.add(MeshMapPdfSupport.buildMapPageBody(request.mapImageBase64(), mapNodeTypes, availableWidth, availableHeight));
+            }
+
+            document.newPage();
+            document.add(buildHeaderBlock(incident, "OPERATOR TIME SHEET"));
+            document.add(PdfSupport.spacer(8f));
+            document.add(buildTimeSheetTable(operatorCheckIns));
+
+            document.newPage();
+            document.add(buildHeaderBlock(incident, "COMMUNICATIONS PLAN"));
+            document.add(PdfSupport.spacer(8f));
+            if (activeCommsPlan == null) {
+                document.add(new Paragraph("No communications plan is currently applied to this incident.", PdfTheme.VALUE_FONT));
+            } else {
+                document.add(buildCommsPlanInfo(activeCommsPlan));
+                document.add(PdfSupport.spacer(6f));
+                document.add(Ics205PdfService.buildChannelTable(commsChannels));
+            }
+
+            document.newPage();
+            document.add(buildHeaderBlock(incident, "MESSAGE LOG"));
+            document.add(PdfSupport.spacer(8f));
+            document.add(buildMessageLogTable(logs));
+
+            document.newPage();
+            document.add(buildHeaderBlock(incident, "MESH SCANS"));
+            document.add(PdfSupport.spacer(8f));
+            document.add(buildMeshScansTable(scanSummaries));
+
+            document.newPage();
+            document.add(buildHeaderBlock(incident, "DEPLOYMENT LOCATIONS & GEAR"));
+            document.add(PdfSupport.spacer(8f));
+            addDeploymentLocationsSection(document, deploymentLocations, gearByLocationId);
+
+            document.close();
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to generate incident PDF", e);
+        }
+
+        return out.toByteArray();
+    }
+
+    private void addSummaryPage(Document document, Incident incident) throws DocumentException {
+        document.add(buildHeaderBlock(incident, "INCIDENT SUMMARY"));
+        document.add(PdfSupport.spacer(10f));
+
+        PdfPTable grid = new PdfPTable(2);
+        grid.setWidthPercentage(100);
+        grid.setWidths(new float[]{1f, 1f});
+        grid.addCell(PdfSupport.nestedLabeledCell("Name", incident.getName()));
+        grid.addCell(PdfSupport.nestedLabeledCell("Status", incident.getStatus().name()));
+        grid.addCell(PdfSupport.nestedLabeledCell("Location", incident.getLocation()));
+        grid.addCell(PdfSupport.nestedLabeledCell("Created By", incident.getCreatedBy() != null ? incident.getCreatedBy().getCallsign() : null));
+        grid.addCell(PdfSupport.nestedLabeledCell("Planned Start", formatInstant(incident.getPlannedStartTime())));
+        grid.addCell(PdfSupport.nestedLabeledCell("Planned End", formatInstant(incident.getPlannedEndTime())));
+        grid.addCell(PdfSupport.nestedLabeledCell("Actual Start", formatInstant(incident.getActualStartTime())));
+        grid.addCell(PdfSupport.nestedLabeledCell("Actual End", formatInstant(incident.getActualEndTime())));
+        document.add(grid);
+        document.add(PdfSupport.spacer(10f));
+
+        document.add(PdfSupport.sectionLabel("Description"));
+        document.add(PdfSupport.spacer(3f));
+        PdfPTable descBox = new PdfPTable(1);
+        descBox.setWidthPercentage(100);
+        PdfPCell descCell = new PdfPCell(new Phrase(PdfSupport.nullToDash(incident.getDescription()), PdfTheme.VALUE_FONT));
+        descCell.setBackgroundColor(PdfTheme.PAPER);
+        descCell.setBorderColor(PdfTheme.AMBER_BORDER);
+        descCell.setPadding(8f);
+        descCell.setMinimumHeight(80f);
+        descBox.addCell(descCell);
+        document.add(descBox);
+    }
+
+    private String formatInstant(java.time.Instant instant) {
+        return instant == null ? "—" : PdfTheme.DATE_TIME_FMT.format(instant);
+    }
+
+    private PdfPTable buildHeaderBlock(Incident incident, String title) {
+        PdfPTable table = new PdfPTable(3);
+        table.setWidthPercentage(100);
+        table.setWidths(new float[]{1.1f, 1.5f, 2.2f});
+
+        PdfPCell orgCell = new PdfPCell();
+        orgCell.setBackgroundColor(PdfTheme.BLUE_DEEP);
+        orgCell.setPadding(5f);
+        orgCell.setVerticalAlignment(Element.ALIGN_MIDDLE);
+        orgCell.setBorderColor(PdfTheme.BLUE_DEEP);
+        Paragraph orgText = new Paragraph();
+        orgText.add(new Phrase("0Y-AuxComs\n", PdfTheme.ORG_FONT));
+        orgText.add(new Phrase("Incident Report", PdfTheme.ORG_TAGLINE_FONT));
+        orgCell.addElement(orgText);
+        table.addCell(orgCell);
+
+        PdfPCell titleCell = new PdfPCell();
+        titleCell.setBackgroundColor(PdfTheme.PAPER);
+        titleCell.setBorderColor(PdfTheme.AMBER_BORDER);
+        titleCell.setPadding(5f);
+        titleCell.setVerticalAlignment(Element.ALIGN_MIDDLE);
+        titleCell.setHorizontalAlignment(Element.ALIGN_CENTER);
+        Paragraph titleText = new Paragraph(title, PdfTheme.TITLE_FONT);
+        titleText.setAlignment(Element.ALIGN_CENTER);
+        titleCell.addElement(titleText);
+        table.addCell(titleCell);
+
+        PdfPTable rightNested = new PdfPTable(1);
+        rightNested.setWidthPercentage(100);
+        rightNested.addCell(PdfSupport.nestedLabeledCell("Incident", incident.getName()));
+        rightNested.addCell(PdfSupport.nestedLabeledCell("Status", incident.getStatus().name()));
+
+        PdfPCell rightCell = new PdfPCell(rightNested);
+        rightCell.setPadding(0f);
+        rightCell.setBorderColor(PdfTheme.AMBER_BORDER);
+        table.addCell(rightCell);
+
+        return table;
+    }
+
+    private PdfPTable buildTimeSheetTable(List<OperatorCheckInResponse> checkIns) {
+        String[] headers = {"Operator", "Role", "Post", "Checked In", "Checked Out", "Notes"};
+        float[] widths = {1f, 1f, 1f, 1.1f, 1.1f, 1.6f};
+
+        PdfPTable table = newTable(headers, widths);
+        if (checkIns.isEmpty()) {
+            addEmptyRow(table, headers.length, "No operator check-ins recorded");
+            return table;
+        }
+
+        boolean stripe = false;
+        for (OperatorCheckInResponse c : checkIns) {
+            Color rowColor = stripe ? PdfTheme.NEUTRAL_BAND : PdfTheme.WHITE;
+            PdfSupport.addBodyCell(table, PdfSupport.nullToDash(c.operatorCallsign()), rowColor, PdfTheme.TABLE_CELL_FONT);
+            PdfSupport.addBodyCell(table, PdfSupport.nullToDash(c.roleName()), rowColor, PdfTheme.TABLE_CELL_FONT);
+            PdfSupport.addBodyCell(table, PdfSupport.nullToDash(c.post()), rowColor, PdfTheme.TABLE_CELL_MUTED_FONT);
+            PdfSupport.addBodyCell(table, formatInstant(c.checkedInAt()), rowColor, PdfTheme.TABLE_CELL_FONT);
+            PdfSupport.addBodyCell(table, c.checkedOutAt() != null ? formatInstant(c.checkedOutAt()) : "Still checked in", rowColor, PdfTheme.TABLE_CELL_FONT);
+            PdfSupport.addBodyCell(table, PdfSupport.nullToDash(c.notes()), rowColor, PdfTheme.TABLE_CELL_MUTED_FONT);
+            stripe = !stripe;
+        }
+        return table;
+    }
+
+    private PdfPTable buildCommsPlanInfo(IncidentCommsPlanApplicationResponse plan) {
+        PdfPTable grid = new PdfPTable(3);
+        grid.setWidthPercentage(100);
+        grid.setWidths(new float[]{1.4f, 0.6f, 1f});
+        grid.addCell(PdfSupport.nestedLabeledCell("Plan Name", plan.planName()));
+        grid.addCell(PdfSupport.nestedLabeledCell("Version", "v" + plan.planVersion()));
+        grid.addCell(PdfSupport.nestedLabeledCell("Applied", formatInstant(plan.appliedAt())
+                + (plan.appliedByCallsign() != null ? " by " + plan.appliedByCallsign() : "")));
+        return grid;
+    }
+
+    private PdfPTable buildMessageLogTable(List<IncidentLogResponse> logs) {
+        String[] headers = {"Logged At", "From", "To", "Subject", "Message", "Priority"};
+        float[] widths = {1f, 0.8f, 0.8f, 1.1f, 2f, 0.7f};
+
+        PdfPTable table = newTable(headers, widths);
+        if (logs.isEmpty()) {
+            addEmptyRow(table, headers.length, "No messages logged");
+            return table;
+        }
+
+        boolean stripe = false;
+        for (IncidentLogResponse l : logs) {
+            Color rowColor = stripe ? PdfTheme.NEUTRAL_BAND : PdfTheme.WHITE;
+            PdfSupport.addBodyCell(table, formatInstant(l.loggedAt()), rowColor, PdfTheme.TABLE_CELL_FONT);
+            PdfSupport.addBodyCell(table, PdfSupport.nullToDash(l.operatorCallsign()), rowColor, PdfTheme.TABLE_CELL_FONT);
+            PdfSupport.addBodyCell(table, PdfSupport.nullToDash(l.toOperatorCallsign()), rowColor, PdfTheme.TABLE_CELL_FONT);
+            PdfSupport.addBodyCell(table, PdfSupport.nullToDash(l.subject()), rowColor, PdfTheme.TABLE_CELL_FONT);
+            PdfSupport.addBodyCell(table, PdfSupport.nullToDash(l.message()), rowColor, PdfTheme.TABLE_CELL_MUTED_FONT);
+
+            PdfPCell priorityCell = new PdfPCell(new Phrase(l.priority().name(),
+                    org.openpdf.text.FontFactory.getFont(org.openpdf.text.FontFactory.HELVETICA_BOLD, 7, priorityColor(l.priority()))));
+            priorityCell.setBackgroundColor(rowColor);
+            priorityCell.setBorderColor(PdfTheme.AMBER_BORDER);
+            priorityCell.setPadding(3f);
+            table.addCell(priorityCell);
+            stripe = !stripe;
+        }
+        return table;
+    }
+
+    private Color priorityColor(Priority priority) {
+        return switch (priority) {
+            case EMERGENCY -> PdfTheme.RED;
+            case PRIORITY -> PdfTheme.AMBER_TEXT;
+            case ROUTINE -> PdfTheme.GREEN;
+        };
+    }
+
+    private PdfPTable buildMeshScansTable(List<ScanSummary> scans) {
+        String[] headers = {"Label", "Captured At", "Nodes", "Links", "Bands Used"};
+        float[] widths = {1.2f, 1f, 0.6f, 0.6f, 1.4f};
+
+        PdfPTable table = newTable(headers, widths);
+        if (scans.isEmpty()) {
+            addEmptyRow(table, headers.length, "No mesh scans recorded");
+            return table;
+        }
+
+        boolean stripe = false;
+        for (ScanSummary s : scans) {
+            Color rowColor = stripe ? PdfTheme.NEUTRAL_BAND : PdfTheme.WHITE;
+            PdfSupport.addBodyCell(table, PdfSupport.nullToDash(s.summary().label()), rowColor, PdfTheme.TABLE_CELL_FONT);
+            PdfSupport.addBodyCell(table, formatInstant(s.summary().capturedAt()), rowColor, PdfTheme.TABLE_CELL_FONT);
+            PdfSupport.addBodyCell(table, String.valueOf(s.summary().nodeCount()), rowColor, PdfTheme.TABLE_CELL_FONT);
+            PdfSupport.addBodyCell(table, String.valueOf(s.summary().linkCount()), rowColor, PdfTheme.TABLE_CELL_FONT);
+            PdfSupport.addBodyCell(table, s.bandsUsed().isEmpty() ? "—" : String.join(", ", s.bandsUsed()), rowColor, PdfTheme.TABLE_CELL_MUTED_FONT);
+            stripe = !stripe;
+        }
+        return table;
+    }
+
+    private void addDeploymentLocationsSection(Document document, List<DeploymentLocationResponse> locations,
+                                                Map<Long, List<ResourceCheckInResponse>> gearByLocationId) throws DocumentException {
+        if (locations.isEmpty()) {
+            document.add(new Paragraph("No deployment locations recorded for this incident.", PdfTheme.VALUE_FONT));
+            return;
+        }
+
+        boolean first = true;
+        for (DeploymentLocationResponse loc : locations) {
+            if (!first) {
+                document.add(PdfSupport.spacer(8f));
+            }
+            first = false;
+
+            PdfPTable locHeader = new PdfPTable(2);
+            locHeader.setWidthPercentage(100);
+            locHeader.setWidths(new float[]{2f, 1f});
+            locHeader.addCell(PdfSupport.nestedLabeledCell(loc.name(), PdfSupport.nullToDash(loc.notes())));
+            String coords = loc.latitude() != null && loc.longitude() != null
+                    ? loc.latitude() + ", " + loc.longitude() : null;
+            locHeader.addCell(PdfSupport.nestedLabeledCell("Coordinates", coords));
+            document.add(locHeader);
+
+            List<ResourceCheckInResponse> gear = gearByLocationId.getOrDefault(loc.id(), List.of());
+            document.add(buildGearTable(gear));
+        }
+    }
+
+    private PdfPTable buildGearTable(List<ResourceCheckInResponse> gear) {
+        String[] headers = {"Identifier", "Type"};
+        float[] widths = {1.5f, 1.5f};
+
+        PdfPTable table = newTable(headers, widths);
+        if (gear.isEmpty()) {
+            addEmptyRow(table, headers.length, "No gear currently at this location");
+            return table;
+        }
+
+        boolean stripe = false;
+        for (ResourceCheckInResponse c : gear) {
+            Color rowColor = stripe ? PdfTheme.NEUTRAL_BAND : PdfTheme.WHITE;
+            PdfSupport.addBodyCell(table, PdfSupport.nullToDash(c.resourceIdentifier()), rowColor, PdfTheme.TABLE_CELL_FONT);
+            PdfSupport.addBodyCell(table, PdfSupport.nullToDash(c.resourceTypeName()), rowColor, PdfTheme.TABLE_CELL_MUTED_FONT);
+            stripe = !stripe;
+        }
+        return table;
+    }
+
+    private PdfPTable newTable(String[] headers, float[] widths) {
+        PdfPTable table = new PdfPTable(headers.length);
+        table.setWidthPercentage(100);
+        try {
+            table.setWidths(widths);
+        } catch (Exception ignored) {
+            // widths array size always matches column count here
+        }
+        table.setHeaderRows(1);
+
+        for (String header : headers) {
+            PdfPCell cell = new PdfPCell(new Phrase(header, PdfTheme.TABLE_HEADER_FONT));
+            cell.setBackgroundColor(PdfTheme.INK);
+            cell.setBorderColor(PdfTheme.INK);
+            cell.setPadding(4f);
+            cell.setVerticalAlignment(Element.ALIGN_MIDDLE);
+            table.addCell(cell);
+        }
+        return table;
+    }
+
+    private void addEmptyRow(PdfPTable table, int colspan, String text) {
+        PdfPCell empty = new PdfPCell(new Phrase(text, PdfTheme.TABLE_CELL_FONT));
+        empty.setColspan(colspan);
+        empty.setPadding(6f);
+        empty.setBorderColor(PdfTheme.AMBER_BORDER);
+        table.addCell(empty);
+    }
+}

@@ -41,6 +41,7 @@ public class IncidentController {
     private final MeshSessionService meshSessionService;
     private final MeshSessionPdfService meshSessionPdfService;
     private final DeploymentLocationService deploymentLocationService;
+    private final IncidentSummaryPdfService incidentSummaryPdfService;
 
     public IncidentController(IncidentService incidentService,
                                IncidentLogService incidentLogService,
@@ -49,7 +50,8 @@ public class IncidentController {
                                ResourceCheckInService resourceCheckInService,
                                MeshSessionService meshSessionService,
                                MeshSessionPdfService meshSessionPdfService,
-                               DeploymentLocationService deploymentLocationService) {
+                               DeploymentLocationService deploymentLocationService,
+                               IncidentSummaryPdfService incidentSummaryPdfService) {
         this.incidentService = incidentService;
         this.incidentLogService = incidentLogService;
         this.communicationPlanService = communicationPlanService;
@@ -58,6 +60,7 @@ public class IncidentController {
         this.meshSessionService = meshSessionService;
         this.meshSessionPdfService = meshSessionPdfService;
         this.deploymentLocationService = deploymentLocationService;
+        this.incidentSummaryPdfService = incidentSummaryPdfService;
     }
 
     @GetMapping
@@ -85,6 +88,16 @@ public class IncidentController {
     @PostMapping("/{id}/start")
     public IncidentResponse start(Authentication authentication, @PathVariable Long id) {
         return incidentService.start(authentication, id);
+    }
+
+    @PostMapping("/{id}/pdf")
+    public ResponseEntity<byte[]> downloadIncidentPdf(@PathVariable Long id, @Valid @RequestBody IncidentPdfRequest request) {
+        byte[] pdf = incidentSummaryPdfService.generate(id, request);
+        String filename = "Incident-" + id + ".pdf";
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_PDF)
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+                .body(pdf);
     }
 
     @PostMapping("/{id}/end")

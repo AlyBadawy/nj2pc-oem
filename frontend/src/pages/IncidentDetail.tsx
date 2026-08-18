@@ -1,9 +1,11 @@
-import { useState } from 'react'
+import { useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate, useParams } from 'react-router-dom'
 import {
   ArrowLeft,
+  FileDown,
   Flag,
+  Loader2,
   Play,
   Pencil,
   ShieldCheck,
@@ -24,17 +26,19 @@ import type {
   IncidentPermission,
   IncidentPermissionGrant,
   MeshNodeSnapshot,
+  MeshLinkSnapshot,
   MeshSessionDetail as MeshSessionDetailType,
   MeshSessionSummary,
   Operator,
   OperatorCheckIn,
   ResourceCheckIn,
 } from '@/lib/types'
-import { MeshMap } from '@/components/MeshMap'
+import { MeshMap, type MeshMapHandle } from '@/components/MeshMap'
 import { resourceTypeColor } from '@/lib/meshVisual'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Label } from '@/components/ui/label'
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
 
@@ -79,6 +83,8 @@ export function IncidentDetail() {
   const [permissionsOpen, setPermissionsOpen] = useState(false)
   const [grantOperatorId, setGrantOperatorId] = useState('')
   const [grantPermission, setGrantPermission] = useState<IncidentPermission>('VIEW')
+  const [pdfDialogOpen, setPdfDialogOpen] = useState(false)
+  const mapHandleRef = useRef<MeshMapHandle>(null)
 
   const { data: incident } = useQuery({
     queryKey: ['incidents', id],
@@ -279,6 +285,10 @@ export function IncidentDetail() {
             <p className="text-muted-foreground text-sm">{incident.location}</p>
           </div>
           <div className="flex flex-wrap items-center gap-2">
+            <Button variant="outline" onClick={() => setPdfDialogOpen(true)}>
+              <FileDown className="size-4" />
+              Generate PDF
+            </Button>
             {canEdit && (
               <Button variant="outline" onClick={() => setPermissionsOpen(true)}>
                 <ShieldCheck className="size-4" />
@@ -364,7 +374,7 @@ export function IncidentDetail() {
             <CardTitle className="text-base">Map</CardTitle>
           </CardHeader>
           <CardContent className="flex flex-col gap-3">
-            <MeshMap nodes={dashboardMapNodes} links={dashboardMapLinks} boundaryPoints={incident.boundaryPoints} />
+            <MeshMap ref={mapHandleRef} nodes={dashboardMapNodes} links={dashboardMapLinks} boundaryPoints={incident.boundaryPoints} />
             {dashboardMapTypes.length > 0 && (
               <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm">
                 {dashboardMapTypes.map((type) => (
@@ -509,6 +519,103 @@ export function IncidentDetail() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <GenerateIncidentPdfDialog
+        open={pdfDialogOpen}
+        onOpenChange={setPdfDialogOpen}
+        incidentId={id}
+        incident={incident}
+        nodes={dashboardMapNodes}
+        links={dashboardMapLinks}
+        mapHandleRef={mapHandleRef}
+      />
     </div>
+  )
+}
+
+type PdfOrientation = 'LANDSCAPE' | 'PORTRAIT'
+
+function GenerateIncidentPdfDialog({
+  open,
+  onOpenChange,
+  incidentId,
+  incident,
+  nodes,
+  links,
+  mapHandleRef,
+}: {
+  open: boolean
+  onOpenChange: (open: boolean) => void
+  incidentId: string | undefined
+  incident: Incident | undefined
+  nodes: (MeshNodeSnapshot & { offSite?: boolean; resourceTypeName?: string | null })[]
+  links: MeshLinkSnapshot[]
+  mapHandleRef: React.RefObject<MeshMapHandle | null>
+}) {
+  const [orientation, setOrientation] = useState<PdfOrientation>('LANDSCAPE')
+  const [generating, setGenerating] = useState(false)
+
+  async function handleGenerate() {
+    setGenerating(true)
+    try {
+      const mapImageBase64 = mapHandleRef.current?.captureSnapshot({ nodes, links })
+      if (!mapImageBase64) {
+        toast.error('Map is not ready yet — try again in a moment')
+        setGenerating(false)
+        return
+      }
+      const response = await api.post(
+        `/api/incidents/${incidentId}/pdf`,
+        { orientation, mapImageBase64 },
+        { responseType: 'blob' },
+      )
+      const url = window.URL.createObjectURL(new Blob([response.data]))
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `Incident-${(incident?.name || 'incident').replace(/[^a-zA-Z0-9-]+/g, '_')}.pdf`
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.URL.revokeObjectURL(url)
+      onOpenChange(false)
+    } catch {
+      toast.error('Failed to generate PDF')
+    } finally {
+      setGenerating(false)
+    }
+  }
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="sm:max-w-md">
+        <DialogHeader>
+          <DialogTitle>Generate Incident PDF</DialogTitle>
+          <DialogDescription>
+            Includes a summary, map, operator time sheet, communications plan, message log, mesh scan
+            history, and deployment locations with their gear.
+          </DialogDescription>
+        </DialogHeader>
+        <div className="flex flex-col gap-3">
+          <div className="flex flex-col gap-1.5">
+            <Label>Map Orientation</Label>
+            <Select value={orientation} onValueChange={(v) => setOrientation(v as PdfOrientation)}>
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="LANDSCAPE">Horizontal</SelectItem>
+                <SelectItem value="PORTRAIT">Vertical</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        </div>
+        <DialogFooter>
+          <Button onClick={handleGenerate} disabled={generating}>
+            {generating ? <Loader2 className="size-4 animate-spin" /> : <FileDown className="size-4" />}
+            Generate PDF
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   )
 }
