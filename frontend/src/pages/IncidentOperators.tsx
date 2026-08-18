@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams } from 'react-router-dom'
-import { ArrowLeft, LogIn, LogOut } from 'lucide-react'
+import { ArrowLeft, FileDown, Loader2, LogIn, LogOut } from 'lucide-react'
 import { toast } from 'sonner'
 import { api, apiUrl } from '@/lib/api'
 import { hasPermission, useAuth } from '@/lib/auth-context'
@@ -41,6 +41,7 @@ export function IncidentOperators() {
   const [checkInAt, setCheckInAt] = useState('')
   const [checkOutTarget, setCheckOutTarget] = useState<OperatorCheckIn | null>(null)
   const [checkOutAt, setCheckOutAt] = useState('')
+  const [downloadingPdf, setDownloadingPdf] = useState(false)
 
   const { data: incident } = useQuery({
     queryKey: ['incidents', id],
@@ -158,6 +159,25 @@ export function IncidentOperators() {
     return [...byOperator.values()].sort((a, b) => a.callsign.localeCompare(b.callsign))
   }, [operatorCheckIns, operators, incident, user])
 
+  async function handleDownloadPdf() {
+    setDownloadingPdf(true)
+    try {
+      const response = await api.get(`/api/incidents/${id}/operator-checkins/pdf`, { responseType: 'blob' })
+      const url = window.URL.createObjectURL(new Blob([response.data]))
+      const link = document.createElement('a')
+      link.href = url
+      link.download = `Team-Timesheet-${(incident?.name || 'incident').replace(/[^a-zA-Z0-9-]+/g, '_')}.pdf`
+      document.body.appendChild(link)
+      link.click()
+      link.remove()
+      window.URL.revokeObjectURL(url)
+    } catch {
+      toast.error('Failed to generate PDF')
+    } finally {
+      setDownloadingPdf(false)
+    }
+  }
+
   if (!incident) return null
 
   const canEdit = incident.canEdit
@@ -167,12 +187,18 @@ export function IncidentOperators() {
 
   return (
     <div className="flex flex-col gap-6">
-      <div>
-        <Button variant="ghost" size="sm" onClick={() => navigate(`/incidents/${id}`)} className="mb-2 -ml-2">
-          <ArrowLeft className="size-4" />
-          Back to {incident.name}
+      <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <Button variant="ghost" size="sm" onClick={() => navigate(`/incidents/${id}`)} className="mb-2 -ml-2">
+            <ArrowLeft className="size-4" />
+            Back to {incident.name}
+          </Button>
+          <h1 className="text-2xl font-semibold">Team, and timesheet</h1>
+        </div>
+        <Button variant="outline" disabled={downloadingPdf} onClick={handleDownloadPdf}>
+          {downloadingPdf ? <Loader2 className="size-4 animate-spin" /> : <FileDown className="size-4" />}
+          Generate PDF
         </Button>
-        <h1 className="text-2xl font-semibold">Team, and timesheet</h1>
       </div>
 
       <Card>

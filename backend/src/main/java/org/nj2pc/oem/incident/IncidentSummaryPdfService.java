@@ -2,10 +2,9 @@ package org.nj2pc.oem.incident;
 
 import org.nj2pc.oem.checkin.OperatorCheckInResponse;
 import org.nj2pc.oem.checkin.OperatorCheckInService;
+import org.nj2pc.oem.checkin.OperatorTimesheetPdfService;
 import org.nj2pc.oem.checkin.ResourceCheckInResponse;
 import org.nj2pc.oem.checkin.ResourceCheckInService;
-import org.nj2pc.oem.commsplan.CommunicationChannel;
-import org.nj2pc.oem.commsplan.CommunicationChannelRepository;
 import org.nj2pc.oem.commsplan.Ics205PdfService;
 import org.nj2pc.oem.commsplan.IncidentCommsPlanApplicationResponse;
 import org.nj2pc.oem.commsplan.IncidentCommsPlanApplicationService;
@@ -17,6 +16,8 @@ import org.nj2pc.oem.mesh.MeshSessionDetailResponse;
 import org.nj2pc.oem.mesh.MeshSessionService;
 import org.nj2pc.oem.mesh.MeshSessionSummaryResponse;
 import org.nj2pc.oem.pdf.MeshMapPdfSupport;
+import org.nj2pc.oem.pdf.OperatorCredentialPdfSupport;
+import org.nj2pc.oem.pdf.PdfMergeSupport;
 import org.nj2pc.oem.pdf.PdfSupport;
 import org.nj2pc.oem.pdf.PdfTheme;
 import org.openpdf.text.Document;
@@ -28,6 +29,7 @@ import org.openpdf.text.Phrase;
 import org.openpdf.text.pdf.PdfPCell;
 import org.openpdf.text.pdf.PdfPTable;
 import org.openpdf.text.pdf.PdfWriter;
+import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -35,7 +37,6 @@ import java.awt.Color;
 import java.io.ByteArrayOutputStream;
 import java.util.List;
 import java.util.Map;
-import java.util.Objects;
 import java.util.stream.Collectors;
 
 @Service
@@ -46,33 +47,36 @@ public class IncidentSummaryPdfService {
 
     private final IncidentRepository incidentRepository;
     private final OperatorCheckInService operatorCheckInService;
+    private final OperatorTimesheetPdfService operatorTimesheetPdfService;
     private final IncidentLogService incidentLogService;
     private final MeshSessionService meshSessionService;
     private final ResourceCheckInService resourceCheckInService;
     private final DeploymentLocationService deploymentLocationService;
     private final IncidentCommsPlanApplicationService incidentCommsPlanApplicationService;
-    private final CommunicationChannelRepository communicationChannelRepository;
+    private final Ics205PdfService ics205PdfService;
 
     public IncidentSummaryPdfService(IncidentRepository incidentRepository,
                                       OperatorCheckInService operatorCheckInService,
+                                      OperatorTimesheetPdfService operatorTimesheetPdfService,
                                       IncidentLogService incidentLogService,
                                       MeshSessionService meshSessionService,
                                       ResourceCheckInService resourceCheckInService,
                                       DeploymentLocationService deploymentLocationService,
                                       IncidentCommsPlanApplicationService incidentCommsPlanApplicationService,
-                                      CommunicationChannelRepository communicationChannelRepository) {
+                                      Ics205PdfService ics205PdfService) {
         this.incidentRepository = incidentRepository;
         this.operatorCheckInService = operatorCheckInService;
+        this.operatorTimesheetPdfService = operatorTimesheetPdfService;
         this.incidentLogService = incidentLogService;
         this.meshSessionService = meshSessionService;
         this.resourceCheckInService = resourceCheckInService;
         this.deploymentLocationService = deploymentLocationService;
         this.incidentCommsPlanApplicationService = incidentCommsPlanApplicationService;
-        this.communicationChannelRepository = communicationChannelRepository;
+        this.ics205PdfService = ics205PdfService;
     }
 
     @Transactional(readOnly = true)
-    public byte[] generate(Long incidentId, IncidentPdfRequest request) {
+    public byte[] generate(Authentication authentication, Long incidentId, IncidentPdfRequest request) {
         Incident incident = incidentRepository.findById(incidentId)
                 .orElseThrow(() -> ApiException.notFound("Incident not found: " + incidentId));
 
@@ -84,9 +88,6 @@ public class IncidentSummaryPdfService {
 
         IncidentCommsPlanApplicationResponse activeCommsPlan =
                 incidentCommsPlanApplicationService.findActive(incidentId).orElse(null);
-        List<CommunicationChannel> commsChannels = activeCommsPlan != null
-                ? communicationChannelRepository.findByPlanIdOrderByChannelNumberAsc(activeCommsPlan.communicationPlanId())
-                : List.of();
 
         // Mesh scan list only carries node/link counts — bands live per-node on each scan's own
         // detail response, so pull each scan's detail once to aggregate its distinct bands. Same
@@ -110,27 +111,31 @@ public class IncidentSummaryPdfService {
         Map<Long, List<ResourceCheckInResponse>> gearByLocationId = deployedGear.stream()
                 .filter(c -> c.deploymentLocationId() != null)
                 .collect(Collectors.groupingBy(ResourceCheckInResponse::deploymentLocationId));
-        List<String> mapNodeTypes = deployedGear.stream()
-                .map(ResourceCheckInResponse::resourceTypeName)
-                .filter(Objects::nonNull)
-                .distinct().sorted().toList();
 
         boolean rotateMapContent = "PORTRAIT".equalsIgnoreCase(request.orientation());
 
-        Document document = new Document(PageSize.LETTER.rotate(),
-                PdfSupport.MARGIN_LEFT, PdfSupport.MARGIN_RIGHT, PdfSupport.MARGIN_TOP, PdfSupport.MARGIN_BOTTOM);
-        ByteArrayOutputStream out = new ByteArrayOutputStream();
-        try {
-            PdfWriter writer = PdfWriter.getInstance(document, out);
-            writer.setPageEvent(new PdfSupport.PaperBackground());
-            document.open();
+        byte[] partA = renderPartA(incident, request, rotateMapContent, operatorCheckIns, authentication);
+        byte[] commsPlanPart = activeCommsPlan != null
+                ? ics205PdfService.generate(activeCommsPlan.communicationPlanId())
+                : renderNoCommsPlanPage(incident);
+        byte[] partB = renderPartB(incident, logs, scanSummaries, deploymentLocations, gearByLocationId);
 
+        return PdfMergeSupport.merge(List.of(partA, commsPlanPart, partB));
+    }
+
+    /** Summary, Map, and Team Roster/Timesheet pages. */
+    private byte[] renderPartA(Incident incident, IncidentPdfRequest request, boolean rotateMapContent,
+                                List<OperatorCheckInResponse> operatorCheckIns, Authentication authentication) {
+        return renderDocument((document, writer) -> {
             addSummaryPage(document, incident);
 
             document.newPage();
+            // No per-gear-type legend on the incident map — this page is about the overall site
+            // picture, not an equipment-type key (unlike the mesh-scan/dashboard maps).
+            List<String> noLegendTypes = List.of();
             if (rotateMapContent) {
                 MeshMapPdfSupport.addRotatedMapPage(document, writer.getDirectContent(),
-                        buildHeaderBlock(incident, "INCIDENT MAP"), request.mapImageBase64(), mapNodeTypes);
+                        buildHeaderBlock(incident, "INCIDENT MAP"), request.mapImageBase64(), noLegendTypes);
             } else {
                 PdfPTable header = buildHeaderBlock(incident, "INCIDENT MAP");
                 float availableWidth = document.getPageSize().getWidth() - document.leftMargin() - document.rightMargin();
@@ -141,26 +146,29 @@ public class IncidentSummaryPdfService {
                 document.add(PdfSupport.spacer(spacerHeight));
                 float availableHeight = document.getPageSize().getHeight() - document.topMargin() - document.bottomMargin()
                         - headerHeight - spacerHeight;
-                document.add(MeshMapPdfSupport.buildMapPageBody(request.mapImageBase64(), mapNodeTypes, availableWidth, availableHeight));
+                document.add(MeshMapPdfSupport.buildMapPageBody(request.mapImageBase64(), noLegendTypes, availableWidth, availableHeight));
             }
+
+            // Team roster + timesheet — identical rendering to the dedicated Team/Timesheet PDF,
+            // via the same shared card-building and table-building code.
+            document.newPage();
+            document.add(buildHeaderBlock(incident, "TEAM ROSTER"));
+            document.add(PdfSupport.spacer(8f));
+            document.add(OperatorCredentialPdfSupport.buildCredentialGrid(
+                    operatorTimesheetPdfService.buildTeamCards(authentication, operatorCheckIns), "0Y-AuxComs"));
 
             document.newPage();
             document.add(buildHeaderBlock(incident, "OPERATOR TIME SHEET"));
             document.add(PdfSupport.spacer(8f));
-            document.add(buildTimeSheetTable(operatorCheckIns));
+            document.add(OperatorCredentialPdfSupport.buildTimeSheetTable(operatorCheckIns));
+        });
+    }
 
-            document.newPage();
-            document.add(buildHeaderBlock(incident, "COMMUNICATIONS PLAN"));
-            document.add(PdfSupport.spacer(8f));
-            if (activeCommsPlan == null) {
-                document.add(new Paragraph("No communications plan is currently applied to this incident.", PdfTheme.VALUE_FONT));
-            } else {
-                document.add(buildCommsPlanInfo(activeCommsPlan));
-                document.add(PdfSupport.spacer(6f));
-                document.add(Ics205PdfService.buildChannelTable(commsChannels));
-            }
-
-            document.newPage();
+    /** Message Log, Mesh Scans, and Deployment Locations & Gear pages. */
+    private byte[] renderPartB(Incident incident, List<IncidentLogResponse> logs, List<ScanSummary> scanSummaries,
+                               List<DeploymentLocationResponse> deploymentLocations,
+                               Map<Long, List<ResourceCheckInResponse>> gearByLocationId) {
+        return renderDocument((document, writer) -> {
             document.add(buildHeaderBlock(incident, "MESSAGE LOG"));
             document.add(PdfSupport.spacer(8f));
             document.add(buildMessageLogTable(logs));
@@ -174,44 +182,70 @@ public class IncidentSummaryPdfService {
             document.add(buildHeaderBlock(incident, "DEPLOYMENT LOCATIONS & GEAR"));
             document.add(PdfSupport.spacer(8f));
             addDeploymentLocationsSection(document, deploymentLocations, gearByLocationId);
+        });
+    }
 
+    private byte[] renderNoCommsPlanPage(Incident incident) {
+        return renderDocument((document, writer) -> {
+            document.add(buildHeaderBlock(incident, "COMMUNICATIONS PLAN"));
+            document.add(PdfSupport.spacer(8f));
+            document.add(new Paragraph("No communications plan is currently applied to this incident.", PdfTheme.VALUE_FONT));
+        });
+    }
+
+    private interface DocumentBuilder {
+        void build(Document document, PdfWriter writer) throws DocumentException;
+    }
+
+    private byte[] renderDocument(DocumentBuilder builder) {
+        Document document = new Document(PageSize.LETTER.rotate(),
+                PdfSupport.MARGIN_LEFT, PdfSupport.MARGIN_RIGHT, PdfSupport.MARGIN_TOP, PdfSupport.MARGIN_BOTTOM);
+        ByteArrayOutputStream out = new ByteArrayOutputStream();
+        try {
+            PdfWriter writer = PdfWriter.getInstance(document, out);
+            writer.setPageEvent(new PdfSupport.PaperBackground());
+            document.open();
+            builder.build(document, writer);
             document.close();
         } catch (Exception e) {
-            throw new RuntimeException("Failed to generate incident PDF", e);
+            throw new RuntimeException("Failed to generate incident PDF section", e);
         }
-
         return out.toByteArray();
     }
 
-    private void addSummaryPage(Document document, Incident incident) throws DocumentException {
-        document.add(buildHeaderBlock(incident, "INCIDENT SUMMARY"));
-        document.add(PdfSupport.spacer(10f));
+    private void addSummaryPage(Document document, Incident incident) {
+        try {
+            document.add(buildHeaderBlock(incident, "INCIDENT SUMMARY"));
+            document.add(PdfSupport.spacer(10f));
 
-        PdfPTable grid = new PdfPTable(2);
-        grid.setWidthPercentage(100);
-        grid.setWidths(new float[]{1f, 1f});
-        grid.addCell(PdfSupport.nestedLabeledCell("Name", incident.getName()));
-        grid.addCell(PdfSupport.nestedLabeledCell("Status", incident.getStatus().name()));
-        grid.addCell(PdfSupport.nestedLabeledCell("Location", incident.getLocation()));
-        grid.addCell(PdfSupport.nestedLabeledCell("Created By", incident.getCreatedBy() != null ? incident.getCreatedBy().getCallsign() : null));
-        grid.addCell(PdfSupport.nestedLabeledCell("Planned Start", formatInstant(incident.getPlannedStartTime())));
-        grid.addCell(PdfSupport.nestedLabeledCell("Planned End", formatInstant(incident.getPlannedEndTime())));
-        grid.addCell(PdfSupport.nestedLabeledCell("Actual Start", formatInstant(incident.getActualStartTime())));
-        grid.addCell(PdfSupport.nestedLabeledCell("Actual End", formatInstant(incident.getActualEndTime())));
-        document.add(grid);
-        document.add(PdfSupport.spacer(10f));
+            PdfPTable grid = new PdfPTable(2);
+            grid.setWidthPercentage(100);
+            grid.setWidths(new float[]{1f, 1f});
+            grid.addCell(PdfSupport.nestedLabeledCell("Name", incident.getName()));
+            grid.addCell(PdfSupport.nestedLabeledCell("Status", incident.getStatus().name()));
+            grid.addCell(PdfSupport.nestedLabeledCell("Location", incident.getLocation()));
+            grid.addCell(PdfSupport.nestedLabeledCell("Created By", incident.getCreatedBy() != null ? incident.getCreatedBy().getCallsign() : null));
+            grid.addCell(PdfSupport.nestedLabeledCell("Planned Start", formatInstant(incident.getPlannedStartTime())));
+            grid.addCell(PdfSupport.nestedLabeledCell("Planned End", formatInstant(incident.getPlannedEndTime())));
+            grid.addCell(PdfSupport.nestedLabeledCell("Actual Start", formatInstant(incident.getActualStartTime())));
+            grid.addCell(PdfSupport.nestedLabeledCell("Actual End", formatInstant(incident.getActualEndTime())));
+            document.add(grid);
+            document.add(PdfSupport.spacer(10f));
 
-        document.add(PdfSupport.sectionLabel("Description"));
-        document.add(PdfSupport.spacer(3f));
-        PdfPTable descBox = new PdfPTable(1);
-        descBox.setWidthPercentage(100);
-        PdfPCell descCell = new PdfPCell(new Phrase(PdfSupport.nullToDash(incident.getDescription()), PdfTheme.VALUE_FONT));
-        descCell.setBackgroundColor(PdfTheme.PAPER);
-        descCell.setBorderColor(PdfTheme.AMBER_BORDER);
-        descCell.setPadding(8f);
-        descCell.setMinimumHeight(80f);
-        descBox.addCell(descCell);
-        document.add(descBox);
+            document.add(PdfSupport.sectionLabel("Description"));
+            document.add(PdfSupport.spacer(3f));
+            PdfPTable descBox = new PdfPTable(1);
+            descBox.setWidthPercentage(100);
+            PdfPCell descCell = new PdfPCell(new Phrase(PdfSupport.nullToDash(incident.getDescription()), PdfTheme.VALUE_FONT));
+            descCell.setBackgroundColor(PdfTheme.PAPER);
+            descCell.setBorderColor(PdfTheme.AMBER_BORDER);
+            descCell.setPadding(8f);
+            descCell.setMinimumHeight(80f);
+            descBox.addCell(descCell);
+            document.add(descBox);
+        } catch (DocumentException e) {
+            throw new RuntimeException("Failed to render incident summary page", e);
+        }
     }
 
     private String formatInstant(java.time.Instant instant) {
@@ -256,41 +290,6 @@ public class IncidentSummaryPdfService {
         table.addCell(rightCell);
 
         return table;
-    }
-
-    private PdfPTable buildTimeSheetTable(List<OperatorCheckInResponse> checkIns) {
-        String[] headers = {"Operator", "Role", "Post", "Checked In", "Checked Out", "Notes"};
-        float[] widths = {1f, 1f, 1f, 1.1f, 1.1f, 1.6f};
-
-        PdfPTable table = newTable(headers, widths);
-        if (checkIns.isEmpty()) {
-            addEmptyRow(table, headers.length, "No operator check-ins recorded");
-            return table;
-        }
-
-        boolean stripe = false;
-        for (OperatorCheckInResponse c : checkIns) {
-            Color rowColor = stripe ? PdfTheme.NEUTRAL_BAND : PdfTheme.WHITE;
-            PdfSupport.addBodyCell(table, PdfSupport.nullToDash(c.operatorCallsign()), rowColor, PdfTheme.TABLE_CELL_FONT);
-            PdfSupport.addBodyCell(table, PdfSupport.nullToDash(c.roleName()), rowColor, PdfTheme.TABLE_CELL_FONT);
-            PdfSupport.addBodyCell(table, PdfSupport.nullToDash(c.post()), rowColor, PdfTheme.TABLE_CELL_MUTED_FONT);
-            PdfSupport.addBodyCell(table, formatInstant(c.checkedInAt()), rowColor, PdfTheme.TABLE_CELL_FONT);
-            PdfSupport.addBodyCell(table, c.checkedOutAt() != null ? formatInstant(c.checkedOutAt()) : "Still checked in", rowColor, PdfTheme.TABLE_CELL_FONT);
-            PdfSupport.addBodyCell(table, PdfSupport.nullToDash(c.notes()), rowColor, PdfTheme.TABLE_CELL_MUTED_FONT);
-            stripe = !stripe;
-        }
-        return table;
-    }
-
-    private PdfPTable buildCommsPlanInfo(IncidentCommsPlanApplicationResponse plan) {
-        PdfPTable grid = new PdfPTable(3);
-        grid.setWidthPercentage(100);
-        grid.setWidths(new float[]{1.4f, 0.6f, 1f});
-        grid.addCell(PdfSupport.nestedLabeledCell("Plan Name", plan.planName()));
-        grid.addCell(PdfSupport.nestedLabeledCell("Version", "v" + plan.planVersion()));
-        grid.addCell(PdfSupport.nestedLabeledCell("Applied", formatInstant(plan.appliedAt())
-                + (plan.appliedByCallsign() != null ? " by " + plan.appliedByCallsign() : "")));
-        return grid;
     }
 
     private PdfPTable buildMessageLogTable(List<IncidentLogResponse> logs) {

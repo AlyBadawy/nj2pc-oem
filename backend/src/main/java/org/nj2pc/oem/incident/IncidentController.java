@@ -5,6 +5,7 @@ import org.nj2pc.oem.checkin.OperatorCheckInRequest;
 import org.nj2pc.oem.checkin.OperatorCheckInResponse;
 import org.nj2pc.oem.checkin.OperatorCheckInService;
 import org.nj2pc.oem.checkin.OperatorCheckOutRequest;
+import org.nj2pc.oem.checkin.OperatorTimesheetPdfService;
 import org.nj2pc.oem.checkin.ResourceCheckInRequest;
 import org.nj2pc.oem.checkin.ResourceCheckInResponse;
 import org.nj2pc.oem.checkin.ResourceCheckInService;
@@ -43,6 +44,7 @@ public class IncidentController {
     private final MeshSessionPdfService meshSessionPdfService;
     private final DeploymentLocationService deploymentLocationService;
     private final IncidentSummaryPdfService incidentSummaryPdfService;
+    private final OperatorTimesheetPdfService operatorTimesheetPdfService;
 
     public IncidentController(IncidentService incidentService,
                                IncidentLogService incidentLogService,
@@ -52,7 +54,8 @@ public class IncidentController {
                                MeshSessionService meshSessionService,
                                MeshSessionPdfService meshSessionPdfService,
                                DeploymentLocationService deploymentLocationService,
-                               IncidentSummaryPdfService incidentSummaryPdfService) {
+                               IncidentSummaryPdfService incidentSummaryPdfService,
+                               OperatorTimesheetPdfService operatorTimesheetPdfService) {
         this.incidentService = incidentService;
         this.incidentLogService = incidentLogService;
         this.communicationPlanService = communicationPlanService;
@@ -62,6 +65,7 @@ public class IncidentController {
         this.meshSessionPdfService = meshSessionPdfService;
         this.deploymentLocationService = deploymentLocationService;
         this.incidentSummaryPdfService = incidentSummaryPdfService;
+        this.operatorTimesheetPdfService = operatorTimesheetPdfService;
     }
 
     @GetMapping
@@ -92,8 +96,9 @@ public class IncidentController {
     }
 
     @PostMapping("/{id}/pdf")
-    public ResponseEntity<byte[]> downloadIncidentPdf(@PathVariable Long id, @Valid @RequestBody IncidentPdfRequest request) {
-        byte[] pdf = incidentSummaryPdfService.generate(id, request);
+    public ResponseEntity<byte[]> downloadIncidentPdf(Authentication authentication, @PathVariable Long id,
+                                                       @Valid @RequestBody IncidentPdfRequest request) {
+        byte[] pdf = incidentSummaryPdfService.generate(authentication, id, request);
         String filename = "Incident-" + id + ".pdf";
         return ResponseEntity.ok()
                 .contentType(MediaType.APPLICATION_PDF)
@@ -152,6 +157,16 @@ public class IncidentController {
                                                       @PathVariable Long checkInId,
                                                       @RequestBody(required = false) OperatorCheckOutRequest request) {
         return operatorCheckInService.checkOut(authentication, id, checkInId, request);
+    }
+
+    @GetMapping("/{id}/operator-checkins/pdf")
+    public ResponseEntity<byte[]> downloadOperatorTimesheetPdf(Authentication authentication, @PathVariable Long id) {
+        byte[] pdf = operatorTimesheetPdfService.generate(authentication, id);
+        String filename = "Team-Timesheet-" + id + ".pdf";
+        return ResponseEntity.ok()
+                .contentType(MediaType.APPLICATION_PDF)
+                .header(HttpHeaders.CONTENT_DISPOSITION, "attachment; filename=\"" + filename + "\"")
+                .body(pdf);
     }
 
     @GetMapping("/{id}/resource-checkins")

@@ -203,6 +203,15 @@
   }
 }
 
+@layer utilities {
+  /* Overrides only the text-color utility, not --credential-ink itself — that variable also
+     drives --sidebar/--foreground/--card-foreground/etc., which must keep their normal ink
+     color. */
+  .text-credential-ink {
+    color: rgb(24, 244, 244);
+  }
+}
+
 @media print {
   body * {
     visibility: hidden;
