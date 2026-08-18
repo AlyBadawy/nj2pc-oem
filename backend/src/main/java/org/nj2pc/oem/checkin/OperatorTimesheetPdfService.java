@@ -63,7 +63,7 @@ public class OperatorTimesheetPdfService {
         Incident incident = incidentRepository.findById(incidentId)
                 .orElseThrow(() -> ApiException.notFound("Incident not found: " + incidentId));
         List<OperatorCheckInResponse> checkIns = operatorCheckInService.findByIncident(incidentId);
-        List<OperatorCredentialCardData> team = buildTeamCards(authentication, checkIns);
+        List<OperatorCredentialCardData> team = buildTeamCards(authentication, checkIns, incident.getName());
 
         Document document = new Document(PageSize.LETTER.rotate(),
                 PdfSupport.MARGIN_LEFT, PdfSupport.MARGIN_RIGHT, PdfSupport.MARGIN_TOP, PdfSupport.MARGIN_BOTTOM);
@@ -73,9 +73,13 @@ public class OperatorTimesheetPdfService {
             writer.setPageEvent(new PdfSupport.PaperBackground());
             document.open();
 
-            document.add(buildHeaderBlock(incident, "TEAM ROSTER"));
-            document.add(PdfSupport.spacer(8f));
-            document.add(OperatorCredentialPdfSupport.buildCredentialGrid(team, "0Y-AuxComs"));
+            List<PdfPTable> gridPages = OperatorCredentialPdfSupport.buildCredentialGridPages(team, "0Y-AuxComs");
+            for (int i = 0; i < gridPages.size(); i++) {
+                if (i > 0) document.newPage();
+                document.add(buildHeaderBlock(incident, "TEAM ROSTER"));
+                document.add(PdfSupport.spacer(8f));
+                document.add(gridPages.get(i));
+            }
 
             document.newPage();
             document.add(buildHeaderBlock(incident, "OPERATOR TIME SHEET"));
@@ -94,7 +98,8 @@ public class OperatorTimesheetPdfService {
      * checked-in/out status), matching frontend IncidentOperators.tsx's `team` memo exactly.
      * Public so the incident-summary PDF's team/timesheet page can build the exact same card
      * data rather than a second, possibly-drifting implementation. */
-    public List<OperatorCredentialCardData> buildTeamCards(Authentication authentication, List<OperatorCheckInResponse> checkIns) {
+    public List<OperatorCredentialCardData> buildTeamCards(Authentication authentication, List<OperatorCheckInResponse> checkIns,
+                                                             String incidentName) {
         Operator caller = operatorRepository.findByCallsignIgnoreCase(authentication.getName()).orElse(null);
         boolean canViewAll = permissionGuard.has(authentication, Permission.OPERATOR_VIEW_CONTACT);
 
@@ -142,7 +147,7 @@ public class OperatorTimesheetPdfService {
                     photoBytes,
                     c.checkedOutAt() == null,
                     c.checkedInAt(),
-                    null
+                    c.checkedOutAt() == null ? incidentName : null
             ));
         }
         team.sort((a, b) -> a.callsign().compareToIgnoreCase(b.callsign()));

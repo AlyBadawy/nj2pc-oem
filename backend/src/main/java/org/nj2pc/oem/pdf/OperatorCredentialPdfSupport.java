@@ -102,6 +102,16 @@ public final class OperatorCredentialPdfSupport {
         return cell;
     }
 
+    /** "HH:mm on duty" since checkedInAt, mirroring the web card's formatElapsed
+     * (frontend/src/lib/identity.ts). */
+    private static String formatElapsed(java.time.Instant since) {
+        long minutes = Math.max(0, java.time.Duration.between(since, java.time.Instant.now()).toMinutes());
+        return String.format("%02d:%02d", minutes / 60, minutes % 60);
+    }
+
+    /** Mirrors `CredentialCardCompact` (frontend/src/components/identity/OperatorIdentity.tsx):
+     * blue accent bar → org header w/ credential no. → fixed-size photo+barcode beside
+     * callsign/name → license class + role chip → contact lines → status footer. */
     private static PdfPTable buildCard(OperatorCredentialCardData d, String orgName) {
         PdfPTable card = new PdfPTable(2);
         card.setWidthPercentage(100);
@@ -119,11 +129,11 @@ public final class OperatorCredentialPdfSupport {
         bar.setFixedHeight(4f);
         card.addCell(bar);
 
-        // Header: org name + credential number.
+        // Header: org name + credential number, hairline bottom border.
         PdfPTable header = new PdfPTable(2);
         header.setWidthPercentage(100);
         PdfPCell orgCell = new PdfPCell(new Phrase(orgName, org.openpdf.text.FontFactory.getFont(
-                org.openpdf.text.FontFactory.HELVETICA_BOLD, 6, PdfTheme.BLUE_DEEP)));
+                org.openpdf.text.FontFactory.HELVETICA_BOLD, 7, PdfTheme.BLUE_DEEP)));
         orgCell.setBorder(0);
         orgCell.setPadding(0f);
         header.addCell(orgCell);
@@ -138,18 +148,19 @@ public final class OperatorCredentialPdfSupport {
         headerCell.setBorder(0);
         headerCell.setBorderWidthBottom(0.5f);
         headerCell.setBorderColor(PdfTheme.AMBER_BORDER);
-        headerCell.setPadding(4f);
+        headerCell.setPadding(5f);
         card.addCell(headerCell);
 
-        // Photo + barcode (fixed-width column) beside callsign/name. The no-photo case adds a
-        // same-sized placeholder *image* rather than relying on cell-level min-height, so both
-        // branches occupy identical, fixed vertical space regardless of what else is in this
-        // grid row — a cell-height hint alone left this column's real height at the mercy of
-        // row-height equalization against taller sibling cards, ballooning into a large blank
-        // block for any card without a photo on file.
+        // Photo + barcode, a fixed-size box (mirrors the web card's 56x70 photo / 56-wide
+        // barcode column) beside the callsign/name. The no-photo case adds a same-sized
+        // placeholder *image* rather than relying on cell-level min-height, so both branches
+        // occupy identical, fixed vertical space regardless of what else is in this grid row —
+        // a cell-height hint alone left this column's real height at the mercy of row-height
+        // equalization against taller sibling cards, ballooning into a large blank block for
+        // any card without a photo on file.
         PdfPCell photoCell = new PdfPCell();
         photoCell.setBorder(0);
-        photoCell.setPadding(4f);
+        photoCell.setPadding(5f);
         Image photo = null;
         if (d.photoBytes() != null) {
             try {
@@ -161,51 +172,58 @@ public final class OperatorCredentialPdfSupport {
         if (photo == null) {
             photo = placeholderPhotoImage();
         }
-        photo.scaleToFit(50f, 62f);
+        photo.scaleToFit(52f, 65f);
         photoCell.addElement(photo);
         Image barcode = Code128Support.barcodeImage(d.callsign(), d.id(), 200, 30);
-        barcode.scaleToFit(50f, 12f);
+        barcode.scaleToFit(52f, 13f);
         Paragraph barcodeP = new Paragraph();
+        barcodeP.setSpacingBefore(2f);
         barcodeP.add(new org.openpdf.text.Chunk(barcode, 0, 0));
-        photoCell.addElement(new Paragraph(" "));
         photoCell.addElement(barcodeP);
         card.addCell(photoCell);
 
         PdfPCell nameCell = new PdfPCell();
         nameCell.setBorder(0);
-        nameCell.setPadding(4f);
+        nameCell.setPadding(5f);
         nameCell.setVerticalAlignment(Element.ALIGN_TOP);
+        Paragraph callsignLabel = new Paragraph("CALLSIGN", PdfTheme.LABEL_FONT);
+        callsignLabel.setSpacingAfter(1f);
+        nameCell.addElement(callsignLabel);
         Paragraph namePara = new Paragraph();
         namePara.add(new Phrase(d.callsign() + "\n", org.openpdf.text.FontFactory.getFont(
-                org.openpdf.text.FontFactory.COURIER_BOLD, 16, PdfTheme.INK)));
+                org.openpdf.text.FontFactory.COURIER_BOLD, 20, PdfTheme.INK)));
         namePara.add(new Phrase(d.name(), org.openpdf.text.FontFactory.getFont(
-                org.openpdf.text.FontFactory.HELVETICA_BOLD, 9, PdfTheme.INK)));
+                org.openpdf.text.FontFactory.HELVETICA_BOLD, 10, PdfTheme.INK)));
         nameCell.addElement(namePara);
         card.addCell(nameCell);
 
-        // License + role.
+        // License + role chip, hairline top border.
         PdfPTable licenseRole = new PdfPTable(2);
         licenseRole.setWidthPercentage(100);
-        PdfPCell licenseCell = new PdfPCell(new Phrase(
-                PdfSupport.nullToDash(d.licenseClass()), PdfTheme.TABLE_CELL_FONT));
+        PdfPCell licenseCell = new PdfPCell();
         licenseCell.setBorder(0);
         licenseCell.setPadding(0f);
+        Paragraph licensePara = new Paragraph();
+        licensePara.add(new Phrase("LICENSE  ", PdfTheme.LABEL_FONT));
+        licensePara.add(new Phrase(PdfSupport.nullToDash(d.licenseClass()), PdfTheme.TABLE_CELL_FONT));
+        licenseCell.addElement(licensePara);
         licenseRole.addCell(licenseCell);
-        String roleText = d.roleName() != null ? d.roleName() + " · " + PdfSupport.nullToDash(d.roleAccessLevel()) : "Unassigned";
+        String roleText = d.roleName() != null ? d.roleName().toUpperCase() + " · " + PdfSupport.nullToDash(d.roleAccessLevel()) : "UNASSIGNED";
         Color roleColor = d.roleName() != null && d.roleColor() != null ? parseHexColor(d.roleColor()) : new Color(0xF4, 0xF2, 0xEC);
         PdfPCell roleCell = new PdfPCell(new Phrase(roleText, org.openpdf.text.FontFactory.getFont(
                 org.openpdf.text.FontFactory.COURIER_BOLD, 6, PdfTheme.INK)));
         roleCell.setBackgroundColor(roleColor);
         roleCell.setBorder(0);
-        roleCell.setPadding(2f);
+        roleCell.setPadding(3f);
         roleCell.setHorizontalAlignment(Element.ALIGN_RIGHT);
+        roleCell.setVerticalAlignment(Element.ALIGN_MIDDLE);
         licenseRole.addCell(roleCell);
         PdfPCell licenseRoleCell = new PdfPCell(licenseRole);
         licenseRoleCell.setColspan(2);
         licenseRoleCell.setBorder(0);
         licenseRoleCell.setBorderWidthTop(0.5f);
         licenseRoleCell.setBorderColor(PdfTheme.AMBER_BORDER);
-        licenseRoleCell.setPadding(4f);
+        licenseRoleCell.setPadding(5f);
         card.addCell(licenseRoleCell);
 
         // Contact lines.
@@ -213,16 +231,31 @@ public final class OperatorCredentialPdfSupport {
         card.addCell(contactLine("Email", contactValue(d.email(), d.canViewContact(), OperatorCredentialPdfSupport::maskEmail, "—")));
         card.addCell(contactLine("Plate", contactValue(d.licensePlate(), d.canViewContact(), OperatorCredentialPdfSupport::maskPlate, "NONE")));
 
-        // Status footer.
+        // Status footer — incident name + elapsed time on duty when checked in, matching the
+        // web card's footer bar exactly (not a raw "Checked in {datetime}" line).
         PdfPCell footer = new PdfPCell();
         footer.setColspan(2);
         footer.setBackgroundColor(d.checkedIn() ? PdfTheme.INK : OFFLINE);
         footer.setBorder(0);
-        footer.setPadding(4f);
-        Paragraph footerText = new Paragraph(
-                d.checkedIn() ? "Checked in " + PdfTheme.DATE_TIME_FMT.format(d.checkedInAt()) : "Not checked in",
-                org.openpdf.text.FontFactory.getFont(org.openpdf.text.FontFactory.HELVETICA_BOLD, 6, PdfTheme.WHITE));
-        footer.addElement(footerText);
+        footer.setPadding(5f);
+        PdfPTable footerRow = new PdfPTable(2);
+        footerRow.setWidthPercentage(100);
+        PdfPCell footerLeft = new PdfPCell(new Phrase(
+                d.checkedIn() && d.incidentName() != null ? d.incidentName() : "Not checked in",
+                org.openpdf.text.FontFactory.getFont(org.openpdf.text.FontFactory.HELVETICA_BOLD, 7, PdfTheme.WHITE)));
+        footerLeft.setBorder(0);
+        footerLeft.setPadding(0f);
+        footerLeft.setVerticalAlignment(Element.ALIGN_MIDDLE);
+        footerRow.addCell(footerLeft);
+        PdfPCell footerRight = new PdfPCell(new Phrase(
+                d.checkedIn() && d.checkedInAt() != null ? formatElapsed(d.checkedInAt()) : "",
+                org.openpdf.text.FontFactory.getFont(org.openpdf.text.FontFactory.COURIER, 6, new Color(0xE0, 0xE0, 0xE0))));
+        footerRight.setBorder(0);
+        footerRight.setPadding(0f);
+        footerRight.setHorizontalAlignment(Element.ALIGN_RIGHT);
+        footerRight.setVerticalAlignment(Element.ALIGN_MIDDLE);
+        footerRow.addCell(footerRight);
+        footer.addElement(footerRow);
         card.addCell(footer);
 
         return card;
@@ -236,19 +269,44 @@ public final class OperatorCredentialPdfSupport {
         }
     }
 
-    /** Lays out one card per team member, 4 per row — a plain PdfPTable, so it flows across
-     * page breaks automatically like any other table in this app's PDFs. */
-    public static PdfPTable buildCredentialGrid(List<OperatorCredentialCardData> team, String orgName) {
-        int columns = 4;
-        PdfPTable grid = new PdfPTable(columns);
+    private static final int GRID_COLUMNS = 4;
+    private static final int GRID_ROWS_PER_PAGE = 2;
+    private static final int CARDS_PER_PAGE = GRID_COLUMNS * GRID_ROWS_PER_PAGE;
+
+    /** One page's worth of cards (up to 4 per row, 2 rows — 8 cards), explicitly chunked rather
+     * than left to auto-flow, so a page never ends with a half-empty row spilling one card onto
+     * the next page. Any leftover slots in the final chunk are filled with empty bordered cells
+     * so every page keeps the same fixed 4x2 grid shape. */
+    private static PdfPTable buildCredentialGridPage(List<OperatorCredentialCardData> pageTeam, String orgName) {
+        PdfPTable grid = new PdfPTable(GRID_COLUMNS);
         grid.setWidthPercentage(100);
-        for (OperatorCredentialCardData d : team) {
+        for (OperatorCredentialCardData d : pageTeam) {
             PdfPCell cell = new PdfPCell(buildCard(d, orgName));
             cell.setBorder(0);
             cell.setPadding(6f);
             grid.addCell(cell);
         }
+        for (int i = pageTeam.size(); i < CARDS_PER_PAGE; i++) {
+            PdfPCell empty = new PdfPCell();
+            empty.setBorder(0);
+            grid.addCell(empty);
+        }
         return grid;
+    }
+
+    /** Lays out the full team roster as one grid per page, explicitly 4 cards per row and 2 rows
+     * per page (8 per page) — the caller adds a page break between each returned table. */
+    public static List<PdfPTable> buildCredentialGridPages(List<OperatorCredentialCardData> team, String orgName) {
+        List<PdfPTable> pages = new java.util.ArrayList<>();
+        if (team.isEmpty()) {
+            pages.add(buildCredentialGridPage(List.of(), orgName));
+            return pages;
+        }
+        for (int start = 0; start < team.size(); start += CARDS_PER_PAGE) {
+            List<OperatorCredentialCardData> pageTeam = team.subList(start, Math.min(start + CARDS_PER_PAGE, team.size()));
+            pages.add(buildCredentialGridPage(pageTeam, orgName));
+        }
+        return pages;
     }
 
     /** Same operator time-sheet table used by both the dedicated timesheet PDF and the

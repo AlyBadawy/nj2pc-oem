@@ -22,9 +22,12 @@ export type MeshMapHandle = {
   /** Snapshots exactly what's currently on screen (same tiles, same pan/zoom) as a PNG data URL
    * — used for the mesh-scan PDF export. Pass `overrides` to render a different node/link set
    * than the live map currently shows (e.g. the PDF's "RF only" filter, or excluding off-site/
-   * far-away nodes) without disturbing the on-screen view. Returns null if there's nothing to
-   * capture yet (map not initialized). */
-  captureSnapshot: (overrides?: { nodes?: MeshMapNode[]; links?: MeshLinkSnapshot[] }) => string | null
+   * far-away nodes) without disturbing the on-screen view. `showLabels: false` drops the
+   * permanent per-node hostname / per-link channel text (see meshCanvasDraw.ts) — useful for a
+   * busy, incident-wide view where overlapping labels would just be noise; defaults to true
+   * (unchanged) for callers that don't pass it. Returns null if there's nothing to capture yet
+   * (map not initialized). */
+  captureSnapshot: (overrides?: { nodes?: MeshMapNode[]; links?: MeshLinkSnapshot[]; showLabels?: boolean }) => string | null
 }
 
 /** Plain inline-SVG circle markers instead of Leaflet's default raster icon set — sidesteps the
@@ -86,6 +89,7 @@ export const MeshMap = forwardRef<MeshMapHandle, Props>(function MeshMap({ nodes
     captureSnapshot: (overrides) => {
       const effectiveNodes = overrides?.nodes ?? nodes
       const effectiveLinks = overrides?.links ?? links
+      const showLabels = overrides?.showLabels ?? true
       if (useFallback) {
         // No overrides: the live fallback canvas is already an exact match for what's on
         // screen, so just grab it directly instead of re-rendering. With overrides, redraw
@@ -107,15 +111,20 @@ export const MeshMap = forwardRef<MeshMapHandle, Props>(function MeshMap({ nodes
         const height = liveCanvas.height / dpr
         ctx.fillStyle = '#F7F5F0'
         ctx.fillRect(0, 0, width, height)
-        drawMeshCanvas(ctx, width, height, { nodes: effectiveNodes, links: effectiveLinks, boundaryPoints })
+        drawMeshCanvas(ctx, width, height, { nodes: effectiveNodes, links: effectiveLinks, boundaryPoints }, showLabels)
         return canvas.toDataURL('image/png')
       }
       if (!mapRef.current || !containerRef.current) return null
-      return captureLiveLeafletSnapshot(mapRef.current, containerRef.current, {
-        nodes: effectiveNodes,
-        links: effectiveLinks,
-        boundaryPoints,
-      })
+      return captureLiveLeafletSnapshot(
+        mapRef.current,
+        containerRef.current,
+        {
+          nodes: effectiveNodes,
+          links: effectiveLinks,
+          boundaryPoints,
+        },
+        showLabels,
+      )
     },
   }))
 

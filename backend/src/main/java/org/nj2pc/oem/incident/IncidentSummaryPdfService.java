@@ -15,6 +15,7 @@ import org.nj2pc.oem.mesh.MeshNodeSnapshotResponse;
 import org.nj2pc.oem.mesh.MeshSessionDetailResponse;
 import org.nj2pc.oem.mesh.MeshSessionService;
 import org.nj2pc.oem.mesh.MeshSessionSummaryResponse;
+import org.nj2pc.oem.pdf.DeploymentMapSupport;
 import org.nj2pc.oem.pdf.MeshMapPdfSupport;
 import org.nj2pc.oem.pdf.OperatorCredentialPdfSupport;
 import org.nj2pc.oem.pdf.PdfMergeSupport;
@@ -114,7 +115,12 @@ public class IncidentSummaryPdfService {
 
         boolean rotateMapContent = "PORTRAIT".equalsIgnoreCase(request.orientation());
 
-        byte[] partA = renderPartA(incident, request, rotateMapContent, operatorCheckIns, authentication);
+        List<String> mapNodeTypes = deployedGear.stream()
+                .map(ResourceCheckInResponse::resourceTypeName)
+                .filter(t -> t != null && !t.isBlank())
+                .distinct().sorted().toList();
+
+        byte[] partA = renderPartA(incident, request, rotateMapContent, operatorCheckIns, authentication, mapNodeTypes);
         byte[] commsPlanPart = activeCommsPlan != null
                 ? ics205PdfService.generate(activeCommsPlan.communicationPlanId())
                 : renderNoCommsPlanPage(incident);
@@ -125,17 +131,15 @@ public class IncidentSummaryPdfService {
 
     /** Summary, Map, and Team Roster/Timesheet pages. */
     private byte[] renderPartA(Incident incident, IncidentPdfRequest request, boolean rotateMapContent,
-                                List<OperatorCheckInResponse> operatorCheckIns, Authentication authentication) {
+                                List<OperatorCheckInResponse> operatorCheckIns, Authentication authentication,
+                                List<String> mapNodeTypes) {
         return renderDocument((document, writer) -> {
             addSummaryPage(document, incident);
 
             document.newPage();
-            // No per-gear-type legend on the incident map — this page is about the overall site
-            // picture, not an equipment-type key (unlike the mesh-scan/dashboard maps).
-            List<String> noLegendTypes = List.of();
             if (rotateMapContent) {
                 MeshMapPdfSupport.addRotatedMapPage(document, writer.getDirectContent(),
-                        buildHeaderBlock(incident, "INCIDENT MAP"), request.mapImageBase64(), noLegendTypes);
+                        buildHeaderBlock(incident, "INCIDENT MAP"), request.mapImageBase64(), mapNodeTypes);
             } else {
                 PdfPTable header = buildHeaderBlock(incident, "INCIDENT MAP");
                 float availableWidth = document.getPageSize().getWidth() - document.leftMargin() - document.rightMargin();
@@ -146,16 +150,19 @@ public class IncidentSummaryPdfService {
                 document.add(PdfSupport.spacer(spacerHeight));
                 float availableHeight = document.getPageSize().getHeight() - document.topMargin() - document.bottomMargin()
                         - headerHeight - spacerHeight;
-                document.add(MeshMapPdfSupport.buildMapPageBody(request.mapImageBase64(), noLegendTypes, availableWidth, availableHeight));
+                document.add(MeshMapPdfSupport.buildMapPageBody(request.mapImageBase64(), mapNodeTypes, availableWidth, availableHeight));
             }
 
             // Team roster + timesheet — identical rendering to the dedicated Team/Timesheet PDF,
             // via the same shared card-building and table-building code.
-            document.newPage();
-            document.add(buildHeaderBlock(incident, "TEAM ROSTER"));
-            document.add(PdfSupport.spacer(8f));
-            document.add(OperatorCredentialPdfSupport.buildCredentialGrid(
-                    operatorTimesheetPdfService.buildTeamCards(authentication, operatorCheckIns), "0Y-AuxComs"));
+            List<org.openpdf.text.pdf.PdfPTable> teamGridPages = OperatorCredentialPdfSupport.buildCredentialGridPages(
+                    operatorTimesheetPdfService.buildTeamCards(authentication, operatorCheckIns, incident.getName()), "0Y-AuxComs");
+            for (org.openpdf.text.pdf.PdfPTable gridPage : teamGridPages) {
+                document.newPage();
+                document.add(buildHeaderBlock(incident, "TEAM ROSTER"));
+                document.add(PdfSupport.spacer(8f));
+                document.add(gridPage);
+            }
 
             document.newPage();
             document.add(buildHeaderBlock(incident, "OPERATOR TIME SHEET"));
@@ -344,7 +351,8 @@ public class IncidentSummaryPdfService {
         for (ScanSummary s : scans) {
             Color rowColor = stripe ? PdfTheme.NEUTRAL_BAND : PdfTheme.WHITE;
             PdfSupport.addBodyCell(table, PdfSupport.nullToDash(s.summary().label()), rowColor, PdfTheme.TABLE_CELL_FONT);
-            PdfSupport.addBodyCell(table, formatInstant(s.summary().capturedAt()), rowColor, PdfTheme.TABLE_CELL_FONT);
+            String capturedAt = s.summary().capturedAt() == null ? "—" : PdfTheme.DATE_TIME_FMT_ET.format(s.summary().capturedAt());
+            PdfSupport.addBodyCell(table, capturedAt, rowColor, PdfTheme.TABLE_CELL_FONT);
             PdfSupport.addBodyCell(table, String.valueOf(s.summary().nodeCount()), rowColor, PdfTheme.TABLE_CELL_FONT);
             PdfSupport.addBodyCell(table, String.valueOf(s.summary().linkCount()), rowColor, PdfTheme.TABLE_CELL_FONT);
             PdfSupport.addBodyCell(table, s.bandsUsed().isEmpty() ? "—" : String.join(", ", s.bandsUsed()), rowColor, PdfTheme.TABLE_CELL_MUTED_FONT);
@@ -359,6 +367,8 @@ public class IncidentSummaryPdfService {
             document.add(new Paragraph("No deployment locations recorded for this incident.", PdfTheme.VALUE_FONT));
             return;
         }
+
+        Map<String, java.awt.image.BufferedImage> tileCache = DeploymentMapSupport.newTileCache();
 
         boolean first = true;
         for (DeploymentLocationResponse loc : locations) {
@@ -375,9 +385,21 @@ public class IncidentSummaryPdfService {
                     ? loc.latitude() + ", " + loc.longitude() : null;
             locHeader.addCell(PdfSupport.nestedLabeledCell("Coordinates", coords));
             document.add(locHeader);
+            document.add(PdfSupport.spacer(6f));
 
             List<ResourceCheckInResponse> gear = gearByLocationId.getOrDefault(loc.id(), List.of());
-            document.add(buildGearTable(gear));
+
+            // Small static map beside the gear table — a fixed 2in x 2in square (per-location
+            // "where is this" snapshot), not an interactive map.
+            PdfPTable mapAndGear = new PdfPTable(2);
+            mapAndGear.setWidthPercentage(100);
+            mapAndGear.setWidths(new float[]{1f, 3f});
+            mapAndGear.addCell(DeploymentMapSupport.buildMapCell(loc.latitude(), loc.longitude(), tileCache));
+            PdfPCell gearCell = new PdfPCell(buildGearTable(gear));
+            gearCell.setBorder(0);
+            gearCell.setPadding(0f);
+            mapAndGear.addCell(gearCell);
+            document.add(mapAndGear);
         }
     }
 

@@ -31,6 +31,8 @@ public final class PdfTheme {
 
     public static final DateTimeFormatter DATE_TIME_FMT =
             DateTimeFormatter.ofPattern("MM/dd/yyyy HH:mm").withZone(ZoneId.systemDefault());
+    public static final DateTimeFormatter DATE_TIME_FMT_ET =
+            DateTimeFormatter.ofPattern("MM/dd/yyyy HH:mm z").withZone(ZoneId.of("America/New_York"));
 
     public static final Font ORG_FONT = FontFactory.getFont(FontFactory.HELVETICA_BOLD, 12, WHITE);
     public static final Font ORG_TAGLINE_FONT = FontFactory.getFont(FontFactory.HELVETICA, 7, new Color(0xC7, 0xD6, 0xE4));

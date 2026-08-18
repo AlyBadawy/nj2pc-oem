@@ -19,8 +19,18 @@ function toNum(v: string | null | undefined): number | null {
 /** Draws the boundary polygon, links, node markers, and proximity badges — the parts shared by
  * both the plain lat/lng-grid renderer (`drawMeshCanvas`, self-computed projection) and a
  * live-tile compositor (real Leaflet/OSM map, projection via `map.latLngToContainerPoint`).
- * Takes an already-built `project` function so it has no opinion on what's behind it. */
-export function drawMeshOverlay(ctx: CanvasRenderingContext2D, input: MeshCanvasDrawInput, project: Projector) {
+ * Takes an already-built `project` function so it has no opinion on what's behind it.
+ * `showLabels` (default true) draws each node's hostname and each RF link's channel as
+ * permanent text — the offline fallback and mesh-scan PDF export rely on these since there's no
+ * hover affordance in a static image, but a busy incident-wide map (many nodes close together)
+ * can ask for `false` to keep just the color-coded markers/links, since overlapping text there
+ * becomes illegible rather than useful. */
+export function drawMeshOverlay(
+  ctx: CanvasRenderingContext2D,
+  input: MeshCanvasDrawInput,
+  project: Projector,
+  showLabels = true,
+) {
   const { nodes, links, boundaryPoints } = input
 
   const boundary = (boundaryPoints ?? [])
@@ -74,7 +84,7 @@ export function drawMeshOverlay(ctx: CanvasRenderingContext2D, input: MeshCanvas
     ctx.stroke()
     ctx.globalAlpha = 1
 
-    if (link.linkTypeNormalized === 'RF' && linkChannel) {
+    if (showLabels && link.linkTypeNormalized === 'RF' && linkChannel) {
       const midX = (from[0] + to[0]) / 2
       const midY = (from[1] + to[1]) / 2
       ctx.font = '10px sans-serif'
@@ -108,10 +118,12 @@ export function drawMeshOverlay(ctx: CanvasRenderingContext2D, input: MeshCanvas
     if (n.offSite) ctx.setLineDash([3, 3])
     ctx.stroke()
     if (n.offSite) ctx.setLineDash([])
-    ctx.fillStyle = '#14181D'
-    ctx.font = '10px sans-serif'
-    ctx.textAlign = 'center'
-    ctx.fillText(n.offSite ? `${n.hostname} (off-site)` : n.hostname, x, y - 10)
+    if (showLabels) {
+      ctx.fillStyle = '#14181D'
+      ctx.font = '10px sans-serif'
+      ctx.textAlign = 'center'
+      ctx.fillText(n.offSite ? `${n.hostname} (off-site)` : n.hostname, x, y - 10)
+    }
   }
 }
 
@@ -119,7 +131,13 @@ export function drawMeshOverlay(ctx: CanvasRenderingContext2D, input: MeshCanvas
  * projection from the node/boundary points, draws a grid + distance scale, then delegates the
  * actual content (links/nodes/badges) to `drawMeshOverlay`. Used by the offline map fallback and
  * as the mesh-scan PDF export's map when no live tile-based map is available to capture. */
-export function drawMeshCanvas(ctx: CanvasRenderingContext2D, width: number, height: number, input: MeshCanvasDrawInput) {
+export function drawMeshCanvas(
+  ctx: CanvasRenderingContext2D,
+  width: number,
+  height: number,
+  input: MeshCanvasDrawInput,
+  showLabels = true,
+) {
   const { nodes, boundaryPoints } = input
 
   type Pt = { lat: number; lng: number }
@@ -191,5 +209,5 @@ export function drawMeshCanvas(ctx: CanvasRenderingContext2D, width: number, hei
   ctx.textAlign = 'left'
   ctx.fillText(`~${scaleBarMiles} mi`, padding, height - 20)
 
-  drawMeshOverlay(ctx, input, project)
+  drawMeshOverlay(ctx, input, project, showLabels)
 }

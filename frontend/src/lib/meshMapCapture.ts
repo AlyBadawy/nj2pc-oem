@@ -20,7 +20,12 @@ const EXPORT_IMAGE_QUALITY = 0.85
  * `MeshMap` requests tiles with `crossOrigin: true` and OpenStreetMap's tile servers send
  * `Access-Control-Allow-Origin: *` — without both of those the canvas would be security-tainted
  * and `toDataURL()` would throw. */
-export function captureLiveLeafletSnapshot(map: L.Map, container: HTMLElement, input: MeshCanvasDrawInput): string {
+export function captureLiveLeafletSnapshot(
+  map: L.Map,
+  container: HTMLElement,
+  input: MeshCanvasDrawInput,
+  showLabels = true,
+): string {
   const rect = container.getBoundingClientRect()
   const width = Math.max(rect.width, 1)
   const height = Math.max(rect.height, 1)
@@ -50,10 +55,15 @@ export function captureLiveLeafletSnapshot(map: L.Map, container: HTMLElement, i
     }
   }
 
-  drawMeshOverlay(ctx, input, (lat, lng) => {
-    const point = map.latLngToContainerPoint([lat, lng])
-    return [point.x, point.y]
-  })
+  drawMeshOverlay(
+    ctx,
+    input,
+    (lat, lng) => {
+      const point = map.latLngToContainerPoint([lat, lng])
+      return [point.x, point.y]
+    },
+    showLabels,
+  )
 
   return canvas.toDataURL(EXPORT_IMAGE_MIME, EXPORT_IMAGE_QUALITY)
 }

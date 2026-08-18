@@ -558,7 +558,10 @@ function GenerateIncidentPdfDialog({
   async function handleGenerate() {
     setGenerating(true)
     try {
-      const mapImageBase64 = mapHandleRef.current?.captureSnapshot({ nodes, links })
+      // No per-node hostname / per-link channel text on this map — an incident-wide view often
+      // has many nodes close together, and the overlapping labels become illegible noise rather
+      // than useful detail. The color-coded legend already explains what each marker is.
+      const mapImageBase64 = mapHandleRef.current?.captureSnapshot({ nodes, links, showLabels: false })
       if (!mapImageBase64) {
         toast.error('Map is not ready yet — try again in a moment')
         setGenerating(false)
