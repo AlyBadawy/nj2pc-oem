@@ -61,8 +61,8 @@ export function AllResources() {
             <TableHeader>
               <TableRow>
                 <TableHead>Owner</TableHead>
-                <TableHead>Type</TableHead>
                 <TableHead>Identifier</TableHead>
+                <TableHead>Type</TableHead>
                 <TableHead>Serial Number</TableHead>
                 <TableHead>Notes</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
@@ -94,8 +94,8 @@ export function AllResources() {
                       '—'
                     )}
                   </TableCell>
-                  <TableCell>{r.resourceTypeName}</TableCell>
                   <TableCell className="font-medium">{r.identifier}</TableCell>
+                  <TableCell>{r.resourceTypeName}</TableCell>
                   <TableCell>{r.serialNumber || '—'}</TableCell>
                   <TableCell className="text-muted-foreground max-w-[240px] truncate">
                     {r.notes || '—'}
