@@ -157,28 +157,90 @@ function CredentialCard({ data, orgName }: { data: OperatorIdentityData; orgName
 // Surface 1b — credential-compact (small vertical card, e.g. a team roster grid)
 // ---------------------------------------------------------------------------
 
-function CredentialCardCompact({ data }: { data: OperatorIdentityData }) {
-  const { callsign, name, licenseClass, role, roleColor, roleAccessLevel, photoUrl } = data
+function CredentialCardCompact({ data, orgName }: { data: OperatorIdentityData; orgName: string }) {
+  const {
+    callsign,
+    name,
+    licenseClass,
+    role,
+    roleColor,
+    roleAccessLevel,
+    phone,
+    email,
+    licensePlate,
+    canViewContact,
+    photoUrl,
+    credentialNo,
+    incident,
+  } = data
 
   return (
-    <div className="w-[168px] shrink-0 overflow-hidden rounded-lg border border-black/[.12] bg-credential-paper font-credential-sans shadow-[0_1px_2px_rgba(0,0,0,.06),0_6px_16px_-8px_rgba(0,0,0,.18)]">
+    <div
+      className="w-[220px] shrink-0 overflow-hidden rounded-lg border border-black/[.12] bg-credential-paper font-credential-sans shadow-[0_1px_2px_rgba(0,0,0,.06),0_6px_16px_-8px_rgba(0,0,0,.18)] print:shadow-none"
+      style={{ printColorAdjust: 'exact', WebkitPrintColorAdjust: 'exact' } as React.CSSProperties}
+    >
       <div className="h-[5px] bg-credential-blue" />
-      <div className="aspect-square w-full overflow-hidden border-b border-credential-hairline">
-        {photoUrl ? (
-          <img src={photoUrl} alt="" className="h-full w-full object-cover" />
-        ) : (
-          <PhotoPlaceholder className="h-full w-full" />
+
+      <div className="flex items-start justify-between gap-2 border-b border-credential-hairline px-2.5 py-2">
+        <div className="credential-narrow truncate text-[10px] font-semibold text-credential-blue">{orgName}</div>
+        {credentialNo && (
+          <div className="whitespace-nowrap text-right font-credential-mono text-[7px] text-black/55">
+            {credentialNo}
+          </div>
         )}
       </div>
-      <div className="flex flex-col gap-1.5 p-2.5">
-        <div className="min-w-0">
-          <div className="truncate font-credential-mono text-[19px] font-extrabold leading-[.9] tracking-[-.02em]">
+
+      <div className="flex gap-2.5 p-2.5">
+        <div className="w-[56px] shrink-0">
+          <div className="h-[70px] w-[56px] overflow-hidden rounded-[3px] border border-credential-hairline">
+            {photoUrl ? (
+              <img src={photoUrl} alt="" className="h-full w-full object-cover" />
+            ) : (
+              <PhotoPlaceholder className="h-full w-full" />
+            )}
+          </div>
+          <Barcode callsign={callsign} id={data.id} className="mt-1 h-[16px] w-[56px]" />
+        </div>
+
+        <div className="min-w-0 flex-1">
+          <div className="credential-micro">Callsign</div>
+          <div className="truncate font-credential-mono text-[22px] font-extrabold leading-[.86] tracking-[-.02em]">
             {callsign}
           </div>
           <div className="truncate text-[12px] font-semibold">{name}</div>
         </div>
-        <div className="credential-micro">{licenseClass || '—'}</div>
-        <RoleBadge role={role} roleColor={roleColor} roleAccessLevel={roleAccessLevel} variant="chip" />
+      </div>
+
+      <div className="flex flex-col gap-1.5 border-t border-credential-hairline px-2.5 py-2">
+        <div className="flex items-center justify-between gap-2">
+          <div className="min-w-0">
+            <div className="credential-micro">License</div>
+            <div className="text-[11px]">{licenseClass || '—'}</div>
+          </div>
+          <RoleBadge role={role} roleColor={roleColor} roleAccessLevel={roleAccessLevel} variant="chip" />
+        </div>
+        <ContactLine kind="phone" value={phone} canView={canViewContact} />
+        <ContactLine kind="email" value={email} canView={canViewContact} />
+        <ContactLine kind="plate" value={licensePlate ?? null} canView={canViewContact} emptyText="NONE" />
+      </div>
+
+      <div
+        className="flex items-center justify-between gap-2 px-2.5 py-1.5 text-white"
+        style={{ background: incident ? 'var(--credential-ink)' : 'var(--credential-offline)' }}
+      >
+        <div className="flex min-w-0 items-center gap-1.5">
+          <StatusDot active={!!incident} />
+          {incident ? (
+            <div className="truncate text-[10.5px] font-semibold">{incident.name}</div>
+          ) : (
+            <div className="truncate text-[10.5px] font-semibold text-white/75">Not checked in</div>
+          )}
+        </div>
+        {incident && data.checkedInAt && (
+          <div className="whitespace-nowrap font-credential-mono text-[9px] text-white/85">
+            {formatElapsed(data.checkedInAt)}
+          </div>
+        )}
       </div>
     </div>
   )
@@ -352,7 +414,7 @@ function OperatorTile({ data, onClick }: { data: OperatorIdentityData; onClick?:
 
 export type OperatorIdentityProps =
   | { variant: 'credential'; data: OperatorIdentityData; orgName?: string }
-  | { variant: 'credential-compact'; data: OperatorIdentityData }
+  | { variant: 'credential-compact'; data: OperatorIdentityData; orgName?: string }
   | { variant: 'row'; data: OperatorIdentityData; expanded: boolean; onToggle: () => void }
   | { variant: 'tile'; data: OperatorIdentityData; onClick?: () => void }
 
@@ -361,7 +423,7 @@ export function OperatorIdentity(props: OperatorIdentityProps) {
     return <CredentialCard data={props.data} orgName={props.orgName ?? '0Y-AuxComs'} />
   }
   if (props.variant === 'credential-compact') {
-    return <CredentialCardCompact data={props.data} />
+    return <CredentialCardCompact data={props.data} orgName={props.orgName ?? '0Y-AuxComs'} />
   }
   if (props.variant === 'row') {
     return <RosterRow data={props.data} expanded={props.expanded} onToggle={props.onToggle} />

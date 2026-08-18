@@ -6,7 +6,7 @@ import { toast } from 'sonner'
 import { api, apiUrl } from '@/lib/api'
 import { hasPermission, useAuth } from '@/lib/auth-context'
 import type { Incident, Operator, OperatorCheckIn, OperatorRole } from '@/lib/types'
-import { credentialNoFor, type OperatorIdentityData } from '@/lib/identity'
+import { credentialNoFor, incidentRef, type OperatorIdentityData } from '@/lib/identity'
 import { OperatorIdentity } from '@/components/identity/OperatorIdentity'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -128,10 +128,12 @@ export function IncidentOperators() {
     const operatorById = new Map((operators ?? []).map((o) => [o.id, o]))
     const byOperator = new Map<number, OperatorIdentityData>()
     // operatorCheckIns is ordered by checkedInAt desc, so the first entry seen per operator is
-    // their most recent check-in on this incident — i.e. their "last role" here.
+    // their most recent check-in on this incident — i.e. their "last role" here, and whether
+    // that entry is still open determines the card's checked-in/out status footer.
     for (const c of operatorCheckIns ?? []) {
       if (byOperator.has(c.operatorId)) continue
       const op = operatorById.get(c.operatorId)
+      const canViewContact = hasPermission(user, 'OPERATOR_VIEW_CONTACT') || c.operatorCallsign === user?.callsign
       byOperator.set(c.operatorId, {
         id: c.operatorId,
         callsign: c.operatorCallsign,
@@ -140,15 +142,21 @@ export function IncidentOperators() {
         role: c.roleName,
         roleColor: c.roleColor,
         roleAccessLevel: c.roleAccessLevel,
-        canViewContact: false,
-        phone: null,
-        email: null,
+        canViewContact,
+        phone: op?.phone ?? null,
+        email: op?.email ?? null,
+        licensePlate: op?.licensePlate ?? null,
         photoUrl: op?.photoUrl ? apiUrl(op.photoUrl) : null,
         credentialNo: credentialNoFor(c.operatorId),
+        incident:
+          !c.checkedOutAt && incident
+            ? { id: incident.id, name: incident.name, ref: incidentRef(incident.id, c.checkedInAt) }
+            : null,
+        checkedInAt: !c.checkedOutAt ? c.checkedInAt : null,
       })
     }
     return [...byOperator.values()].sort((a, b) => a.callsign.localeCompare(b.callsign))
-  }, [operatorCheckIns, operators])
+  }, [operatorCheckIns, operators, incident, user])
 
   if (!incident) return null
 
