@@ -4,6 +4,7 @@ import jakarta.validation.Valid;
 import org.nj2pc.oem.checkin.OperatorCheckInRequest;
 import org.nj2pc.oem.checkin.OperatorCheckInResponse;
 import org.nj2pc.oem.checkin.OperatorCheckInService;
+import org.nj2pc.oem.checkin.OperatorCheckOutRequest;
 import org.nj2pc.oem.checkin.ResourceCheckInRequest;
 import org.nj2pc.oem.checkin.ResourceCheckInResponse;
 import org.nj2pc.oem.checkin.ResourceCheckInService;
@@ -148,8 +149,9 @@ public class IncidentController {
 
     @PostMapping("/{id}/operator-checkins/{checkInId}/checkout")
     public OperatorCheckInResponse checkOutOperator(Authentication authentication, @PathVariable Long id,
-                                                      @PathVariable Long checkInId) {
-        return operatorCheckInService.checkOut(authentication, id, checkInId);
+                                                      @PathVariable Long checkInId,
+                                                      @RequestBody(required = false) OperatorCheckOutRequest request) {
+        return operatorCheckInService.checkOut(authentication, id, checkInId, request);
     }
 
     @GetMapping("/{id}/resource-checkins")

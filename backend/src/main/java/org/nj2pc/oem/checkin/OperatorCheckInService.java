@@ -87,7 +87,7 @@ public class OperatorCheckInService {
         OperatorCheckIn checkIn = new OperatorCheckIn();
         checkIn.setIncident(incident);
         checkIn.setOperator(operator);
-        checkIn.setCheckedInAt(Instant.now());
+        checkIn.setCheckedInAt(request.checkedInAt() != null ? request.checkedInAt() : Instant.now());
         if (request.roleId() != null) {
             OperatorRole role = operatorRoleRepository.findById(request.roleId())
                     .orElseThrow(() -> ApiException.notFound("Role not found: " + request.roleId()));
@@ -102,7 +102,8 @@ public class OperatorCheckInService {
     }
 
     @Transactional
-    public OperatorCheckInResponse checkOut(Authentication authentication, Long incidentId, Long checkInId) {
+    public OperatorCheckInResponse checkOut(Authentication authentication, Long incidentId, Long checkInId,
+                                             OperatorCheckOutRequest request) {
         OperatorCheckIn checkIn = getCheckInOrThrow(incidentId, checkInId);
         if (!canEditIncident(authentication, incidentId)) {
             Operator caller = operatorRepository.findByCallsignIgnoreCase(authentication.getName())
@@ -114,7 +115,11 @@ public class OperatorCheckInService {
         if (checkIn.getCheckedOutAt() != null) {
             throw ApiException.badRequest("Already checked out");
         }
-        checkIn.setCheckedOutAt(Instant.now());
+        Instant checkedOutAt = request != null && request.checkedOutAt() != null ? request.checkedOutAt() : Instant.now();
+        if (checkedOutAt.isBefore(checkIn.getCheckedInAt())) {
+            throw ApiException.badRequest("Checked-out time cannot be before checked-in time");
+        }
+        checkIn.setCheckedOutAt(checkedOutAt);
         OperatorCheckInResponse response = OperatorCheckInResponse.from(operatorCheckInRepository.save(checkIn));
         auditLogService.record(EntityType.INCIDENT, incidentId, "CHECK_OUT",
                 "Checked out operator " + checkIn.getOperator().getCallsign(), authentication.getName());

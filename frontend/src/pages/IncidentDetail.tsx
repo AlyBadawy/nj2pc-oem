@@ -395,7 +395,7 @@ export function IncidentDetail() {
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
         <DashboardTile
           icon={Users}
-          label="Operators"
+          label="Team, and timesheet"
           detail={`${openOperatorCheckIns.length} deployed`}
           onClick={() => navigate(`/incidents/${id}/operators`)}
         />
