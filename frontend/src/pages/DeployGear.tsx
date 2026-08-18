@@ -4,6 +4,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, CheckCircle2, Crosshair, ListPlus, Loader2, MapPin, PackagePlus, PlusCircle, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { api } from '@/lib/api'
+import { hasPermission, useAuth } from '@/lib/auth-context'
 import type { DeploymentLocation, Incident, Operator, Resource, ResourceCheckIn, ResourceType } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
@@ -22,6 +23,7 @@ type NewResourceForm = {
   identifier: string
   serialNumber: string
   notes: string
+  ownerId: string
 }
 
 const emptyNewResourceForm: NewResourceForm = {
@@ -29,12 +31,17 @@ const emptyNewResourceForm: NewResourceForm = {
   identifier: '',
   serialNumber: '',
   notes: '',
+  ownerId: '',
 }
+
+const NONE = '__none__'
 
 export function DeployGear() {
   const { id } = useParams<{ id: string }>()
   const navigate = useNavigate()
   const queryClient = useQueryClient()
+  const { user } = useAuth()
+  const canAssignOwner = hasPermission(user, 'RESOURCE_MANAGE_ALL') || hasPermission(user, 'RESOURCE_ASSIGN_OWNER')
 
   const [phase, setPhase] = useState<'location' | 'add'>('location')
   const [locationMode, setLocationMode] = useState<'pick' | 'create'>('pick')
@@ -79,6 +86,12 @@ export function DeployGear() {
   const { data: resourceTypes } = useQuery({
     queryKey: ['resource-types'],
     queryFn: async () => (await api.get<ResourceType[]>('/api/resource-types')).data,
+  })
+
+  const { data: operators } = useQuery({
+    queryKey: ['operators'],
+    queryFn: async () => (await api.get<Operator[]>('/api/operators')).data,
+    enabled: canAssignOwner,
   })
 
   const { data: locations } = useQuery({
@@ -190,7 +203,7 @@ export function DeployGear() {
           resourceTypeId: Number(newResource.resourceTypeId),
           identifier: newResource.identifier,
           serialNumber: newResource.serialNumber || null,
-          ownerId: me?.id ?? null,
+          ownerId: canAssignOwner && newResource.ownerId ? Number(newResource.ownerId) : (me?.id ?? null),
           notes: newResource.notes || null,
           customFields,
         })
@@ -528,8 +541,29 @@ export function DeployGear() {
                       />
                     </div>
                     <div className="flex flex-col gap-1.5">
-                      <Label>Owner</Label>
-                      <Input value={me?.callsign ?? ''} disabled />
+                      <Label htmlFor="ownerId">Owner</Label>
+                      {canAssignOwner ? (
+                        <Select
+                          value={newResource.ownerId || NONE}
+                          onValueChange={(value) =>
+                            setNewResource({ ...newResource, ownerId: value === NONE ? '' : value })
+                          }
+                        >
+                          <SelectTrigger id="ownerId">
+                            <SelectValue placeholder={me?.callsign ?? 'Select owner'} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value={NONE}>{me?.callsign ?? 'Me'}</SelectItem>
+                            {operators?.map((op) => (
+                              <SelectItem key={op.id} value={String(op.id)}>
+                                {op.callsign}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <Input value={me?.callsign ?? ''} disabled />
+                      )}
                     </div>
                   </div>
                   <div className="flex flex-col gap-1.5">

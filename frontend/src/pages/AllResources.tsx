@@ -1,4 +1,4 @@
-import { useEffect } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate } from 'react-router-dom'
 import { Plus, Pencil, Trash2, Eye } from 'lucide-react'
@@ -9,6 +9,10 @@ import type { Resource } from '@/lib/types'
 import { Button } from '@/components/ui/button'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
+
+const ALL_TYPES = 'all-types'
+const ALL_OWNERS = 'all-owners'
 
 export function AllResources() {
   const { user } = useAuth()
@@ -27,6 +31,31 @@ export function AllResources() {
     queryFn: async () => (await api.get<Resource[]>('/api/resources')).data,
     enabled: canView,
   })
+
+  const [typeFilter, setTypeFilter] = useState(ALL_TYPES)
+  const [ownerFilter, setOwnerFilter] = useState(ALL_OWNERS)
+
+  const types = useMemo(() => {
+    const map = new Map<number, string>()
+    resources?.forEach((r) => map.set(r.resourceTypeId, r.resourceTypeName))
+    return [...map.entries()].sort((a, b) => a[1].localeCompare(b[1]))
+  }, [resources])
+
+  const owners = useMemo(() => {
+    const map = new Map<number, string>()
+    resources?.forEach((r) => {
+      if (r.ownerId) map.set(r.ownerId, r.ownerCallsign ?? String(r.ownerId))
+    })
+    return [...map.entries()].sort((a, b) => a[1].localeCompare(b[1]))
+  }, [resources])
+
+  const filteredResources = useMemo(() => {
+    return resources?.filter((r) => {
+      if (typeFilter !== ALL_TYPES && String(r.resourceTypeId) !== typeFilter) return false
+      if (ownerFilter !== ALL_OWNERS && String(r.ownerId) !== ownerFilter) return false
+      return true
+    })
+  }, [resources, typeFilter, ownerFilter])
 
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => api.delete(`/api/resources/${id}`),
@@ -55,6 +84,34 @@ export function AllResources() {
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Inventory</CardTitle>
+          <div className="flex gap-3 pt-2">
+            <Select value={typeFilter} onValueChange={setTypeFilter}>
+              <SelectTrigger className="w-[200px]">
+                <SelectValue placeholder="Type" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL_TYPES}>All types</SelectItem>
+                {types.map(([id, name]) => (
+                  <SelectItem key={id} value={String(id)}>
+                    {name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <Select value={ownerFilter} onValueChange={setOwnerFilter}>
+              <SelectTrigger className="w-[200px]">
+                <SelectValue placeholder="Owner" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value={ALL_OWNERS}>All owners</SelectItem>
+                {owners.map(([id, callsign]) => (
+                  <SelectItem key={id} value={String(id)}>
+                    {callsign}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
         </CardHeader>
         <CardContent>
           <Table>
@@ -76,14 +133,14 @@ export function AllResources() {
                   </TableCell>
                 </TableRow>
               )}
-              {resources?.length === 0 && !isLoading && (
+              {filteredResources?.length === 0 && !isLoading && (
                 <TableRow>
                   <TableCell colSpan={6} className="text-center text-muted-foreground">
-                    No equipment yet.
+                    No equipment matches these filters.
                   </TableCell>
                 </TableRow>
               )}
-              {resources?.map((r) => (
+              {filteredResources?.map((r) => (
                 <TableRow key={r.id}>
                   <TableCell>
                     {r.ownerId ? (
