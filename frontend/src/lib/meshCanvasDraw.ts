@@ -1,8 +1,8 @@
 import type { IncidentBoundaryPoint, MeshLinkSnapshot, MeshNodeSnapshot } from '@/lib/types'
-import { linkColor, resolveLinkChannel } from '@/lib/meshVisual'
+import { linkColor, resolveLinkChannel, resourceTypeColor } from '@/lib/meshVisual'
 import { findColocatedGroups } from '@/lib/meshProximity'
 
-export type MeshCanvasNode = MeshNodeSnapshot & { offSite?: boolean }
+export type MeshCanvasNode = MeshNodeSnapshot & { offSite?: boolean; resourceTypeName?: string | null }
 
 export type MeshCanvasDrawInput = {
   nodes: MeshCanvasNode[]
@@ -96,7 +96,13 @@ export function drawMeshOverlay(ctx: CanvasRenderingContext2D, input: MeshCanvas
     const [x, y] = project(lat, lng)
     ctx.beginPath()
     ctx.arc(x, y, n.isLocalNode ? 6 : 5, 0, Math.PI * 2)
-    ctx.fillStyle = n.offSite ? '#B9B3A6' : n.isLocalNode ? '#1F4E79' : '#F7F5F0'
+    ctx.fillStyle = n.resourceTypeName
+      ? resourceTypeColor(n.resourceTypeName)
+      : n.offSite
+        ? '#B9B3A6'
+        : n.isLocalNode
+          ? '#1F4E79'
+          : '#F7F5F0'
     ctx.fill()
     ctx.lineWidth = 2
     ctx.strokeStyle = '#1F4E79'

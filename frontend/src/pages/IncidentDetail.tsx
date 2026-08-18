@@ -31,6 +31,7 @@ import type {
   ResourceCheckIn,
 } from '@/lib/types'
 import { MeshMap } from '@/components/MeshMap'
+import { resourceTypeColor } from '@/lib/meshVisual'
 import { Button } from '@/components/ui/button'
 import { Badge } from '@/components/ui/badge'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
@@ -212,7 +213,7 @@ export function IncidentDetail() {
   const scanNodeByHostname = new Map(
     (latestMeshSessionDetail?.nodes ?? []).map((n) => [n.hostname.toLowerCase(), n]),
   )
-  const dashboardMapNodes: (MeshNodeSnapshot & { offSite?: boolean })[] = openResourceCheckIns
+  const dashboardMapNodes: (MeshNodeSnapshot & { offSite?: boolean; resourceTypeName?: string | null })[] = openResourceCheckIns
     .filter((c) => c.latitude && c.longitude)
     .map((c) => {
       const scanNode = scanNodeByHostname.get(c.resourceIdentifier.toLowerCase())
@@ -238,9 +239,13 @@ export function IncidentDetail() {
         resourceOwnerCallsign: null,
         resourceCustomFields: null,
         offSite: c.offSite,
+        resourceTypeName: c.resourceTypeName,
       }
     })
   const dashboardMapLinks = latestMeshSessionDetail?.links ?? []
+  const dashboardMapTypes = [...new Set(dashboardMapNodes.map((n) => n.resourceTypeName).filter((t): t is string => !!t))].sort(
+    (a, b) => a.localeCompare(b),
+  )
 
   const fmt = (v: string | null) =>
     v ? new Date(v).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' }) : '—'
@@ -345,8 +350,21 @@ export function IncidentDetail() {
           <CardHeader>
             <CardTitle className="text-base">Map</CardTitle>
           </CardHeader>
-          <CardContent>
+          <CardContent className="flex flex-col gap-3">
             <MeshMap nodes={dashboardMapNodes} links={dashboardMapLinks} boundaryPoints={incident.boundaryPoints} />
+            {dashboardMapTypes.length > 0 && (
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm">
+                {dashboardMapTypes.map((type) => (
+                  <div key={type} className="flex items-center gap-1.5">
+                    <span
+                      className="inline-block size-2.5 rounded-full border border-credential-blue-deep"
+                      style={{ background: resourceTypeColor(type) }}
+                    />
+                    <span>{type}</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>

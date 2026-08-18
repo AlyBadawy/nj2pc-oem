@@ -42,6 +42,14 @@ export function channelColor(channel: string): string {
   return `hsl(${hashHue(channel)}, 65%, 38%)`
 }
 
+/** Deterministic per-resource-type marker color, same hashing approach as `channelColor` — types
+ * are an admin-editable catalog (`resource-type` package), not a fixed enum, so there's no
+ * lookup table to maintain as new types get added. Tuned lighter/more saturated than
+ * `channelColor` since this fills a small marker rather than drawing a thin line. */
+export function resourceTypeColor(typeName: string): string {
+  return `hsl(${hashHue(typeName)}, 68%, 46%)`
+}
+
 export function linkColor(linkType: MeshLinkType, channel: string | null): string {
   if (linkType === 'RF' && channel) return channelColor(channel)
   return LINK_TYPE_COLOR[linkType]

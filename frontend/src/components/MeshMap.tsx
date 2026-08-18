@@ -2,7 +2,7 @@ import { forwardRef, useEffect, useImperativeHandle, useRef, useState } from 're
 import L from 'leaflet'
 import { Maximize2, Minimize2 } from 'lucide-react'
 import type { IncidentBoundaryPoint, MeshLinkSnapshot, MeshNodeSnapshot } from '@/lib/types'
-import { linkColor, LINK_TYPE_LABEL, resolveLinkChannel } from '@/lib/meshVisual'
+import { linkColor, LINK_TYPE_LABEL, resolveLinkChannel, resourceTypeColor } from '@/lib/meshVisual'
 import { findColocatedGroups } from '@/lib/meshProximity'
 import { captureLiveLeafletSnapshot } from '@/lib/meshMapCapture'
 import { computeIncidentBounds } from '@/lib/meshIncidentArea'
@@ -11,7 +11,7 @@ import { MeshCanvasFallback } from '@/components/MeshCanvasFallback'
 import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 
-type MeshMapNode = MeshNodeSnapshot & { offSite?: boolean }
+type MeshMapNode = MeshNodeSnapshot & { offSite?: boolean; resourceTypeName?: string | null }
 
 type Props = {
   nodes: MeshMapNode[]
@@ -35,8 +35,8 @@ export type MeshMapHandle = {
  * muted fill instead of the usual local/other distinction — a marker icon is a fixed-size DOM
  * element that doesn't get reprojected on zoom, so a dash pattern is safe here (unlike the
  * polylines below, which lose dash patterns across zoom levels). */
-function nodeDivIcon(isLocalNode: boolean, offSite: boolean): L.DivIcon {
-  const fill = offSite ? '#B9B3A6' : isLocalNode ? '#1F4E79' : '#F7F5F0'
+function nodeDivIcon(isLocalNode: boolean, offSite: boolean, typeName?: string | null): L.DivIcon {
+  const fill = typeName ? resourceTypeColor(typeName) : offSite ? '#B9B3A6' : isLocalNode ? '#1F4E79' : '#F7F5F0'
   const size = isLocalNode ? 18 : 14
   const dash = offSite ? ' stroke-dasharray="2.5,2"' : ''
   return L.divIcon({
@@ -227,8 +227,9 @@ export const MeshMap = forwardRef<MeshMapHandle, Props>(function MeshMap({ nodes
       hostPos.set(n.hostname.toLowerCase(), latLng)
       points.push(latLng)
       const baseLabel = n.channel ? `${n.hostname} (${n.band ?? ''} ch ${n.channel})` : n.hostname
-      const label = n.offSite ? `${baseLabel} (off-site)` : baseLabel
-      L.marker(latLng, { icon: nodeDivIcon(n.isLocalNode, !!n.offSite) })
+      const typedLabel = n.resourceTypeName ? `${baseLabel} — ${n.resourceTypeName}` : baseLabel
+      const label = n.offSite ? `${typedLabel} (off-site)` : typedLabel
+      L.marker(latLng, { icon: nodeDivIcon(n.isLocalNode, !!n.offSite, n.resourceTypeName) })
         .addTo(map)
         .bindTooltip(label, { permanent: false })
     }
