@@ -9,6 +9,7 @@ import org.openpdf.text.pdf.PdfPCell;
 import org.openpdf.text.pdf.PdfPTable;
 
 import java.awt.Color;
+import java.awt.image.BufferedImage;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -72,6 +73,23 @@ public final class OperatorCredentialPdfSupport {
 
     // --- one card ---
 
+    /** A flat-filled placeholder, same aspect ratio as the real photo box, for a team member
+     * with no photo on file — an actual Image so it occupies exactly the same layout space as
+     * a real photo would, instead of a cell-background hint that only holds up when every
+     * sibling card in the same grid row happens to be the same height. */
+    private static Image placeholderPhotoImage() {
+        BufferedImage img = new BufferedImage(100, 124, BufferedImage.TYPE_INT_RGB);
+        java.awt.Graphics2D g = img.createGraphics();
+        g.setColor(PLACEHOLDER_BG);
+        g.fillRect(0, 0, img.getWidth(), img.getHeight());
+        g.dispose();
+        try {
+            return Image.getInstance(img, null);
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to render photo placeholder", e);
+        }
+    }
+
     private static PdfPCell contactLine(String label, String value) {
         PdfPCell cell = new PdfPCell();
         cell.setColspan(2);
@@ -123,22 +141,28 @@ public final class OperatorCredentialPdfSupport {
         headerCell.setPadding(4f);
         card.addCell(headerCell);
 
-        // Photo + barcode (fixed-width column) beside callsign/name.
+        // Photo + barcode (fixed-width column) beside callsign/name. The no-photo case adds a
+        // same-sized placeholder *image* rather than relying on cell-level min-height, so both
+        // branches occupy identical, fixed vertical space regardless of what else is in this
+        // grid row — a cell-height hint alone left this column's real height at the mercy of
+        // row-height equalization against taller sibling cards, ballooning into a large blank
+        // block for any card without a photo on file.
         PdfPCell photoCell = new PdfPCell();
         photoCell.setBorder(0);
         photoCell.setPadding(4f);
+        Image photo = null;
         if (d.photoBytes() != null) {
             try {
-                Image photo = Image.getInstance(d.photoBytes());
-                photo.scaleToFit(50f, 62f);
-                photoCell.addElement(photo);
-            } catch (Exception e) {
-                photoCell.setBackgroundColor(PLACEHOLDER_BG);
+                photo = Image.getInstance(d.photoBytes());
+            } catch (Exception ignored) {
+                photo = null;
             }
-        } else {
-            photoCell.setBackgroundColor(PLACEHOLDER_BG);
-            photoCell.setMinimumHeight(50f);
         }
+        if (photo == null) {
+            photo = placeholderPhotoImage();
+        }
+        photo.scaleToFit(50f, 62f);
+        photoCell.addElement(photo);
         Image barcode = Code128Support.barcodeImage(d.callsign(), d.id(), 200, 30);
         barcode.scaleToFit(50f, 12f);
         Paragraph barcodeP = new Paragraph();
