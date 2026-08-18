@@ -242,6 +242,19 @@ export function IncidentDetail() {
         resourceTypeName: c.resourceTypeName,
       }
     })
+  // The scan can include nodes that aren't a currently-open check-in on this incident (checked
+  // out already, or never checked in here at all) — those still need a marker or any link
+  // touching them would silently disappear (MeshMap only draws a link when both endpoints have a
+  // plotted position). Add them using the scan's own resolved lat/lng, which the mesh-scan submit
+  // endpoint already backfills from the resource's last-known deployment location, so it's still
+  // the best available position for a node that isn't part of the "currently deployed" set above.
+  const plottedHostnames = new Set(dashboardMapNodes.map((n) => n.hostname.toLowerCase()))
+  for (const scanNode of latestMeshSessionDetail?.nodes ?? []) {
+    if (plottedHostnames.has(scanNode.hostname.toLowerCase())) continue
+    if (!scanNode.latitude || !scanNode.longitude) continue
+    plottedHostnames.add(scanNode.hostname.toLowerCase())
+    dashboardMapNodes.push({ ...scanNode, offSite: true })
+  }
   const dashboardMapLinks = latestMeshSessionDetail?.links ?? []
   const dashboardMapTypes = [...new Set(dashboardMapNodes.map((n) => n.resourceTypeName).filter((t): t is string => !!t))].sort(
     (a, b) => a.localeCompare(b),
