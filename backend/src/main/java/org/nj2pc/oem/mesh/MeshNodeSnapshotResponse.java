@@ -22,6 +22,7 @@ public record MeshNodeSnapshotResponse(
         Long resourceId,
         String resourceIdentifier,
         String resourceOwnerCallsign,
+        String resourceTypeName,
         Map<String, Object> resourceCustomFields
 ) {
     public static MeshNodeSnapshotResponse from(MeshNodeSnapshot n) {
@@ -33,6 +34,7 @@ public record MeshNodeSnapshotResponse(
                 n.getResource() != null ? n.getResource().getId() : null,
                 n.getResource() != null ? n.getResource().getIdentifier() : null,
                 n.getResource() != null && n.getResource().getOwner() != null ? n.getResource().getOwner().getCallsign() : null,
+                n.getResource() != null ? n.getResource().getType().getName() : null,
                 n.getResource() != null ? n.getResource().getCustomFields() : null
         );
     }

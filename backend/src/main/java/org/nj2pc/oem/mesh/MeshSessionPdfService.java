@@ -5,6 +5,7 @@ import org.nj2pc.oem.checkin.ResourceCheckInRepository;
 import org.nj2pc.oem.common.ApiException;
 import org.nj2pc.oem.incident.Incident;
 import org.nj2pc.oem.incident.IncidentRepository;
+import org.openpdf.text.Chunk;
 import org.openpdf.text.Document;
 import org.openpdf.text.DocumentException;
 import org.openpdf.text.Element;
@@ -109,9 +110,16 @@ public class MeshSessionPdfService {
 
             addSummaryPage(document, incident, session, rfOnly);
 
+            List<String> mapNodeTypes = session.nodes().stream()
+                    .map(MeshNodeSnapshotResponse::resourceTypeName)
+                    .filter(java.util.Objects::nonNull)
+                    .distinct()
+                    .sorted()
+                    .toList();
+
             document.newPage();
             if (rotateMapContent) {
-                addRotatedMapPage(document, writer.getDirectContent(), incident, session, request.mapImageBase64());
+                addRotatedMapPage(document, writer.getDirectContent(), incident, session, request.mapImageBase64(), mapNodeTypes);
             } else {
                 PdfPTable header = buildHeaderBlock(incident, session, "MESH TOPOLOGY MAP");
                 float availableWidth = document.getPageSize().getWidth() - document.leftMargin() - document.rightMargin();
@@ -122,7 +130,7 @@ public class MeshSessionPdfService {
                 document.add(spacer(spacerHeight));
                 float availableHeight = document.getPageSize().getHeight() - document.topMargin() - document.bottomMargin()
                         - headerHeight - spacerHeight;
-                document.add(buildMapImage(request.mapImageBase64(), availableWidth, availableHeight));
+                document.add(buildMapPageBody(request.mapImageBase64(), mapNodeTypes, availableWidth, availableHeight));
             }
 
             document.newPage();
@@ -284,13 +292,127 @@ public class MeshSessionPdfService {
         return image;
     }
 
+    private static final float LEGEND_WIDTH = 130f;
+    private static final float LEGEND_GAP = 10f;
+
+    /** Same deterministic hue-from-string hash as the frontend's `hashHue` (meshVisual.ts) — a
+     * 32-bit int hash truncated the same way JS's `| 0` does, so a given resource type name maps
+     * to the exact same marker color here as it does on the incident/mesh-scan map pages. */
+    private int hashHue(String value) {
+        int hash = 0;
+        for (int i = 0; i < value.length(); i++) {
+            hash = hash * 31 + value.charAt(i);
+        }
+        return Math.abs(hash) % 360;
+    }
+
+    /** Mirrors `resourceTypeColor` in meshVisual.ts (`hsl(hue, 68%, 46%)`). */
+    private Color resourceTypeColor(String typeName) {
+        return hslToColor(hashHue(typeName), 0.68f, 0.46f);
+    }
+
+    private Color hslToColor(int hueDeg, float saturation, float lightness) {
+        float c = (1 - Math.abs(2 * lightness - 1)) * saturation;
+        float hPrime = hueDeg / 60f;
+        float x = c * (1 - Math.abs(hPrime % 2 - 1));
+        float r1, g1, b1;
+        if (hPrime < 1) { r1 = c; g1 = x; b1 = 0; }
+        else if (hPrime < 2) { r1 = x; g1 = c; b1 = 0; }
+        else if (hPrime < 3) { r1 = 0; g1 = c; b1 = x; }
+        else if (hPrime < 4) { r1 = 0; g1 = x; b1 = c; }
+        else if (hPrime < 5) { r1 = x; g1 = 0; b1 = c; }
+        else { r1 = c; g1 = 0; b1 = x; }
+        float m = lightness - c / 2;
+        return new Color(
+                Math.round((r1 + m) * 255),
+                Math.round((g1 + m) * 255),
+                Math.round((b1 + m) * 255)
+        );
+    }
+
+    /** One legend line: a small color-filled block (built from a padded blank Chunk background,
+     * since OpenPDF has no inline shape primitive) followed by the label. */
+    private Paragraph legendLine(String label, Color color) {
+        Paragraph p = new Paragraph();
+        p.setSpacingAfter(3f);
+        Chunk swatch = new Chunk(" ", TABLE_CELL_FONT);
+        swatch.setBackground(color, 5f, 2f, 1f, 2f);
+        p.add(swatch);
+        p.add(new Phrase("  " + label, TABLE_CELL_FONT));
+        return p;
+    }
+
+    /** Mirrors the on-screen `MeshMapLegend` component: equipment-type colors (only the types
+     * actually present on this map) plus the fixed local-node / off-site marker styles. */
+    private PdfPCell buildMapLegendCell(List<String> resourceTypes) {
+        PdfPCell cell = new PdfPCell();
+        cell.setBackgroundColor(PAPER);
+        cell.setBorderColor(AMBER_BORDER);
+        cell.setPadding(8f);
+
+        if (!resourceTypes.isEmpty()) {
+            Paragraph heading = new Paragraph("EQUIPMENT TYPE", LABEL_FONT);
+            heading.setSpacingAfter(3f);
+            cell.addElement(heading);
+            for (String type : resourceTypes) {
+                cell.addElement(legendLine(type, resourceTypeColor(type)));
+            }
+            Paragraph spacer = new Paragraph(" ", TABLE_CELL_FONT);
+            spacer.setSpacingAfter(2f);
+            cell.addElement(spacer);
+        }
+
+        Paragraph nodeHeading = new Paragraph("NODE STYLE", LABEL_FONT);
+        nodeHeading.setSpacingAfter(3f);
+        cell.addElement(nodeHeading);
+        cell.addElement(legendLine("Local node (scanned from)", BLUE_DEEP));
+        cell.addElement(legendLine("Off-site / not deployed here", new Color(0xB9, 0xB3, 0xA6)));
+
+        return cell;
+    }
+
+    /** Map image alongside its legend, laid out the same way as the on-screen mesh-scan map
+     * (map + sidebar legend) so the PDF page matches what the app shows. */
+    private PdfPTable buildMapPageBody(String base64, List<String> resourceTypes, float availableWidth, float availableHeight) {
+        float mapWidth = availableWidth - LEGEND_WIDTH - LEGEND_GAP;
+
+        PdfPTable table = new PdfPTable(3);
+        table.setWidthPercentage(100);
+        try {
+            table.setTotalWidth(new float[]{mapWidth, LEGEND_GAP, LEGEND_WIDTH});
+        } catch (Exception ignored) {
+            // widths array size always matches column count here
+        }
+        table.setLockedWidth(true);
+
+        PdfPCell mapCell = new PdfPCell(buildMapImage(base64, mapWidth, availableHeight));
+        mapCell.setBorderColor(AMBER_BORDER);
+        mapCell.setPadding(0f);
+        mapCell.setHorizontalAlignment(Element.ALIGN_CENTER);
+        mapCell.setVerticalAlignment(Element.ALIGN_MIDDLE);
+        mapCell.setMinimumHeight(availableHeight);
+        table.addCell(mapCell);
+
+        PdfPCell gapCell = new PdfPCell();
+        gapCell.setBorder(0);
+        gapCell.setFixedHeight(availableHeight);
+        table.addCell(gapCell);
+
+        PdfPCell legendCell = buildMapLegendCell(resourceTypes);
+        legendCell.setMinimumHeight(availableHeight);
+        table.addCell(legendCell);
+
+        return table;
+    }
+
     /** Renders the header + map image onto an off-page template sized as if it were a *portrait*
      * content area, then stamps that template onto the (always-landscape) page rotated 90° — the
      * physical page stays landscape like every other page in the document, but the reader turns
      * the printed page sideways to view this one right-side-up, the same convention used for
      * fold-out/rotated pages in printed reports. */
     private void addRotatedMapPage(Document document, PdfContentByte canvas, Incident incident,
-                                    MeshSessionDetailResponse session, String mapImageBase64) throws DocumentException {
+                                    MeshSessionDetailResponse session, String mapImageBase64,
+                                    List<String> resourceTypes) throws DocumentException {
         float pageW = document.getPageSize().getWidth();
         float pageH = document.getPageSize().getHeight();
         float contentW = pageW - MARGIN_LEFT - MARGIN_RIGHT;
@@ -309,14 +431,10 @@ public class MeshSessionPdfService {
         float headerHeight = header.getTotalHeight();
         header.writeSelectedRows(0, -1, 0, virtualH, template);
 
-        Image image = decodeMapImage(mapImageBase64);
         float spacer = 8f;
-        float imageAreaHeight = virtualH - headerHeight - spacer;
-        image.scaleToFit(virtualW, imageAreaHeight);
-        float imgX = (virtualW - image.getScaledWidth()) / 2;
-        float imgY = (imageAreaHeight - image.getScaledHeight()) / 2;
-        image.setAbsolutePosition(imgX, imgY);
-        template.addImage(image);
+        float bodyAreaHeight = virtualH - headerHeight - spacer;
+        PdfPTable body = buildMapPageBody(mapImageBase64, resourceTypes, virtualW, bodyAreaHeight);
+        body.writeSelectedRows(0, -1, 0, bodyAreaHeight, template);
 
         // 90° rotation matrix (a,b,c,d) = (0,1,-1,0), translated so the rotated template's
         // bounding box exactly covers the page's content area starting at (MARGIN_LEFT, MARGIN_BOTTOM).

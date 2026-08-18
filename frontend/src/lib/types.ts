@@ -256,6 +256,7 @@ export interface MeshNodeSnapshot {
   resourceId: number | null
   resourceIdentifier: string | null
   resourceOwnerCallsign: string | null
+  resourceTypeName: string | null
   resourceCustomFields: Record<string, unknown> | null
 }
 

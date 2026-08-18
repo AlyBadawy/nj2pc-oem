@@ -816,12 +816,16 @@ export function MeshSessionDetail() {
       resourceId,
       resourceIdentifier: liveMatch?.identifier ?? null,
       resourceOwnerCallsign: liveMatch?.ownerCallsign ?? null,
+      resourceTypeName: liveMatch?.resourceTypeName ?? null,
       resourceCustomFields: liveMatch?.customFields ?? null,
       offSite,
     }
   })
 
   const nodeByHostname = new Map(nodes.map((n) => [n.hostname.toLowerCase(), n]))
+  const nodeTypesPresent = [...new Set(nodes.map((n) => n.resourceTypeName).filter((t): t is string => !!t))].sort(
+    (a, b) => a.localeCompare(b),
+  )
   function linkTypeLabel(l: MeshLinkSnapshot): string {
     const channel = resolveLinkChannel(
       l.linkTypeNormalized,
@@ -917,7 +921,7 @@ export function MeshSessionDetail() {
             />
           </div>
           <div className="sm:w-48 shrink-0">
-            <MeshMapLegend />
+            <MeshMapLegend types={nodeTypesPresent} />
           </div>
         </CardContent>
       </Card>

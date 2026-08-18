@@ -1,8 +1,31 @@
-import { LINK_TYPE_COLOR, LINK_TYPE_LABEL } from '@/lib/meshVisual'
+import { LINK_TYPE_COLOR, LINK_TYPE_LABEL, resourceTypeColor } from '@/lib/meshVisual'
 
-export function MeshMapLegend() {
+type Props = {
+  /** Distinct resource type names present on the map, if any — renders an "Equipment Type"
+   * section above the rest so a marker's fill color can be looked up. Omit (or pass an empty
+   * list) when no node on the map is colored by type. */
+  types?: string[]
+}
+
+export function MeshMapLegend({ types }: Props) {
   return (
     <div className="flex flex-col gap-3 text-sm">
+      {types && types.length > 0 && (
+        <div>
+          <p className="text-xs font-medium text-muted-foreground mb-1.5">Equipment Type</p>
+          <div className="flex flex-col gap-1">
+            {types.map((type) => (
+              <div key={type} className="flex items-center gap-2">
+                <span
+                  className="inline-block size-2.5 rounded-full border border-credential-blue-deep"
+                  style={{ background: resourceTypeColor(type) }}
+                />
+                <span>{type}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
       <div>
         <p className="text-xs font-medium text-muted-foreground mb-1.5">Link Color</p>
         <div className="flex items-center gap-2">
