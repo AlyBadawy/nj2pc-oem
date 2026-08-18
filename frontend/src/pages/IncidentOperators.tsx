@@ -3,9 +3,11 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, LogIn, LogOut } from 'lucide-react'
 import { toast } from 'sonner'
-import { api } from '@/lib/api'
+import { api, apiUrl } from '@/lib/api'
 import { hasPermission, useAuth } from '@/lib/auth-context'
 import type { Incident, Operator, OperatorCheckIn, OperatorRole } from '@/lib/types'
+import { credentialNoFor, type OperatorIdentityData } from '@/lib/identity'
+import { OperatorIdentity } from '@/components/identity/OperatorIdentity'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -122,15 +124,31 @@ export function IncidentOperators() {
     },
   })
 
-  const team = useMemo(() => {
-    const byOperator = new Map<number, { operatorId: number; callsign: string }>()
+  const team = useMemo<OperatorIdentityData[]>(() => {
+    const operatorById = new Map((operators ?? []).map((o) => [o.id, o]))
+    const byOperator = new Map<number, OperatorIdentityData>()
+    // operatorCheckIns is ordered by checkedInAt desc, so the first entry seen per operator is
+    // their most recent check-in on this incident — i.e. their "last role" here.
     for (const c of operatorCheckIns ?? []) {
-      if (!byOperator.has(c.operatorId)) {
-        byOperator.set(c.operatorId, { operatorId: c.operatorId, callsign: c.operatorCallsign })
-      }
+      if (byOperator.has(c.operatorId)) continue
+      const op = operatorById.get(c.operatorId)
+      byOperator.set(c.operatorId, {
+        id: c.operatorId,
+        callsign: c.operatorCallsign,
+        name: op?.name ?? c.operatorCallsign,
+        licenseClass: op?.licenseClass ?? null,
+        role: c.roleName,
+        roleColor: c.roleColor,
+        roleAccessLevel: c.roleAccessLevel,
+        canViewContact: false,
+        phone: null,
+        email: null,
+        photoUrl: op?.photoUrl ? apiUrl(op.photoUrl) : null,
+        credentialNo: credentialNoFor(c.operatorId),
+      })
     }
     return [...byOperator.values()].sort((a, b) => a.callsign.localeCompare(b.callsign))
-  }, [operatorCheckIns])
+  }, [operatorCheckIns, operators])
 
   if (!incident) return null
 
@@ -160,12 +178,10 @@ export function IncidentOperators() {
           {team.length === 0 ? (
             <p className="text-muted-foreground text-sm">No operators have checked in to this incident yet.</p>
           ) : (
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-3">
               {team.map((t) => (
-                <Link key={t.operatorId} to={`/operators/${t.operatorId}`}>
-                  <Badge variant="outline" className="hover:bg-accent">
-                    {t.callsign}
-                  </Badge>
+                <Link key={t.id} to={`/operators/${t.id}`}>
+                  <OperatorIdentity variant="credential-compact" data={t} />
                 </Link>
               ))}
             </div>

@@ -154,6 +154,37 @@ function CredentialCard({ data, orgName }: { data: OperatorIdentityData; orgName
 }
 
 // ---------------------------------------------------------------------------
+// Surface 1b — credential-compact (small vertical card, e.g. a team roster grid)
+// ---------------------------------------------------------------------------
+
+function CredentialCardCompact({ data }: { data: OperatorIdentityData }) {
+  const { callsign, name, licenseClass, role, roleColor, roleAccessLevel, photoUrl } = data
+
+  return (
+    <div className="w-[168px] shrink-0 overflow-hidden rounded-lg border border-black/[.12] bg-credential-paper font-credential-sans shadow-[0_1px_2px_rgba(0,0,0,.06),0_6px_16px_-8px_rgba(0,0,0,.18)]">
+      <div className="h-[5px] bg-credential-blue" />
+      <div className="aspect-square w-full overflow-hidden border-b border-credential-hairline">
+        {photoUrl ? (
+          <img src={photoUrl} alt="" className="h-full w-full object-cover" />
+        ) : (
+          <PhotoPlaceholder className="h-full w-full" />
+        )}
+      </div>
+      <div className="flex flex-col gap-1.5 p-2.5">
+        <div className="min-w-0">
+          <div className="truncate font-credential-mono text-[19px] font-extrabold leading-[.9] tracking-[-.02em]">
+            {callsign}
+          </div>
+          <div className="truncate text-[12px] font-semibold">{name}</div>
+        </div>
+        <div className="credential-micro">{licenseClass || '—'}</div>
+        <RoleBadge role={role} roleColor={roleColor} roleAccessLevel={roleAccessLevel} variant="chip" />
+      </div>
+    </div>
+  )
+}
+
+// ---------------------------------------------------------------------------
 // Surface 2 — row (roster table)
 // ---------------------------------------------------------------------------
 
@@ -321,12 +352,16 @@ function OperatorTile({ data, onClick }: { data: OperatorIdentityData; onClick?:
 
 export type OperatorIdentityProps =
   | { variant: 'credential'; data: OperatorIdentityData; orgName?: string }
+  | { variant: 'credential-compact'; data: OperatorIdentityData }
   | { variant: 'row'; data: OperatorIdentityData; expanded: boolean; onToggle: () => void }
   | { variant: 'tile'; data: OperatorIdentityData; onClick?: () => void }
 
 export function OperatorIdentity(props: OperatorIdentityProps) {
   if (props.variant === 'credential') {
     return <CredentialCard data={props.data} orgName={props.orgName ?? '0Y-AuxComs'} />
+  }
+  if (props.variant === 'credential-compact') {
+    return <CredentialCardCompact data={props.data} />
   }
   if (props.variant === 'row') {
     return <RosterRow data={props.data} expanded={props.expanded} onToggle={props.onToggle} />
