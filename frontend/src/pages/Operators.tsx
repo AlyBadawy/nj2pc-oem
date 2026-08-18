@@ -91,6 +91,7 @@ export function Operators() {
       canViewContact: canViewContact || op.callsign === user?.callsign,
       phone: op.phone,
       email: op.email,
+      licensePlate: op.licensePlate,
       photoUrl: op.photoUrl ? apiUrl(op.photoUrl) : null,
       credentialNo: credentialNoFor(op.id),
       incident: op.currentCheckIn
