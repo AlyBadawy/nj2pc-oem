@@ -2,6 +2,7 @@ package org.nj2pc.oem.resource;
 
 import org.nj2pc.oem.auditlog.AuditLogService;
 import org.nj2pc.oem.auditlog.EntityType;
+import org.nj2pc.oem.checkin.ResourceCheckInRepository;
 import org.nj2pc.oem.common.ApiException;
 import org.nj2pc.oem.operator.Operator;
 import org.nj2pc.oem.operator.OperatorRepository;
@@ -21,24 +22,33 @@ public class ResourceService {
     private final ResourceRepository resourceRepository;
     private final ResourceTypeRepository resourceTypeRepository;
     private final OperatorRepository operatorRepository;
+    private final ResourceCheckInRepository resourceCheckInRepository;
     private final PermissionGuard permissionGuard;
     private final AuditLogService auditLogService;
 
     public ResourceService(ResourceRepository resourceRepository,
                             ResourceTypeRepository resourceTypeRepository,
                             OperatorRepository operatorRepository,
+                            ResourceCheckInRepository resourceCheckInRepository,
                             PermissionGuard permissionGuard,
                             AuditLogService auditLogService) {
         this.resourceRepository = resourceRepository;
         this.resourceTypeRepository = resourceTypeRepository;
         this.operatorRepository = operatorRepository;
+        this.resourceCheckInRepository = resourceCheckInRepository;
         this.permissionGuard = permissionGuard;
         this.auditLogService = auditLogService;
     }
 
     @Transactional(readOnly = true)
     public List<ResourceResponse> findAll() {
-        return resourceRepository.findAll().stream().map(ResourceResponse::from).toList();
+        Map<Long, String> lastLocationByResourceId = new LinkedHashMap<>();
+        for (Object[] row : resourceCheckInRepository.findLastDeploymentLocationRows()) {
+            lastLocationByResourceId.putIfAbsent((Long) row[0], (String) row[1]);
+        }
+        return resourceRepository.findAll().stream()
+                .map(r -> ResourceResponse.from(r, lastLocationByResourceId.get(r.getId())))
+                .toList();
     }
 
     @Transactional(readOnly = true)

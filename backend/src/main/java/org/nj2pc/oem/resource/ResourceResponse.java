@@ -11,9 +11,14 @@ public record ResourceResponse(
         Long ownerId,
         String ownerCallsign,
         String notes,
-        Map<String, Object> customFields
+        Map<String, Object> customFields,
+        String lastDeploymentLocationName
 ) {
     public static ResourceResponse from(Resource r) {
+        return from(r, null);
+    }
+
+    public static ResourceResponse from(Resource r, String lastDeploymentLocationName) {
         return new ResourceResponse(
                 r.getId(),
                 r.getType().getId(),
@@ -23,7 +28,8 @@ public record ResourceResponse(
                 r.getOwner() != null ? r.getOwner().getId() : null,
                 r.getOwner() != null ? r.getOwner().getCallsign() : null,
                 r.getNotes(),
-                r.getCustomFields()
+                r.getCustomFields(),
+                lastDeploymentLocationName
         );
     }
 }

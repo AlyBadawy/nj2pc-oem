@@ -89,6 +89,7 @@ export interface Resource {
   ownerCallsign: string | null
   notes: string | null
   customFields: Record<string, unknown>
+  lastDeploymentLocationName: string | null
 }
 
 export interface ResourceLastLocation {
