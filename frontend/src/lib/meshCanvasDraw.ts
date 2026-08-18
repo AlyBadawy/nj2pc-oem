@@ -1,6 +1,5 @@
 import type { IncidentBoundaryPoint, MeshLinkSnapshot, MeshNodeSnapshot } from '@/lib/types'
 import { linkColor, resolveLinkChannel, resourceTypeColor } from '@/lib/meshVisual'
-import { findColocatedGroups } from '@/lib/meshProximity'
 
 export type MeshCanvasNode = MeshNodeSnapshot & { offSite?: boolean; resourceTypeName?: string | null }
 
@@ -113,40 +112,6 @@ export function drawMeshOverlay(ctx: CanvasRenderingContext2D, input: MeshCanvas
     ctx.font = '10px sans-serif'
     ctx.textAlign = 'center'
     ctx.fillText(n.offSite ? `${n.hostname} (off-site)` : n.hostname, x, y - 10)
-  }
-
-  // Co-located nodes (within ~10ft — e.g. stacked on the same mast) would otherwise render as
-  // fully overlapping dots with no visual sign that more than one node is there. This badge is
-  // always drawn (not hover-dependent) since a static canvas has no hover state anyway.
-  const proximityPoints = nodes
-    .map((n) => {
-      const lat = toNum(n.latitude)
-      const lng = toNum(n.longitude)
-      return lat != null && lng != null ? { hostname: n.hostname, lat, lng } : null
-    })
-    .filter((v): v is { hostname: string; lat: number; lng: number } => v != null)
-  for (const group of findColocatedGroups(proximityPoints)) {
-    const [x, y] = project(group.centerLat, group.centerLng)
-    const label = `⚠ ${group.hostnames.length} co-located`
-    ctx.font = 'bold 10px sans-serif'
-    ctx.textAlign = 'center'
-    const metrics = ctx.measureText(label)
-    const badgeY = y - 24
-    ctx.fillStyle = '#C4432D'
-    ctx.beginPath()
-    const bx = x - metrics.width / 2 - 5
-    const bw = metrics.width + 10
-    const bh = 15
-    const r = 6
-    ctx.moveTo(bx + r, badgeY - bh / 2)
-    ctx.arcTo(bx + bw, badgeY - bh / 2, bx + bw, badgeY + bh / 2, r)
-    ctx.arcTo(bx + bw, badgeY + bh / 2, bx, badgeY + bh / 2, r)
-    ctx.arcTo(bx, badgeY + bh / 2, bx, badgeY - bh / 2, r)
-    ctx.arcTo(bx, badgeY - bh / 2, bx + bw, badgeY - bh / 2, r)
-    ctx.closePath()
-    ctx.fill()
-    ctx.fillStyle = '#FFFFFF'
-    ctx.fillText(label, x, badgeY + 3)
   }
 }
 

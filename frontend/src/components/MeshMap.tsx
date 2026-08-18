@@ -3,7 +3,6 @@ import L from 'leaflet'
 import { Maximize2, Minimize2 } from 'lucide-react'
 import type { IncidentBoundaryPoint, MeshLinkSnapshot, MeshNodeSnapshot } from '@/lib/types'
 import { linkColor, LINK_TYPE_LABEL, resolveLinkChannel, resourceTypeColor } from '@/lib/meshVisual'
-import { findColocatedGroups } from '@/lib/meshProximity'
 import { captureLiveLeafletSnapshot } from '@/lib/meshMapCapture'
 import { computeIncidentBounds } from '@/lib/meshIncidentArea'
 import { drawMeshCanvas } from '@/lib/meshCanvasDraw'
@@ -44,18 +43,6 @@ function nodeDivIcon(isLocalNode: boolean, offSite: boolean, typeName?: string |
     html: `<svg width="${size}" height="${size}" viewBox="0 0 20 20" xmlns="http://www.w3.org/2000/svg"><circle cx="10" cy="10" r="8" fill="${fill}" stroke="#1F4E79" stroke-width="2.5"${dash} /></svg>`,
     iconSize: [size, size],
     iconAnchor: [size / 2, size / 2],
-  })
-}
-
-/** Nodes within ~10ft of each other (e.g. stacked on the same mast) would otherwise render as
- * fully overlapping markers with nothing to indicate more than one node is there. This badge
- * sits permanently above the cluster — no hover required — unlike the per-marker tooltips. */
-function proximityBadgeDivIcon(count: number): L.DivIcon {
-  const label = `⚠ ${count} co-located`
-  return L.divIcon({
-    className: 'mesh-proximity-badge',
-    html: `<div style="display:inline-flex;align-items:center;white-space:nowrap;background:#C4432D;color:#fff;font:700 10px sans-serif;padding:2px 7px;border-radius:9999px;border:1.5px solid #fff;box-shadow:0 1px 3px rgba(0,0,0,0.35);">${label}</div>`,
-    iconAnchor: [0, 28],
   })
 }
 
@@ -232,20 +219,6 @@ export const MeshMap = forwardRef<MeshMapHandle, Props>(function MeshMap({ nodes
       L.marker(latLng, { icon: nodeDivIcon(n.isLocalNode, !!n.offSite, n.resourceTypeName) })
         .addTo(map)
         .bindTooltip(label, { permanent: false })
-    }
-
-    const proximityPoints = nodes
-      .map((n) => {
-        const lat = toNum(n.latitude)
-        const lng = toNum(n.longitude)
-        return lat != null && lng != null ? { hostname: n.hostname, lat, lng } : null
-      })
-      .filter((v): v is { hostname: string; lat: number; lng: number } => v != null)
-    for (const group of findColocatedGroups(proximityPoints)) {
-      const center = L.latLng(group.centerLat, group.centerLng)
-      L.marker(center, { icon: proximityBadgeDivIcon(group.hostnames.length) })
-        .addTo(map)
-        .bindTooltip(group.hostnames.join(', '))
     }
 
     for (const link of links) {
