@@ -101,8 +101,8 @@ public class IncidentSummaryPdfService {
                     return new ScanSummary(s, bands);
                 }).toList();
 
-        // Only currently-deployed gear — matches the dashboard map's own "what's here right now"
-        // convention (IncidentDetail.tsx's openResourceCheckIns), not the full historical list.
+        // Only currently-deployed gear — used by the Deployment Locations & Gear page's
+        // historical-vs-current distinction below, not the map (see mapNodeTypes).
         List<ResourceCheckInResponse> deployedGear = resourceCheckIns.stream()
                 .filter(c -> c.checkedOutAt() == null)
                 .toList();
@@ -129,10 +129,18 @@ public class IncidentSummaryPdfService {
 
         boolean rotateMapContent = "PORTRAIT".equalsIgnoreCase(request.orientation());
 
-        List<String> mapNodeTypes = deployedGear.stream()
-                .map(ResourceCheckInResponse::resourceTypeName)
-                .filter(t -> t != null && !t.isBlank())
-                .distinct().sorted().toList();
+        // The map page shows only the most recent mesh scan's nodes (frontend sends a snapshot
+        // captured from exactly that scan's data, not the dashboard's broader "all deployed gear"
+        // mix) — so the legend must be built from that same scan's nodes, not from deployed gear,
+        // or it would list equipment types (batteries, cameras, etc.) that never appear on the map.
+        MeshSessionSummaryResponse latestSession = meshSessions.stream()
+                .max(Comparator.comparing(MeshSessionSummaryResponse::capturedAt))
+                .orElse(null);
+        List<String> mapNodeTypes = latestSession == null ? List.of()
+                : meshSessionService.findById(incidentId, latestSession.id()).nodes().stream()
+                        .map(MeshNodeSnapshotResponse::resourceTypeName)
+                        .filter(t -> t != null && !t.isBlank())
+                        .distinct().sorted().toList();
 
         byte[] partA = renderPartA(incident, request, rotateMapContent, operatorCheckIns, mapNodeTypes);
         byte[] commsPlanPart = activeCommsPlan != null

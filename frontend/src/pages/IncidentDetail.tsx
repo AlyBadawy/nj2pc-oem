@@ -722,8 +722,8 @@ export function IncidentDetail() {
         onOpenChange={setPdfDialogOpen}
         incidentId={id}
         incident={incident}
-        nodes={dashboardMapNodes}
-        links={dashboardMapLinks}
+        nodes={latestMeshSessionDetail?.nodes ?? []}
+        links={latestMeshSessionDetail?.links ?? []}
         mapHandleRef={mapHandleRef}
         teamCardsCaptureRef={teamCardsCaptureRef}
       />
@@ -761,9 +761,13 @@ function GenerateIncidentPdfDialog({
   async function handleGenerate() {
     setGenerating(true);
     try {
-      // No per-node hostname / per-link channel text on this map — an incident-wide view often
-      // has many nodes close together, and the overlapping labels become illegible noise rather
-      // than useful detail. The color-coded legend already explains what each marker is.
+      // The PDF map shows only the most recent mesh scan's own nodes/links (passed in as
+      // `nodes`/`links`, sourced from latestMeshSessionDetail) — not the dashboard's broader
+      // "everything currently checked in" mix, which includes non-network gear (batteries,
+      // cameras, etc.) that would just clutter a network map. No per-node hostname / per-link
+      // channel text either — an incident-wide view often has many nodes close together, and
+      // the overlapping labels become illegible noise rather than useful detail. The
+      // color-coded legend already explains what each marker is.
       const mapImageBase64 = mapHandleRef.current?.captureSnapshot({
         nodes,
         links,
