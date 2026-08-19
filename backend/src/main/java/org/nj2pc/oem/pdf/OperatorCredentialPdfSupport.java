@@ -26,9 +26,17 @@ public final class OperatorCredentialPdfSupport {
     }
 
     private static final Color OFFLINE = new Color(0x6B, 0x6E, 0x73);
-    private static final Color PLACEHOLDER_BG = new Color(0xE4, 0xE1, 0xD8);
+    private static final Color PLACEHOLDER_BG = new Color(0xDF, 0xDC, 0xD3);
+    private static final Color PLACEHOLDER_STRIPE = new Color(0xEA, 0xE7, 0xDF);
     // Approximates the web card's border-black/[.12] (12% black over the paper background).
     private static final Color CARD_BORDER = new Color(0xD9, 0xD6, 0xCE);
+    // Matches the web `credential-micro` utility's rgba(0,0,0,.42) label color on the paper bg.
+    private static final Color MICRO_LABEL_COLOR = new Color(0x94, 0x94, 0x94);
+    // Matches frontend/src/index.css's `.text-credential-ink` override — the color used for a
+    // revealed/masked contact value.
+    private static final Color CREDENTIAL_VALUE_COLOR = new Color(20, 50, 35);
+    // "— restricted —" / not-on-file text color, matching the web's text-black/35.
+    private static final Color MUTED_VALUE_COLOR = new Color(0xA6, 0xA6, 0xA6);
 
     // --- masking, mirroring frontend/src/lib/identity.ts's maskPhone/maskEmail/maskPlate ---
 
@@ -68,23 +76,34 @@ public final class OperatorCredentialPdfSupport {
         return sb.toString();
     }
 
-    private static String contactValue(String raw, boolean canView, java.util.function.Function<String, String> mask,
-                                        String emptyText) {
-        if (raw == null || raw.isBlank()) return emptyText;
-        return canView ? raw : mask.apply(raw);
-    }
-
     // --- one card ---
 
-    /** A flat-filled placeholder, same aspect ratio as the real photo box, for a team member
-     * with no photo on file — an actual Image so it occupies exactly the same layout space as
-     * a real photo would, instead of a cell-background hint that only holds up when every
-     * sibling card in the same grid row happens to be the same height. */
+    /** A diagonally-hatched placeholder with an "OPERATOR PHOTO" caption, same aspect ratio as
+     * the real photo box, for a team member with no photo on file — mirrors the web card's
+     * `PhotoPlaceholder` (repeating-linear-gradient hatch + caption). An actual Image so it
+     * occupies exactly the same layout space as a real photo would, instead of a cell-background
+     * hint that only holds up when every sibling card in the same grid row happens to be the same
+     * height. */
     private static Image placeholderPhotoImage() {
-        BufferedImage img = new BufferedImage(100, 124, BufferedImage.TYPE_INT_RGB);
+        int w = 100;
+        int h = 124;
+        BufferedImage img = new BufferedImage(w, h, BufferedImage.TYPE_INT_RGB);
         java.awt.Graphics2D g = img.createGraphics();
+        g.setRenderingHint(java.awt.RenderingHints.KEY_ANTIALIASING, java.awt.RenderingHints.VALUE_ANTIALIAS_ON);
         g.setColor(PLACEHOLDER_BG);
-        g.fillRect(0, 0, img.getWidth(), img.getHeight());
+        g.fillRect(0, 0, w, h);
+        g.setColor(PLACEHOLDER_STRIPE);
+        g.setStroke(new java.awt.BasicStroke(6f));
+        for (int x = -h; x < w; x += 12) {
+            g.drawLine(x, 0, x + h, h);
+        }
+        g.setColor(new Color(0, 0, 0, 97));
+        g.setFont(new java.awt.Font("SansSerif", java.awt.Font.PLAIN, 11));
+        java.awt.FontMetrics fm = g.getFontMetrics();
+        String line1 = "OPERATOR";
+        String line2 = "PHOTO";
+        g.drawString(line1, (w - fm.stringWidth(line1)) / 2f, h - 18);
+        g.drawString(line2, (w - fm.stringWidth(line2)) / 2f, h - 6);
         g.dispose();
         try {
             return Image.getInstance(img, null);
@@ -93,15 +112,33 @@ public final class OperatorCredentialPdfSupport {
         }
     }
 
-    private static PdfPCell contactLine(String label, String value) {
+    /** Label above value, mirroring the web `ContactLine`/`MaskedValue`: masked (never the raw
+     * value — a static PDF has no hover-to-reveal) and colored `.text-credential-ink` when the
+     * viewer can see contact info and a value is on file; "— restricted —" when they can't;
+     * a plain dash/emptyText when the field is simply blank. */
+    private static PdfPCell contactLine(String label, String raw, boolean canView,
+                                         java.util.function.Function<String, String> mask, String emptyText) {
         PdfPCell cell = new PdfPCell();
         cell.setColspan(2);
         cell.setBorder(0);
-        cell.setPadding(1f);
-        Paragraph p = new Paragraph();
-        p.add(new Phrase(label + ": ", PdfFonts.mono(6, PdfTheme.RED)));
-        p.add(new Phrase(value, PdfFonts.sans(7, PdfTheme.INK)));
-        cell.addElement(p);
+        cell.setPadding(2f);
+        Paragraph labelP = new Paragraph(label.toUpperCase(), PdfFonts.mono(6, MICRO_LABEL_COLOR));
+        labelP.setSpacingAfter(1f);
+        cell.addElement(labelP);
+
+        String display;
+        Color color;
+        if (!canView) {
+            display = "— restricted —";
+            color = MUTED_VALUE_COLOR;
+        } else if (raw == null || raw.isBlank()) {
+            display = emptyText;
+            color = MUTED_VALUE_COLOR;
+        } else {
+            display = mask.apply(raw);
+            color = CREDENTIAL_VALUE_COLOR;
+        }
+        cell.addElement(new Paragraph(display, PdfFonts.mono(8, color)));
         return cell;
     }
 
@@ -188,7 +225,7 @@ public final class OperatorCredentialPdfSupport {
         nameCell.setBorder(0);
         nameCell.setPadding(5f);
         nameCell.setVerticalAlignment(Element.ALIGN_TOP);
-        Paragraph callsignLabel = new Paragraph("CALLSIGN", PdfFonts.mono(6, PdfTheme.RED));
+        Paragraph callsignLabel = new Paragraph("CALLSIGN", PdfFonts.mono(6, MICRO_LABEL_COLOR));
         callsignLabel.setSpacingAfter(1f);
         nameCell.addElement(callsignLabel);
         Paragraph namePara = new Paragraph();
@@ -203,10 +240,10 @@ public final class OperatorCredentialPdfSupport {
         PdfPCell licenseCell = new PdfPCell();
         licenseCell.setBorder(0);
         licenseCell.setPadding(0f);
-        Paragraph licensePara = new Paragraph();
-        licensePara.add(new Phrase("LICENSE  ", PdfFonts.mono(6, PdfTheme.RED)));
-        licensePara.add(new Phrase(PdfSupport.nullToDash(d.licenseClass()), PdfFonts.sans(7, PdfTheme.INK)));
-        licenseCell.addElement(licensePara);
+        Paragraph licenseLabel = new Paragraph("LICENSE", PdfFonts.mono(6, MICRO_LABEL_COLOR));
+        licenseLabel.setSpacingAfter(1f);
+        licenseCell.addElement(licenseLabel);
+        licenseCell.addElement(new Paragraph(PdfSupport.nullToDash(d.licenseClass()), PdfFonts.sans(8, PdfTheme.INK)));
         licenseRole.addCell(licenseCell);
         String roleText = d.roleName() != null ? d.roleName().toUpperCase() + " · " + PdfSupport.nullToDash(d.roleAccessLevel()) : "UNASSIGNED";
         Color roleColor = d.roleName() != null && d.roleColor() != null ? parseHexColor(d.roleColor()) : new Color(0xF4, 0xF2, 0xEC);
@@ -226,9 +263,9 @@ public final class OperatorCredentialPdfSupport {
         card.addCell(licenseRoleCell);
 
         // Contact lines.
-        card.addCell(contactLine("Phone", contactValue(d.phone(), d.canViewContact(), OperatorCredentialPdfSupport::maskPhone, "—")));
-        card.addCell(contactLine("Email", contactValue(d.email(), d.canViewContact(), OperatorCredentialPdfSupport::maskEmail, "—")));
-        card.addCell(contactLine("Plate", contactValue(d.licensePlate(), d.canViewContact(), OperatorCredentialPdfSupport::maskPlate, "NONE")));
+        card.addCell(contactLine("Phone", d.phone(), d.canViewContact(), OperatorCredentialPdfSupport::maskPhone, "—"));
+        card.addCell(contactLine("Email", d.email(), d.canViewContact(), OperatorCredentialPdfSupport::maskEmail, "—"));
+        card.addCell(contactLine("License Plate", d.licensePlate(), d.canViewContact(), OperatorCredentialPdfSupport::maskPlate, "NONE"));
 
         // Status footer — incident name + elapsed time on duty when checked in, matching the
         // web card's footer bar exactly (not a raw "Checked in {datetime}" line).
@@ -286,7 +323,7 @@ public final class OperatorCredentialPdfSupport {
             cell.setBorder(org.openpdf.text.Rectangle.BOX);
             cell.setBorderColor(CARD_BORDER);
             cell.setBorderWidth(0.75f);
-            cell.setPadding(6f);
+            cell.setPadding(8f);
             grid.addCell(cell);
         }
         for (int i = pageTeam.size(); i < CARDS_PER_PAGE; i++) {
