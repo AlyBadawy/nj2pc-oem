@@ -36,6 +36,7 @@ import org.springframework.transaction.annotation.Transactional;
 
 import java.awt.Color;
 import java.io.ByteArrayOutputStream;
+import java.util.Comparator;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
@@ -109,9 +110,26 @@ public class IncidentSummaryPdfService {
         List<ResourceCheckInResponse> deployedGear = resourceCheckIns.stream()
                 .filter(c -> c.checkedOutAt() == null)
                 .toList();
-        Map<Long, List<ResourceCheckInResponse>> gearByLocationId = deployedGear.stream()
+
+        // The Deployment Locations & Gear page, unlike the map legend above, is a historical
+        // record of the incident — it should list every piece of gear that was *ever* deployed
+        // to each location, not just what's still checked in there right now (which would go
+        // empty for a closed incident, since ending an incident checks everything out).
+        // deploymentLocationId/latitude/longitude are retained permanently on a check-in row —
+        // checkout only sets checkedOutAt (see ResourceCheckInService.checkOut) — so the full,
+        // unfiltered check-in list already carries this history. One row per resource per
+        // location (its most recent check-in there) avoids listing the same item twice if it
+        // was checked in/out at the same spot more than once.
+        Map<Long, List<ResourceCheckInResponse>> gearByLocationId = resourceCheckIns.stream()
                 .filter(c -> c.deploymentLocationId() != null)
-                .collect(Collectors.groupingBy(ResourceCheckInResponse::deploymentLocationId));
+                .collect(Collectors.groupingBy(
+                        ResourceCheckInResponse::deploymentLocationId,
+                        Collectors.collectingAndThen(Collectors.toList(), list -> list.stream()
+                                .collect(Collectors.toMap(ResourceCheckInResponse::resourceId, c -> c,
+                                        (a, b) -> a.checkedInAt().isAfter(b.checkedInAt()) ? a : b))
+                                .values().stream()
+                                .sorted(Comparator.comparing(ResourceCheckInResponse::resourceIdentifier, String.CASE_INSENSITIVE_ORDER))
+                                .toList())));
 
         boolean rotateMapContent = "PORTRAIT".equalsIgnoreCase(request.orientation());
 

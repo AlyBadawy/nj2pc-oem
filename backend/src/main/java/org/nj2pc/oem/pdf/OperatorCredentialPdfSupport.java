@@ -10,6 +10,7 @@ import org.openpdf.text.pdf.PdfPTable;
 
 import java.awt.Color;
 import java.awt.image.BufferedImage;
+import java.util.Comparator;
 import java.util.List;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
@@ -26,6 +27,8 @@ public final class OperatorCredentialPdfSupport {
 
     private static final Color OFFLINE = new Color(0x6B, 0x6E, 0x73);
     private static final Color PLACEHOLDER_BG = new Color(0xE4, 0xE1, 0xD8);
+    // Approximates the web card's border-black/[.12] (12% black over the paper background).
+    private static final Color CARD_BORDER = new Color(0xD9, 0xD6, 0xCE);
 
     // --- masking, mirroring frontend/src/lib/identity.ts's maskPhone/maskEmail/maskPlate ---
 
@@ -96,8 +99,8 @@ public final class OperatorCredentialPdfSupport {
         cell.setBorder(0);
         cell.setPadding(1f);
         Paragraph p = new Paragraph();
-        p.add(new Phrase(label + ": ", PdfTheme.LABEL_FONT));
-        p.add(new Phrase(value, PdfTheme.TABLE_CELL_FONT));
+        p.add(new Phrase(label + ": ", PdfFonts.mono(6, PdfTheme.RED)));
+        p.add(new Phrase(value, PdfFonts.sans(7, PdfTheme.INK)));
         cell.addElement(p);
         return cell;
     }
@@ -132,13 +135,12 @@ public final class OperatorCredentialPdfSupport {
         // Header: org name + credential number, hairline bottom border.
         PdfPTable header = new PdfPTable(2);
         header.setWidthPercentage(100);
-        PdfPCell orgCell = new PdfPCell(new Phrase(orgName, org.openpdf.text.FontFactory.getFont(
-                org.openpdf.text.FontFactory.HELVETICA_BOLD, 7, PdfTheme.BLUE_DEEP)));
+        PdfPCell orgCell = new PdfPCell(new Phrase(orgName, PdfFonts.narrow(7, PdfTheme.BLUE_DEEP)));
         orgCell.setBorder(0);
         orgCell.setPadding(0f);
         header.addCell(orgCell);
         PdfPCell credCell = new PdfPCell(new Phrase("NO. " + String.format("%06d", d.id()),
-                org.openpdf.text.FontFactory.getFont(org.openpdf.text.FontFactory.COURIER, 5, new Color(0x8A, 0x8A, 0x8A))));
+                PdfFonts.mono(5, new Color(0x8A, 0x8A, 0x8A))));
         credCell.setBorder(0);
         credCell.setPadding(0f);
         credCell.setHorizontalAlignment(Element.ALIGN_RIGHT);
@@ -186,14 +188,12 @@ public final class OperatorCredentialPdfSupport {
         nameCell.setBorder(0);
         nameCell.setPadding(5f);
         nameCell.setVerticalAlignment(Element.ALIGN_TOP);
-        Paragraph callsignLabel = new Paragraph("CALLSIGN", PdfTheme.LABEL_FONT);
+        Paragraph callsignLabel = new Paragraph("CALLSIGN", PdfFonts.mono(6, PdfTheme.RED));
         callsignLabel.setSpacingAfter(1f);
         nameCell.addElement(callsignLabel);
         Paragraph namePara = new Paragraph();
-        namePara.add(new Phrase(d.callsign() + "\n", org.openpdf.text.FontFactory.getFont(
-                org.openpdf.text.FontFactory.COURIER_BOLD, 20, PdfTheme.INK)));
-        namePara.add(new Phrase(d.name(), org.openpdf.text.FontFactory.getFont(
-                org.openpdf.text.FontFactory.HELVETICA_BOLD, 10, PdfTheme.INK)));
+        namePara.add(new Phrase(d.callsign() + "\n", PdfFonts.mono(20, PdfTheme.INK)));
+        namePara.add(new Phrase(d.name(), PdfFonts.sans(10, PdfTheme.INK)));
         nameCell.addElement(namePara);
         card.addCell(nameCell);
 
@@ -204,14 +204,13 @@ public final class OperatorCredentialPdfSupport {
         licenseCell.setBorder(0);
         licenseCell.setPadding(0f);
         Paragraph licensePara = new Paragraph();
-        licensePara.add(new Phrase("LICENSE  ", PdfTheme.LABEL_FONT));
-        licensePara.add(new Phrase(PdfSupport.nullToDash(d.licenseClass()), PdfTheme.TABLE_CELL_FONT));
+        licensePara.add(new Phrase("LICENSE  ", PdfFonts.mono(6, PdfTheme.RED)));
+        licensePara.add(new Phrase(PdfSupport.nullToDash(d.licenseClass()), PdfFonts.sans(7, PdfTheme.INK)));
         licenseCell.addElement(licensePara);
         licenseRole.addCell(licenseCell);
         String roleText = d.roleName() != null ? d.roleName().toUpperCase() + " · " + PdfSupport.nullToDash(d.roleAccessLevel()) : "UNASSIGNED";
         Color roleColor = d.roleName() != null && d.roleColor() != null ? parseHexColor(d.roleColor()) : new Color(0xF4, 0xF2, 0xEC);
-        PdfPCell roleCell = new PdfPCell(new Phrase(roleText, org.openpdf.text.FontFactory.getFont(
-                org.openpdf.text.FontFactory.COURIER_BOLD, 6, PdfTheme.INK)));
+        PdfPCell roleCell = new PdfPCell(new Phrase(roleText, PdfFonts.mono(6, PdfTheme.INK)));
         roleCell.setBackgroundColor(roleColor);
         roleCell.setBorder(0);
         roleCell.setPadding(3f);
@@ -242,14 +241,14 @@ public final class OperatorCredentialPdfSupport {
         footerRow.setWidthPercentage(100);
         PdfPCell footerLeft = new PdfPCell(new Phrase(
                 d.checkedIn() && d.incidentName() != null ? d.incidentName() : "Not checked in",
-                org.openpdf.text.FontFactory.getFont(org.openpdf.text.FontFactory.HELVETICA_BOLD, 7, PdfTheme.WHITE)));
+                PdfFonts.sans(7, PdfTheme.WHITE)));
         footerLeft.setBorder(0);
         footerLeft.setPadding(0f);
         footerLeft.setVerticalAlignment(Element.ALIGN_MIDDLE);
         footerRow.addCell(footerLeft);
         PdfPCell footerRight = new PdfPCell(new Phrase(
                 d.checkedIn() && d.checkedInAt() != null ? formatElapsed(d.checkedInAt()) : "",
-                org.openpdf.text.FontFactory.getFont(org.openpdf.text.FontFactory.COURIER, 6, new Color(0xE0, 0xE0, 0xE0))));
+                PdfFonts.mono(6, new Color(0xE0, 0xE0, 0xE0))));
         footerRight.setBorder(0);
         footerRight.setPadding(0f);
         footerRight.setHorizontalAlignment(Element.ALIGN_RIGHT);
@@ -282,7 +281,11 @@ public final class OperatorCredentialPdfSupport {
         grid.setWidthPercentage(100);
         for (OperatorCredentialCardData d : pageTeam) {
             PdfPCell cell = new PdfPCell(buildCard(d, orgName));
-            cell.setBorder(0);
+            // Approximates the web card's `rounded-xl border border-black/[.12]` — OpenPDF cell
+            // borders can't be rounded, but a thin light-gray box reads the same at this scale.
+            cell.setBorder(org.openpdf.text.Rectangle.BOX);
+            cell.setBorderColor(CARD_BORDER);
+            cell.setBorderWidth(0.75f);
             cell.setPadding(6f);
             grid.addCell(cell);
         }
@@ -342,8 +345,12 @@ public final class OperatorCredentialPdfSupport {
             return table;
         }
 
+        List<OperatorCheckInResponse> sorted = checkIns.stream()
+                .sorted(Comparator.comparing(OperatorCheckInResponse::checkedInAt))
+                .toList();
+
         boolean stripe = false;
-        for (OperatorCheckInResponse c : checkIns) {
+        for (OperatorCheckInResponse c : sorted) {
             Color rowColor = stripe ? PdfTheme.NEUTRAL_BAND : PdfTheme.WHITE;
             PdfSupport.addBodyCell(table, PdfSupport.nullToDash(c.operatorCallsign()), rowColor, PdfTheme.TABLE_CELL_FONT);
             PdfSupport.addBodyCell(table, PdfSupport.nullToDash(c.roleName()), rowColor, PdfTheme.TABLE_CELL_FONT);

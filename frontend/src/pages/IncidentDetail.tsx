@@ -210,8 +210,27 @@ export function IncidentDetail() {
   const openOperatorCheckIns = operatorCheckIns?.filter((c) => !c.checkedOutAt) ?? []
   const openResourceCheckIns = resourceCheckIns?.filter((c) => !c.checkedOutAt) ?? []
 
-  // One marker per currently-deployed piece of gear, placed at its own checkin's lat/lng (which
-  // the backend denormalizes from its deployment location) — not the scan's node positions, so a
+  // Once an incident is CLOSED every check-in gets auto-checked-out (see endIncidentMutation),
+  // so `openResourceCheckIns` goes empty and the map would otherwise go blank. The historical
+  // check-in rows still carry their `deploymentLocationId`/lat-lng permanently (checkout only
+  // sets `checkedOutAt`, per OperatorCheckInService.checkOutAllOpen on the backend), so for a
+  // closed incident we fall back to each resource's most recent check-in on this incident —
+  // its "last known deployment location" — instead of requiring it to still be checked in.
+  const gearCheckIns = isClosed
+    ? Array.from(
+        (resourceCheckIns ?? [])
+          .slice()
+          .sort((a, b) => new Date(b.checkedInAt).getTime() - new Date(a.checkedInAt).getTime())
+          .reduce((byResource, c) => {
+            if (!byResource.has(c.resourceId)) byResource.set(c.resourceId, c)
+            return byResource
+          }, new Map<number, ResourceCheckIn>())
+          .values(),
+      )
+    : openResourceCheckIns
+
+  // One marker per deployed piece of gear, placed at its own checkin's lat/lng (which the
+  // backend denormalizes from its deployment location) — not the scan's node positions, so a
   // gear item moved to a new location since the last scan still shows up where it actually is
   // now. When a deployed item's identifier matches a hostname from the latest scan, its radio
   // metadata (channel/band) is borrowed from that scan node purely for link tooltip/color
@@ -219,7 +238,7 @@ export function IncidentDetail() {
   const scanNodeByHostname = new Map(
     (latestMeshSessionDetail?.nodes ?? []).map((n) => [n.hostname.toLowerCase(), n]),
   )
-  const dashboardMapNodes: (MeshNodeSnapshot & { offSite?: boolean; resourceTypeName?: string | null })[] = openResourceCheckIns
+  const dashboardMapNodes: (MeshNodeSnapshot & { offSite?: boolean; resourceTypeName?: string | null })[] = gearCheckIns
     .filter((c) => c.latitude && c.longitude)
     .map((c) => {
       const scanNode = scanNodeByHostname.get(c.resourceIdentifier.toLowerCase())
