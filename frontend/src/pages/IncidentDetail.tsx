@@ -1,6 +1,6 @@
-import { useRef, useState } from 'react'
-import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { useNavigate, useParams } from 'react-router-dom'
+import { useRef, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useNavigate, useParams } from "react-router-dom";
 import {
   ArrowLeft,
   FileDown,
@@ -15,10 +15,10 @@ import {
   Waypoints,
   RadioTower,
   type LucideIcon,
-} from 'lucide-react'
-import { toast } from 'sonner'
-import { api } from '@/lib/api'
-import { hasPermission, useAuth } from '@/lib/auth-context'
+} from "lucide-react";
+import { toast } from "sonner";
+import { api } from "@/lib/api";
+import { hasPermission, useAuth } from "@/lib/auth-context";
 import type {
   Incident,
   IncidentCommsPlanApplication,
@@ -32,21 +32,37 @@ import type {
   Operator,
   OperatorCheckIn,
   ResourceCheckIn,
-} from '@/lib/types'
-import { MeshMap, type MeshMapHandle } from '@/components/MeshMap'
-import { resourceTypeColor } from '@/lib/meshVisual'
-import { Button } from '@/components/ui/button'
-import { Badge } from '@/components/ui/badge'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
-import { Label } from '@/components/ui/label'
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select'
-import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog'
+} from "@/lib/types";
+import { MeshMap, type MeshMapHandle } from "@/components/MeshMap";
+import { resourceTypeColor } from "@/lib/meshVisual";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Label } from "@/components/ui/label";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
-const statusVariant: Record<Incident['status'], 'default' | 'secondary' | 'destructive'> = {
-  PLANNED: 'secondary',
-  ACTIVE: 'default',
-  CLOSED: 'destructive',
-}
+const statusVariant: Record<
+  Incident["status"],
+  "default" | "secondary" | "destructive"
+> = {
+  PLANNED: "secondary",
+  ACTIVE: "default",
+  CLOSED: "destructive",
+};
 
 function DashboardTile({
   icon: Icon,
@@ -54,10 +70,10 @@ function DashboardTile({
   detail,
   onClick,
 }: {
-  icon: LucideIcon
-  label: string
-  detail: string
-  onClick: () => void
+  icon: LucideIcon;
+  label: string;
+  detail: string;
+  onClick: () => void;
 }) {
   return (
     <button
@@ -71,61 +87,81 @@ function DashboardTile({
         <div className="text-xs text-muted-foreground">{detail}</div>
       </div>
     </button>
-  )
+  );
 }
 
 export function IncidentDetail() {
-  const { user } = useAuth()
-  const { id } = useParams<{ id: string }>()
-  const navigate = useNavigate()
-  const queryClient = useQueryClient()
-  const [endDialogOpen, setEndDialogOpen] = useState(false)
-  const [permissionsOpen, setPermissionsOpen] = useState(false)
-  const [grantOperatorId, setGrantOperatorId] = useState('')
-  const [grantPermission, setGrantPermission] = useState<IncidentPermission>('VIEW')
-  const [pdfDialogOpen, setPdfDialogOpen] = useState(false)
-  const mapHandleRef = useRef<MeshMapHandle>(null)
+  const { user } = useAuth();
+  const { id } = useParams<{ id: string }>();
+  const navigate = useNavigate();
+  const queryClient = useQueryClient();
+  const [endDialogOpen, setEndDialogOpen] = useState(false);
+  const [permissionsOpen, setPermissionsOpen] = useState(false);
+  const [grantOperatorId, setGrantOperatorId] = useState("");
+  const [grantPermission, setGrantPermission] =
+    useState<IncidentPermission>("VIEW");
+  const [pdfDialogOpen, setPdfDialogOpen] = useState(false);
+  const mapHandleRef = useRef<MeshMapHandle>(null);
 
   const { data: incident } = useQuery({
-    queryKey: ['incidents', id],
+    queryKey: ["incidents", id],
     queryFn: async () => (await api.get<Incident>(`/api/incidents/${id}`)).data,
-  })
+  });
 
   const { data: operators } = useQuery({
-    queryKey: ['operators'],
-    queryFn: async () => (await api.get<Operator[]>('/api/operators')).data,
-    enabled: hasPermission(user, 'OPERATOR_LIST'),
-  })
+    queryKey: ["operators"],
+    queryFn: async () => (await api.get<Operator[]>("/api/operators")).data,
+    enabled: hasPermission(user, "OPERATOR_LIST"),
+  });
 
   const { data: operatorCheckIns } = useQuery({
-    queryKey: ['incidents', id, 'operator-checkins'],
-    queryFn: async () => (await api.get<OperatorCheckIn[]>(`/api/incidents/${id}/operator-checkins`)).data,
-  })
+    queryKey: ["incidents", id, "operator-checkins"],
+    queryFn: async () =>
+      (
+        await api.get<OperatorCheckIn[]>(
+          `/api/incidents/${id}/operator-checkins`,
+        )
+      ).data,
+  });
 
   const { data: resourceCheckIns } = useQuery({
-    queryKey: ['incidents', id, 'resource-checkins'],
-    queryFn: async () => (await api.get<ResourceCheckIn[]>(`/api/incidents/${id}/resource-checkins`)).data,
-  })
+    queryKey: ["incidents", id, "resource-checkins"],
+    queryFn: async () =>
+      (
+        await api.get<ResourceCheckIn[]>(
+          `/api/incidents/${id}/resource-checkins`,
+        )
+      ).data,
+  });
 
   const { data: logs } = useQuery({
-    queryKey: ['incidents', id, 'logs'],
-    queryFn: async () => (await api.get<IncidentLog[]>(`/api/incidents/${id}/logs`)).data,
-  })
+    queryKey: ["incidents", id, "logs"],
+    queryFn: async () =>
+      (await api.get<IncidentLog[]>(`/api/incidents/${id}/logs`)).data,
+  });
 
   const { data: activeCommsPlan } = useQuery({
-    queryKey: ['incidents', id, 'comms-plan-active'],
+    queryKey: ["incidents", id, "comms-plan-active"],
     queryFn: async () => {
-      const res = await api.get<IncidentCommsPlanApplication | null>(`/api/incidents/${id}/comms-plan-applications/active`, {
-        validateStatus: (status) => status === 200 || status === 204,
-      })
-      return res.status === 204 ? null : res.data
+      const res = await api.get<IncidentCommsPlanApplication | null>(
+        `/api/incidents/${id}/comms-plan-applications/active`,
+        {
+          validateStatus: (status) => status === 200 || status === 204,
+        },
+      );
+      return res.status === 204 ? null : res.data;
     },
-  })
+  });
 
   const { data: meshSessions } = useQuery({
-    queryKey: ['incidents', id, 'mesh-sessions'],
-    queryFn: async () => (await api.get<MeshSessionSummary[]>(`/api/incidents/${id}/mesh-sessions`)).data,
-  })
+    queryKey: ["incidents", id, "mesh-sessions"],
+    queryFn: async () =>
+      (
+        await api.get<MeshSessionSummary[]>(
+          `/api/incidents/${id}/mesh-sessions`,
+        )
+      ).data,
+  });
 
   // The dashboard map overlays the incident's own gear (at each piece's currently-deployed
   // location) with the AREDN links from the most recent scan — a live-vs-snapshot mix, not a
@@ -133,82 +169,119 @@ export function IncidentDetail() {
   // metadata (channel/band, for link tooltips/coloring) are pulled from that latest session.
   const latestMeshSession = (meshSessions ?? [])
     .slice()
-    .sort((a, b) => new Date(b.capturedAt).getTime() - new Date(a.capturedAt).getTime())[0]
+    .sort(
+      (a, b) =>
+        new Date(b.capturedAt).getTime() - new Date(a.capturedAt).getTime(),
+    )[0];
 
   const { data: latestMeshSessionDetail } = useQuery({
-    queryKey: ['incidents', id, 'mesh-sessions', latestMeshSession?.id],
+    queryKey: ["incidents", id, "mesh-sessions", latestMeshSession?.id],
     queryFn: async () =>
-      (await api.get<MeshSessionDetailType>(`/api/incidents/${id}/mesh-sessions/${latestMeshSession?.id}`)).data,
+      (
+        await api.get<MeshSessionDetailType>(
+          `/api/incidents/${id}/mesh-sessions/${latestMeshSession?.id}`,
+        )
+      ).data,
     enabled: !!latestMeshSession,
-  })
+  });
 
   const { data: permissionGrants } = useQuery({
-    queryKey: ['incidents', id, 'permissions'],
-    queryFn: async () => (await api.get<IncidentPermissionGrant[]>(`/api/incidents/${id}/permissions`)).data,
+    queryKey: ["incidents", id, "permissions"],
+    queryFn: async () =>
+      (
+        await api.get<IncidentPermissionGrant[]>(
+          `/api/incidents/${id}/permissions`,
+        )
+      ).data,
     enabled: !!incident?.canEdit,
-  })
+  });
 
   const startIncidentMutation = useMutation({
     mutationFn: async () => api.post(`/api/incidents/${id}/start`),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['incidents', id] })
-      queryClient.invalidateQueries({ queryKey: ['incidents'] })
-      toast.success('Incident started')
+      queryClient.invalidateQueries({ queryKey: ["incidents", id] });
+      queryClient.invalidateQueries({ queryKey: ["incidents"] });
+      toast.success("Incident started");
     },
-    onError: () => toast.error('Failed to start incident'),
-  })
+    onError: () => toast.error("Failed to start incident"),
+  });
 
   const endIncidentMutation = useMutation({
     mutationFn: async () => api.post(`/api/incidents/${id}/end`),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['incidents', id] })
-      queryClient.invalidateQueries({ queryKey: ['incidents', id, 'operator-checkins'] })
-      queryClient.invalidateQueries({ queryKey: ['incidents', id, 'resource-checkins'] })
-      queryClient.invalidateQueries({ queryKey: ['incidents'] })
-      queryClient.invalidateQueries({ queryKey: ['resources'] })
-      toast.success('Incident ended — all operators and resources checked out')
-      setEndDialogOpen(false)
+      queryClient.invalidateQueries({ queryKey: ["incidents", id] });
+      queryClient.invalidateQueries({
+        queryKey: ["incidents", id, "operator-checkins"],
+      });
+      queryClient.invalidateQueries({
+        queryKey: ["incidents", id, "resource-checkins"],
+      });
+      queryClient.invalidateQueries({ queryKey: ["incidents"] });
+      queryClient.invalidateQueries({ queryKey: ["resources"] });
+      toast.success("Incident ended — all operators and resources checked out");
+      setEndDialogOpen(false);
     },
-    onError: () => toast.error('Failed to end incident'),
-  })
+    onError: () => toast.error("Failed to end incident"),
+  });
 
   const addGrantMutation = useMutation({
     mutationFn: async () => {
-      const existing = (permissionGrants ?? []).map((g) => ({ operatorId: g.operatorId, permission: g.permission }))
-      const grants = [...existing, { operatorId: Number(grantOperatorId), permission: grantPermission }]
-      return api.put(`/api/incidents/${id}/permissions`, { grants })
+      const existing = (permissionGrants ?? []).map((g) => ({
+        operatorId: g.operatorId,
+        permission: g.permission,
+      }));
+      const grants = [
+        ...existing,
+        { operatorId: Number(grantOperatorId), permission: grantPermission },
+      ];
+      return api.put(`/api/incidents/${id}/permissions`, { grants });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['incidents', id, 'permissions'] })
-      toast.success('Permission granted')
-      setGrantOperatorId('')
+      queryClient.invalidateQueries({
+        queryKey: ["incidents", id, "permissions"],
+      });
+      toast.success("Permission granted");
+      setGrantOperatorId("");
     },
-    onError: () => toast.error('Failed to grant permission'),
-  })
+    onError: () => toast.error("Failed to grant permission"),
+  });
 
   const revokeGrantMutation = useMutation({
-    mutationFn: async (target: { operatorId: number; permission: IncidentPermission }) => {
+    mutationFn: async (target: {
+      operatorId: number;
+      permission: IncidentPermission;
+    }) => {
       const grants = (permissionGrants ?? [])
-        .filter((g) => !(g.operatorId === target.operatorId && g.permission === target.permission))
-        .map((g) => ({ operatorId: g.operatorId, permission: g.permission }))
-      return api.put(`/api/incidents/${id}/permissions`, { grants })
+        .filter(
+          (g) =>
+            !(
+              g.operatorId === target.operatorId &&
+              g.permission === target.permission
+            ),
+        )
+        .map((g) => ({ operatorId: g.operatorId, permission: g.permission }));
+      return api.put(`/api/incidents/${id}/permissions`, { grants });
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['incidents', id, 'permissions'] })
-      toast.success('Permission revoked')
+      queryClient.invalidateQueries({
+        queryKey: ["incidents", id, "permissions"],
+      });
+      toast.success("Permission revoked");
     },
-    onError: () => toast.error('Failed to revoke permission'),
-  })
+    onError: () => toast.error("Failed to revoke permission"),
+  });
 
-  if (!incident) return null
+  if (!incident) return null;
 
-  const canEdit = incident.canEdit
-  const isClosed = incident.status === 'CLOSED'
-  const isPlanned = incident.status === 'PLANNED'
-  const isActive = incident.status === 'ACTIVE'
+  const canEdit = incident.canEdit;
+  const isClosed = incident.status === "CLOSED";
+  const isPlanned = incident.status === "PLANNED";
+  const isActive = incident.status === "ACTIVE";
 
-  const openOperatorCheckIns = operatorCheckIns?.filter((c) => !c.checkedOutAt) ?? []
-  const openResourceCheckIns = resourceCheckIns?.filter((c) => !c.checkedOutAt) ?? []
+  const openOperatorCheckIns =
+    operatorCheckIns?.filter((c) => !c.checkedOutAt) ?? [];
+  const openResourceCheckIns =
+    resourceCheckIns?.filter((c) => !c.checkedOutAt) ?? [];
 
   // Once an incident is CLOSED every check-in gets auto-checked-out (see endIncidentMutation),
   // so `openResourceCheckIns` goes empty and the map would otherwise go blank. The historical
@@ -220,14 +293,18 @@ export function IncidentDetail() {
     ? Array.from(
         (resourceCheckIns ?? [])
           .slice()
-          .sort((a, b) => new Date(b.checkedInAt).getTime() - new Date(a.checkedInAt).getTime())
+          .sort(
+            (a, b) =>
+              new Date(b.checkedInAt).getTime() -
+              new Date(a.checkedInAt).getTime(),
+          )
           .reduce((byResource, c) => {
-            if (!byResource.has(c.resourceId)) byResource.set(c.resourceId, c)
-            return byResource
+            if (!byResource.has(c.resourceId)) byResource.set(c.resourceId, c);
+            return byResource;
           }, new Map<number, ResourceCheckIn>())
           .values(),
       )
-    : openResourceCheckIns
+    : openResourceCheckIns;
 
   // One marker per deployed piece of gear, placed at its own checkin's lat/lng (which the
   // backend denormalizes from its deployment location) — not the scan's node positions, so a
@@ -236,12 +313,20 @@ export function IncidentDetail() {
   // metadata (channel/band) is borrowed from that scan node purely for link tooltip/color
   // accuracy — position always comes from the checkin.
   const scanNodeByHostname = new Map(
-    (latestMeshSessionDetail?.nodes ?? []).map((n) => [n.hostname.toLowerCase(), n]),
-  )
-  const dashboardMapNodes: (MeshNodeSnapshot & { offSite?: boolean; resourceTypeName?: string | null })[] = gearCheckIns
+    (latestMeshSessionDetail?.nodes ?? []).map((n) => [
+      n.hostname.toLowerCase(),
+      n,
+    ]),
+  );
+  const dashboardMapNodes: (MeshNodeSnapshot & {
+    offSite?: boolean;
+    resourceTypeName?: string | null;
+  })[] = gearCheckIns
     .filter((c) => c.latitude && c.longitude)
     .map((c) => {
-      const scanNode = scanNodeByHostname.get(c.resourceIdentifier.toLowerCase())
+      const scanNode = scanNodeByHostname.get(
+        c.resourceIdentifier.toLowerCase(),
+      );
       return {
         id: c.id,
         hostname: c.resourceIdentifier,
@@ -265,33 +350,49 @@ export function IncidentDetail() {
         resourceCustomFields: null,
         offSite: c.offSite,
         resourceTypeName: c.resourceTypeName,
-      }
-    })
+      };
+    });
   // The scan can include nodes that aren't a currently-open check-in on this incident (checked
   // out already, or never checked in here at all) — those still need a marker or any link
   // touching them would silently disappear (MeshMap only draws a link when both endpoints have a
   // plotted position). Add them using the scan's own resolved lat/lng, which the mesh-scan submit
   // endpoint already backfills from the resource's last-known deployment location, so it's still
   // the best available position for a node that isn't part of the "currently deployed" set above.
-  const plottedHostnames = new Set(dashboardMapNodes.map((n) => n.hostname.toLowerCase()))
+  const plottedHostnames = new Set(
+    dashboardMapNodes.map((n) => n.hostname.toLowerCase()),
+  );
   for (const scanNode of latestMeshSessionDetail?.nodes ?? []) {
-    if (plottedHostnames.has(scanNode.hostname.toLowerCase())) continue
-    if (!scanNode.latitude || !scanNode.longitude) continue
-    plottedHostnames.add(scanNode.hostname.toLowerCase())
-    dashboardMapNodes.push({ ...scanNode, offSite: true })
+    if (plottedHostnames.has(scanNode.hostname.toLowerCase())) continue;
+    if (!scanNode.latitude || !scanNode.longitude) continue;
+    plottedHostnames.add(scanNode.hostname.toLowerCase());
+    dashboardMapNodes.push({ ...scanNode, offSite: true });
   }
-  const dashboardMapLinks = latestMeshSessionDetail?.links ?? []
-  const dashboardMapTypes = [...new Set(dashboardMapNodes.map((n) => n.resourceTypeName).filter((t): t is string => !!t))].sort(
-    (a, b) => a.localeCompare(b),
-  )
+  const dashboardMapLinks = latestMeshSessionDetail?.links ?? [];
+  const dashboardMapTypes = [
+    ...new Set(
+      dashboardMapNodes
+        .map((n) => n.resourceTypeName)
+        .filter((t): t is string => !!t),
+    ),
+  ].sort((a, b) => a.localeCompare(b));
 
   const fmt = (v: string | null) =>
-    v ? new Date(v).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' }) : '—'
+    v
+      ? new Date(v).toLocaleString(undefined, {
+          dateStyle: "short",
+          timeStyle: "short",
+        })
+      : "—";
 
   return (
     <div className="flex flex-col gap-6">
       <div>
-        <Button variant="ghost" size="sm" onClick={() => navigate('/incidents')} className="mb-2 -ml-2">
+        <Button
+          variant="ghost"
+          size="sm"
+          onClick={() => navigate("/incidents")}
+          className="mb-2 -ml-2"
+        >
           <ArrowLeft className="size-4" />
           Back to Incidents
         </Button>
@@ -299,7 +400,9 @@ export function IncidentDetail() {
           <div>
             <div className="flex flex-wrap items-center gap-2">
               <h1 className="text-2xl font-semibold">{incident.name}</h1>
-              <Badge variant={statusVariant[incident.status]}>{incident.status}</Badge>
+              <Badge variant={statusVariant[incident.status]}>
+                {incident.status}
+              </Badge>
             </div>
             <p className="text-muted-foreground text-sm">{incident.location}</p>
           </div>
@@ -309,7 +412,10 @@ export function IncidentDetail() {
               Generate PDF
             </Button>
             {canEdit && (
-              <Button variant="outline" onClick={() => setPermissionsOpen(true)}>
+              <Button
+                variant="outline"
+                onClick={() => setPermissionsOpen(true)}
+              >
                 <ShieldCheck className="size-4" />
                 Permissions
               </Button>
@@ -317,7 +423,11 @@ export function IncidentDetail() {
             <Button
               variant="outline"
               disabled={!canEdit || isClosed}
-              title={canEdit ? 'Edit incident' : 'Requires edit access to this incident'}
+              title={
+                canEdit
+                  ? "Edit incident"
+                  : "Requires edit access to this incident"
+              }
               onClick={() => navigate(`/incidents/${id}/edit`)}
             >
               <Pencil className="size-4" />
@@ -327,7 +437,11 @@ export function IncidentDetail() {
               <Button
                 variant="outline"
                 disabled={!canEdit || startIncidentMutation.isPending}
-                title={canEdit ? 'Start incident' : 'Requires edit access to this incident'}
+                title={
+                  canEdit
+                    ? "Start incident"
+                    : "Requires edit access to this incident"
+                }
                 onClick={() => startIncidentMutation.mutate()}
               >
                 <Play className="size-4" />
@@ -338,7 +452,11 @@ export function IncidentDetail() {
               <Button
                 variant="outline"
                 disabled={!canEdit}
-                title={canEdit ? 'End incident' : 'Requires edit access to this incident'}
+                title={
+                  canEdit
+                    ? "End incident"
+                    : "Requires edit access to this incident"
+                }
                 onClick={() => setEndDialogOpen(true)}
               >
                 <Flag className="size-4" />
@@ -347,68 +465,6 @@ export function IncidentDetail() {
             )}
           </div>
         </div>
-      </div>
-
-      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">General</CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-4">
-            <div>
-              <div className="text-xs text-muted-foreground">Title</div>
-              <div className="text-sm font-medium">{incident.name}</div>
-            </div>
-            <div>
-              <div className="text-xs text-muted-foreground">Description</div>
-              <div className="text-sm">{incident.description || <span className="text-muted-foreground">—</span>}</div>
-            </div>
-            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-              <div>
-                <div className="text-xs text-muted-foreground">Planned</div>
-                <div className="text-sm">
-                  {fmt(incident.plannedStartTime)} – {fmt(incident.plannedEndTime)}
-                </div>
-              </div>
-              <div>
-                <div className="text-xs text-muted-foreground">Actual</div>
-                <div className="text-sm">
-                  {fmt(incident.actualStartTime)} – {fmt(incident.actualEndTime)}
-                </div>
-              </div>
-            </div>
-            {canEdit && (
-              <div>
-                <div className="text-xs text-muted-foreground">Created By</div>
-                <div className="text-sm">
-                  {incident.createdByCallsign ?? 'System'} at {new Date(incident.createdAt).toLocaleString()}
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Map</CardTitle>
-          </CardHeader>
-          <CardContent className="flex flex-col gap-3">
-            <MeshMap ref={mapHandleRef} nodes={dashboardMapNodes} links={dashboardMapLinks} boundaryPoints={incident.boundaryPoints} />
-            {dashboardMapTypes.length > 0 && (
-              <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm">
-                {dashboardMapTypes.map((type) => (
-                  <div key={type} className="flex items-center gap-1.5">
-                    <span
-                      className="inline-block size-2.5 rounded-full border border-credential-blue-deep"
-                      style={{ background: resourceTypeColor(type) }}
-                    />
-                    <span>{type}</span>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
       </div>
 
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
@@ -433,15 +489,89 @@ export function IncidentDetail() {
         <DashboardTile
           icon={Waypoints}
           label="Comms Plan"
-          detail={activeCommsPlan ? activeCommsPlan.planName : 'None applied'}
+          detail={activeCommsPlan ? activeCommsPlan.planName : "None applied"}
           onClick={() => navigate(`/incidents/${id}/comms-plan`)}
         />
         <DashboardTile
           icon={RadioTower}
           label="Mesh"
-          detail={`${meshSessions?.length ?? 0} scan${meshSessions?.length === 1 ? '' : 's'}`}
+          detail={`${meshSessions?.length ?? 0} scan${meshSessions?.length === 1 ? "" : "s"}`}
           onClick={() => navigate(`/incidents/${id}/mesh`)}
         />
+      </div>
+
+      <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">General</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-4">
+            <div>
+              <div className="text-xs text-muted-foreground">Title</div>
+              <div className="text-sm font-medium">{incident.name}</div>
+            </div>
+            <div>
+              <div className="text-xs text-muted-foreground">Description</div>
+              <div className="text-sm">
+                {incident.description || (
+                  <span className="text-muted-foreground">—</span>
+                )}
+              </div>
+            </div>
+            <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+              <div>
+                <div className="text-xs text-muted-foreground">Planned</div>
+                <div className="text-sm">
+                  {fmt(incident.plannedStartTime)} –{" "}
+                  {fmt(incident.plannedEndTime)}
+                </div>
+              </div>
+              <div>
+                <div className="text-xs text-muted-foreground">Actual</div>
+                <div className="text-sm">
+                  {fmt(incident.actualStartTime)} –{" "}
+                  {fmt(incident.actualEndTime)}
+                </div>
+              </div>
+            </div>
+            {canEdit && (
+              <div>
+                <div className="text-xs text-muted-foreground">Created By</div>
+                <div className="text-sm">
+                  {incident.createdByCallsign ?? "System"} at{" "}
+                  {new Date(incident.createdAt).toLocaleString()}
+                </div>
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Map</CardTitle>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-3">
+            <MeshMap
+              ref={mapHandleRef}
+              nodes={dashboardMapNodes}
+              links={dashboardMapLinks}
+              boundaryPoints={incident.boundaryPoints}
+            />
+            {dashboardMapTypes.length > 0 && (
+              <div className="flex flex-wrap items-center gap-x-4 gap-y-1.5 text-sm">
+                {dashboardMapTypes.map((type) => (
+                  <div key={type} className="flex items-center gap-1.5">
+                    <span
+                      className="inline-block size-2.5 rounded-full border border-credential-blue-deep"
+                      style={{ background: resourceTypeColor(type) }}
+                    />
+                    <span>{type}</span>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
       </div>
 
       <Dialog open={endDialogOpen} onOpenChange={setEndDialogOpen}>
@@ -449,17 +579,23 @@ export function IncidentDetail() {
           <DialogHeader>
             <DialogTitle>End Incident</DialogTitle>
             <DialogDescription>
-              This will close "{incident.name}" and automatically check out{' '}
-              {openOperatorCheckIns.length} operator{openOperatorCheckIns.length === 1 ? '' : 's'} and{' '}
-              {openResourceCheckIns.length} piece{openResourceCheckIns.length === 1 ? '' : 's'} of equipment{' '}
-              still on scene. This cannot be undone.
+              This will close "{incident.name}" and automatically check out{" "}
+              {openOperatorCheckIns.length} operator
+              {openOperatorCheckIns.length === 1 ? "" : "s"} and{" "}
+              {openResourceCheckIns.length} piece
+              {openResourceCheckIns.length === 1 ? "" : "s"} of equipment still
+              on scene. This cannot be undone.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
             <Button variant="outline" onClick={() => setEndDialogOpen(false)}>
               Cancel
             </Button>
-            <Button variant="destructive" disabled={endIncidentMutation.isPending} onClick={() => endIncidentMutation.mutate()}>
+            <Button
+              variant="destructive"
+              disabled={endIncidentMutation.isPending}
+              onClick={() => endIncidentMutation.mutate()}
+            >
               End Incident
             </Button>
           </DialogFooter>
@@ -470,21 +606,34 @@ export function IncidentDetail() {
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
             <DialogTitle>Incident Permissions</DialogTitle>
-            <DialogDescription>Grant operators VIEW or EDIT access to this specific incident.</DialogDescription>
+            <DialogDescription>
+              Grant operators VIEW or EDIT access to this specific incident.
+            </DialogDescription>
           </DialogHeader>
           <div className="flex flex-col gap-3">
             {permissionGrants && permissionGrants.length > 0 ? (
               <ul className="flex flex-col gap-2">
                 {permissionGrants.map((g) => (
-                  <li key={`${g.operatorId}-${g.permission}`} className="flex items-center justify-between text-sm">
+                  <li
+                    key={`${g.operatorId}-${g.permission}`}
+                    className="flex items-center justify-between text-sm"
+                  >
                     <span>
-                      {g.operatorCallsign} — <span className="text-muted-foreground">{g.permission}</span>
+                      {g.operatorCallsign} —{" "}
+                      <span className="text-muted-foreground">
+                        {g.permission}
+                      </span>
                     </span>
                     <Button
                       variant="ghost"
                       size="sm"
                       disabled={revokeGrantMutation.isPending}
-                      onClick={() => revokeGrantMutation.mutate({ operatorId: g.operatorId, permission: g.permission })}
+                      onClick={() =>
+                        revokeGrantMutation.mutate({
+                          operatorId: g.operatorId,
+                          permission: g.permission,
+                        })
+                      }
                     >
                       Revoke
                     </Button>
@@ -492,14 +641,22 @@ export function IncidentDetail() {
                 ))}
               </ul>
             ) : (
-              <p className="text-sm text-muted-foreground">No per-incident grants yet.</p>
+              <p className="text-sm text-muted-foreground">
+                No per-incident grants yet.
+              </p>
             )}
             <div className="flex items-end gap-2">
               <div className="flex flex-col gap-1.5 flex-1">
-                <label className="text-xs text-muted-foreground" htmlFor="grantOperator">
+                <label
+                  className="text-xs text-muted-foreground"
+                  htmlFor="grantOperator"
+                >
                   Operator
                 </label>
-                <Select value={grantOperatorId} onValueChange={setGrantOperatorId}>
+                <Select
+                  value={grantOperatorId}
+                  onValueChange={setGrantOperatorId}
+                >
                   <SelectTrigger id="grantOperator">
                     <SelectValue placeholder="Select operator" />
                   </SelectTrigger>
@@ -513,10 +670,18 @@ export function IncidentDetail() {
                 </Select>
               </div>
               <div className="flex flex-col gap-1.5">
-                <label className="text-xs text-muted-foreground" htmlFor="grantPermission">
+                <label
+                  className="text-xs text-muted-foreground"
+                  htmlFor="grantPermission"
+                >
                   Permission
                 </label>
-                <Select value={grantPermission} onValueChange={(v: IncidentPermission) => setGrantPermission(v)}>
+                <Select
+                  value={grantPermission}
+                  onValueChange={(v: IncidentPermission) =>
+                    setGrantPermission(v)
+                  }
+                >
                   <SelectTrigger id="grantPermission" className="w-28">
                     <SelectValue />
                   </SelectTrigger>
@@ -526,7 +691,11 @@ export function IncidentDetail() {
                   </SelectContent>
                 </Select>
               </div>
-              <Button variant="outline" disabled={!grantOperatorId || addGrantMutation.isPending} onClick={() => addGrantMutation.mutate()}>
+              <Button
+                variant="outline"
+                disabled={!grantOperatorId || addGrantMutation.isPending}
+                onClick={() => addGrantMutation.mutate()}
+              >
                 Grant
               </Button>
             </div>
@@ -549,10 +718,10 @@ export function IncidentDetail() {
         mapHandleRef={mapHandleRef}
       />
     </div>
-  )
+  );
 }
 
-type PdfOrientation = 'LANDSCAPE' | 'PORTRAIT'
+type PdfOrientation = "LANDSCAPE" | "PORTRAIT";
 
 function GenerateIncidentPdfDialog({
   open,
@@ -563,47 +732,54 @@ function GenerateIncidentPdfDialog({
   links,
   mapHandleRef,
 }: {
-  open: boolean
-  onOpenChange: (open: boolean) => void
-  incidentId: string | undefined
-  incident: Incident | undefined
-  nodes: (MeshNodeSnapshot & { offSite?: boolean; resourceTypeName?: string | null })[]
-  links: MeshLinkSnapshot[]
-  mapHandleRef: React.RefObject<MeshMapHandle | null>
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  incidentId: string | undefined;
+  incident: Incident | undefined;
+  nodes: (MeshNodeSnapshot & {
+    offSite?: boolean;
+    resourceTypeName?: string | null;
+  })[];
+  links: MeshLinkSnapshot[];
+  mapHandleRef: React.RefObject<MeshMapHandle | null>;
 }) {
-  const [orientation, setOrientation] = useState<PdfOrientation>('LANDSCAPE')
-  const [generating, setGenerating] = useState(false)
+  const [orientation, setOrientation] = useState<PdfOrientation>("LANDSCAPE");
+  const [generating, setGenerating] = useState(false);
 
   async function handleGenerate() {
-    setGenerating(true)
+    setGenerating(true);
     try {
       // No per-node hostname / per-link channel text on this map — an incident-wide view often
       // has many nodes close together, and the overlapping labels become illegible noise rather
       // than useful detail. The color-coded legend already explains what each marker is.
-      const mapImageBase64 = mapHandleRef.current?.captureSnapshot({ nodes, links, showLabels: false })
+      const mapImageBase64 = mapHandleRef.current?.captureSnapshot({
+        nodes,
+        links,
+        showLabels: false,
+      });
       if (!mapImageBase64) {
-        toast.error('Map is not ready yet — try again in a moment')
-        setGenerating(false)
-        return
+        toast.error("Map is not ready yet — try again in a moment");
+        setGenerating(false);
+        return;
       }
       const response = await api.post(
         `/api/incidents/${incidentId}/pdf`,
         { orientation, mapImageBase64 },
-        { responseType: 'blob' },
-      )
-      const url = window.URL.createObjectURL(new Blob([response.data]))
-      const link = document.createElement('a')
-      link.href = url
-      link.download = `Incident-${(incident?.name || 'incident').replace(/[^a-zA-Z0-9-]+/g, '_')}.pdf`
-      document.body.appendChild(link)
-      link.click()
-      link.remove()
-      window.URL.revokeObjectURL(url)
-      onOpenChange(false)
+        { responseType: "blob" },
+      );
+      const url = window.URL.createObjectURL(new Blob([response.data]));
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `Incident-${(incident?.name || "incident").replace(/[^a-zA-Z0-9-]+/g, "_")}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+      onOpenChange(false);
     } catch {
-      toast.error('Failed to generate PDF')
+      toast.error("Failed to generate PDF");
     } finally {
-      setGenerating(false)
+      setGenerating(false);
     }
   }
 
@@ -613,14 +789,18 @@ function GenerateIncidentPdfDialog({
         <DialogHeader>
           <DialogTitle>Generate Incident PDF</DialogTitle>
           <DialogDescription>
-            Includes a summary, map, operator time sheet, communications plan, message log, mesh scan
-            history, and deployment locations with their gear.
+            Includes a summary, map, operator time sheet, communications plan,
+            message log, mesh scan history, and deployment locations with their
+            gear.
           </DialogDescription>
         </DialogHeader>
         <div className="flex flex-col gap-3">
           <div className="flex flex-col gap-1.5">
             <Label>Map Orientation</Label>
-            <Select value={orientation} onValueChange={(v) => setOrientation(v as PdfOrientation)}>
+            <Select
+              value={orientation}
+              onValueChange={(v) => setOrientation(v as PdfOrientation)}
+            >
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
@@ -633,11 +813,15 @@ function GenerateIncidentPdfDialog({
         </div>
         <DialogFooter>
           <Button onClick={handleGenerate} disabled={generating}>
-            {generating ? <Loader2 className="size-4 animate-spin" /> : <FileDown className="size-4" />}
+            {generating ? (
+              <Loader2 className="size-4 animate-spin" />
+            ) : (
+              <FileDown className="size-4" />
+            )}
             Generate PDF
           </Button>
         </DialogFooter>
       </DialogContent>
     </Dialog>
-  )
+  );
 }
