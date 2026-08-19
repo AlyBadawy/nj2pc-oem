@@ -305,6 +305,46 @@ public final class OperatorCredentialPdfSupport {
         }
     }
 
+    /** Draws an actual rounded-rectangle stroke around a cell (via the low-level line canvas),
+     * matching the web card's `rounded-xl border border-black/[.12]` — a plain PdfPCell border is
+     * always square-cornered AND always drawn flush with the cell's outer edge, so two adjacent
+     * grid cells' borders touch with zero visible gap between them no matter how much cell
+     * padding is set (padding only insets the *content*, not the border). To get both a rounded
+     * corner and real daylight between neighboring cards, this draws the border inset from the
+     * cell edge by the same `gapInset` used as the cell's padding, so the border tightly wraps
+     * the (equally inset) card content and leaves `gapInset` of bare page background between one
+     * card's border and the next card's border. */
+    private static final class RoundedCardBorder implements org.openpdf.text.pdf.PdfPCellEvent {
+        private final Color color;
+        private final float strokeWidth;
+        private final float radius;
+        private final float gapInset;
+
+        RoundedCardBorder(Color color, float strokeWidth, float radius, float gapInset) {
+            this.color = color;
+            this.strokeWidth = strokeWidth;
+            this.radius = radius;
+            this.gapInset = gapInset;
+        }
+
+        @Override
+        public void cellLayout(PdfPCell cell, org.openpdf.text.Rectangle position, org.openpdf.text.pdf.PdfContentByte[] canvases) {
+            org.openpdf.text.pdf.PdfContentByte cb = canvases[PdfPTable.LINECANVAS];
+            cb.saveState();
+            cb.setColorStroke(color);
+            cb.setLineWidth(strokeWidth);
+            float half = strokeWidth / 2f;
+            cb.roundRectangle(
+                    position.getLeft() + gapInset + half,
+                    position.getBottom() + gapInset + half,
+                    position.getWidth() - 2 * gapInset - strokeWidth,
+                    position.getHeight() - 2 * gapInset - strokeWidth,
+                    radius);
+            cb.stroke();
+            cb.restoreState();
+        }
+    }
+
     private static final int GRID_COLUMNS = 4;
     private static final int GRID_ROWS_PER_PAGE = 2;
     private static final int CARDS_PER_PAGE = GRID_COLUMNS * GRID_ROWS_PER_PAGE;
@@ -316,14 +356,12 @@ public final class OperatorCredentialPdfSupport {
     private static PdfPTable buildCredentialGridPage(List<OperatorCredentialCardData> pageTeam, String orgName) {
         PdfPTable grid = new PdfPTable(GRID_COLUMNS);
         grid.setWidthPercentage(100);
+        float gapInset = 10f;
         for (OperatorCredentialCardData d : pageTeam) {
             PdfPCell cell = new PdfPCell(buildCard(d, orgName));
-            // Approximates the web card's `rounded-xl border border-black/[.12]` — OpenPDF cell
-            // borders can't be rounded, but a thin light-gray box reads the same at this scale.
-            cell.setBorder(org.openpdf.text.Rectangle.BOX);
-            cell.setBorderColor(CARD_BORDER);
-            cell.setBorderWidth(0.75f);
-            cell.setPadding(8f);
+            cell.setBorder(0);
+            cell.setCellEvent(new RoundedCardBorder(CARD_BORDER, 0.75f, 8f, gapInset));
+            cell.setPadding(gapInset + 4f);
             grid.addCell(cell);
         }
         for (int i = pageTeam.size(); i < CARDS_PER_PAGE; i++) {
