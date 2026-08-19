@@ -29,6 +29,11 @@ public final class DeploymentMapSupport {
 
     private static final int ZOOM = 15;
     private static final int TILE_SIZE = 256;
+    // Output canvas in pixels — the point is always placed at the exact center of this square,
+    // composited from however many tiles overlap it (usually 4, since it straddles tile
+    // boundaries in the general case), rather than just drawing the single tile the point
+    // happens to fall in and pinning it wherever within that tile it lands.
+    private static final int OUTPUT_SIZE = 320;
     private static final float MAP_POINTS = 144f; // 2in x 2in at 72pt/in
     // OSM's tile usage policy requires a real identifying User-Agent — this is a low-volume,
     // one-tile-per-location fetch at PDF-generation time, not a live tile server for an app.
@@ -38,15 +43,6 @@ public final class DeploymentMapSupport {
     // often reuses the same tile (locations near each other), so this avoids re-fetching it.
     public static Map<String, BufferedImage> newTileCache() {
         return new HashMap<>();
-    }
-
-    private static int lonToTileX(double lon, int zoom) {
-        return (int) Math.floor((lon + 180.0) / 360.0 * (1 << zoom));
-    }
-
-    private static int latToTileY(double lat, int zoom) {
-        double latRad = Math.toRadians(lat);
-        return (int) Math.floor((1 - Math.log(Math.tan(latRad) + 1 / Math.cos(latRad)) / Math.PI) / 2 * (1 << zoom));
     }
 
     private static double lonToTileXFrac(double lon, int zoom) {
@@ -78,22 +74,25 @@ public final class DeploymentMapSupport {
     }
 
     private static BufferedImage placeholder(String message) {
-        BufferedImage img = new BufferedImage(TILE_SIZE, TILE_SIZE, BufferedImage.TYPE_INT_RGB);
+        BufferedImage img = new BufferedImage(OUTPUT_SIZE, OUTPUT_SIZE, BufferedImage.TYPE_INT_RGB);
         Graphics2D g = img.createGraphics();
         g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
         g.setColor(new Color(0xE4, 0xE1, 0xD8));
-        g.fillRect(0, 0, TILE_SIZE, TILE_SIZE);
+        g.fillRect(0, 0, OUTPUT_SIZE, OUTPUT_SIZE);
         g.setColor(new Color(0x8A, 0x8A, 0x8A));
         g.setFont(g.getFont().deriveFont(16f));
         java.awt.FontMetrics fm = g.getFontMetrics();
         int textWidth = fm.stringWidth(message);
-        g.drawString(message, (TILE_SIZE - textWidth) / 2f, TILE_SIZE / 2f);
+        g.drawString(message, (OUTPUT_SIZE - textWidth) / 2f, OUTPUT_SIZE / 2f);
         g.dispose();
         return img;
     }
 
-    /** Renders a 2in x 2in static map centered on (lat, lon) with a pin marker, or a labeled
-     * placeholder if coordinates are missing or the tile can't be fetched. */
+    /** Renders a 2in x 2in static map with the (lat, lon) point pinned at the exact center of
+     * the frame, or a labeled placeholder if coordinates are missing or no tile can be fetched.
+     * Composites however many OSM tiles overlap the centered viewport (the point generally
+     * straddles a tile boundary, so this is usually more than one tile) rather than drawing a
+     * single tile and placing the pin wherever within it the point happens to fall. */
     public static Image buildMapImage(String latitude, String longitude, Map<String, BufferedImage> tileCache) {
         Double lat = parseCoord(latitude);
         Double lon = parseCoord(longitude);
@@ -102,21 +101,40 @@ public final class DeploymentMapSupport {
             rendered = placeholder("No coordinates");
         } else {
             try {
-                int tileX = lonToTileX(lon, ZOOM);
-                int tileY = latToTileY(lat, ZOOM);
-                BufferedImage tile = fetchTile(tileX, tileY, ZOOM, tileCache);
-                if (tile == null) {
+                double worldX = lonToTileXFrac(lon, ZOOM) * TILE_SIZE;
+                double worldY = latToTileYFrac(lat, ZOOM) * TILE_SIZE;
+                double originX = worldX - OUTPUT_SIZE / 2.0;
+                double originY = worldY - OUTPUT_SIZE / 2.0;
+
+                int tileMinX = (int) Math.floor(originX / TILE_SIZE);
+                int tileMaxX = (int) Math.floor((originX + OUTPUT_SIZE - 1) / TILE_SIZE);
+                int tileMinY = (int) Math.floor(originY / TILE_SIZE);
+                int tileMaxY = (int) Math.floor((originY + OUTPUT_SIZE - 1) / TILE_SIZE);
+
+                BufferedImage canvas = new BufferedImage(OUTPUT_SIZE, OUTPUT_SIZE, BufferedImage.TYPE_INT_RGB);
+                Graphics2D g = canvas.createGraphics();
+                g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+                g.setColor(new Color(0xE4, 0xE1, 0xD8));
+                g.fillRect(0, 0, OUTPUT_SIZE, OUTPUT_SIZE);
+
+                boolean anyTile = false;
+                for (int tx = tileMinX; tx <= tileMaxX; tx++) {
+                    for (int ty = tileMinY; ty <= tileMaxY; ty++) {
+                        BufferedImage tile = fetchTile(tx, ty, ZOOM, tileCache);
+                        if (tile == null) continue;
+                        anyTile = true;
+                        int drawX = (int) Math.round(tx * (double) TILE_SIZE - originX);
+                        int drawY = (int) Math.round(ty * (double) TILE_SIZE - originY);
+                        g.drawImage(tile, drawX, drawY, null);
+                    }
+                }
+
+                if (!anyTile) {
+                    g.dispose();
                     rendered = placeholder("Map unavailable");
                 } else {
-                    double xFrac = lonToTileXFrac(lon, ZOOM) - tileX;
-                    double yFrac = latToTileYFrac(lat, ZOOM) - tileY;
-                    int pinX = (int) Math.round(xFrac * TILE_SIZE);
-                    int pinY = (int) Math.round(yFrac * TILE_SIZE);
-
-                    BufferedImage canvas = new BufferedImage(TILE_SIZE, TILE_SIZE, BufferedImage.TYPE_INT_RGB);
-                    Graphics2D g = canvas.createGraphics();
-                    g.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                    g.drawImage(tile, 0, 0, null);
+                    int pinX = OUTPUT_SIZE / 2;
+                    int pinY = OUTPUT_SIZE / 2;
                     g.setColor(new Color(0x1F, 0x4E, 0x79));
                     g.fillOval(pinX - 6, pinY - 6, 12, 12);
                     g.setColor(Color.WHITE);

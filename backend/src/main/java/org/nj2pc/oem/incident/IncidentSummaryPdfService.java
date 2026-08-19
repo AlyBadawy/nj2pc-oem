@@ -101,11 +101,19 @@ public class IncidentSummaryPdfService {
                     return new ScanSummary(s, bands);
                 }).toList();
 
-        // Only currently-deployed gear — used by the Deployment Locations & Gear page's
-        // historical-vs-current distinction below, not the map (see mapNodeTypes).
-        List<ResourceCheckInResponse> deployedGear = resourceCheckIns.stream()
-                .filter(c -> c.checkedOutAt() == null)
-                .toList();
+        // The gear plotted on the map alongside the latest mesh scan's own nodes (see
+        // mapNodeTypes and the frontend's pdfMapNodes) — mirrors IncidentDetail.tsx's
+        // `gearCheckIns`: normally just what's currently checked in, but for a CLOSED incident
+        // (where everything gets auto-checked-out) falls back to each resource's most recent
+        // check-in regardless of checkedOutAt, its "last known deployment."
+        List<ResourceCheckInResponse> deployedGear = incident.getStatus() == IncidentStatus.CLOSED
+                ? resourceCheckIns.stream()
+                        .collect(Collectors.toMap(ResourceCheckInResponse::resourceId, c -> c,
+                                (a, b) -> a.checkedInAt().isAfter(b.checkedInAt()) ? a : b))
+                        .values().stream().toList()
+                : resourceCheckIns.stream()
+                        .filter(c -> c.checkedOutAt() == null)
+                        .toList();
 
         // The Deployment Locations & Gear page, unlike the map legend above, is a historical
         // record of the incident — it should list every piece of gear that was *ever* deployed
@@ -129,18 +137,23 @@ public class IncidentSummaryPdfService {
 
         boolean rotateMapContent = "PORTRAIT".equalsIgnoreCase(request.orientation());
 
-        // The map page shows only the most recent mesh scan's nodes (frontend sends a snapshot
-        // captured from exactly that scan's data, not the dashboard's broader "all deployed gear"
-        // mix) — so the legend must be built from that same scan's nodes, not from deployed gear,
-        // or it would list equipment types (batteries, cameras, etc.) that never appear on the map.
+        // The map page plots the latest mesh scan's own nodes plus every other currently-
+        // deployed piece of gear (frontend's pdfMapNodes) — so the legend is the union of both
+        // sources' equipment types, or it would either miss non-network gear (batteries,
+        // cameras) or list scan-only types that don't reflect what's actually deployed.
         MeshSessionSummaryResponse latestSession = meshSessions.stream()
                 .max(Comparator.comparing(MeshSessionSummaryResponse::capturedAt))
                 .orElse(null);
-        List<String> mapNodeTypes = latestSession == null ? List.of()
+        List<String> scanNodeTypes = latestSession == null ? List.of()
                 : meshSessionService.findById(incidentId, latestSession.id()).nodes().stream()
                         .map(MeshNodeSnapshotResponse::resourceTypeName)
                         .filter(t -> t != null && !t.isBlank())
-                        .distinct().sorted().toList();
+                        .toList();
+        List<String> mapNodeTypes = java.util.stream.Stream.concat(
+                        scanNodeTypes.stream(),
+                        deployedGear.stream().map(ResourceCheckInResponse::resourceTypeName))
+                .filter(t -> t != null && !t.isBlank())
+                .distinct().sorted().toList();
 
         byte[] partA = renderPartA(incident, request, rotateMapContent, operatorCheckIns, mapNodeTypes);
         byte[] commsPlanPart = activeCommsPlan != null

@@ -27,8 +27,16 @@ public final class MeshMapPdfSupport {
     private MeshMapPdfSupport() {
     }
 
-    private static final float LEGEND_WIDTH = 130f;
+    private static final float LEGEND_WIDTH = 150f;
     private static final float LEGEND_GAP = 10f;
+
+    // Mirrors frontend/src/lib/meshVisual.ts's LINK_TYPE_COLOR — DTD/Tunnel/Unknown links get a
+    // fixed color per type; RF links are colored by channel instead (see resourceTypeColor-style
+    // hashHue below), so there's no single "RF color" swatch to match against.
+    private static final Color LINK_DTD = new Color(0x2E, 0x6C, 0xA4);
+    private static final Color LINK_TUNNEL = new Color(0x9C, 0x6B, 0x12);
+    private static final Color LINK_UNKNOWN = new Color(0x8A, 0x8A, 0x8A);
+    private static final Color LINK_RF_SWATCH = new Color(0x1D, 0x7E, 0x5C);
 
     private static Image decodeMapImage(String base64) {
         byte[] imageBytes;
@@ -99,8 +107,15 @@ public final class MeshMapPdfSupport {
         return p;
     }
 
+    private static void addSpacer(PdfPCell cell) {
+        Paragraph spacer = new Paragraph(" ", PdfTheme.TABLE_CELL_FONT);
+        spacer.setSpacingAfter(2f);
+        cell.addElement(spacer);
+    }
+
     /** Mirrors the on-screen `MeshMapLegend` component: equipment-type colors (only the types
-     * actually present on this map) plus the fixed local-node / off-site marker styles. */
+     * actually present on this map), link-type colors, and the fixed local-node / off-site
+     * marker styles. */
     private static PdfPCell buildMapLegendCell(List<String> resourceTypes) {
         PdfPCell cell = new PdfPCell();
         cell.setBackgroundColor(PdfTheme.PAPER);
@@ -114,10 +129,20 @@ public final class MeshMapPdfSupport {
             for (String type : resourceTypes) {
                 cell.addElement(legendLine(type, resourceTypeColor(type)));
             }
-            Paragraph spacer = new Paragraph(" ", PdfTheme.TABLE_CELL_FONT);
-            spacer.setSpacingAfter(2f);
-            cell.addElement(spacer);
+            addSpacer(cell);
         }
+
+        Paragraph linkHeading = new Paragraph("LINK TYPE", PdfTheme.LABEL_FONT);
+        linkHeading.setSpacingAfter(3f);
+        cell.addElement(linkHeading);
+        cell.addElement(legendLine("RF — colored by channel", LINK_RF_SWATCH));
+        Paragraph rfNote = new Paragraph("Same color = same channel", PdfTheme.SMALL_ITALIC_FONT);
+        rfNote.setSpacingAfter(3f);
+        cell.addElement(rfNote);
+        cell.addElement(legendLine("Direct (DtD)", LINK_DTD));
+        cell.addElement(legendLine("Tunnel", LINK_TUNNEL));
+        cell.addElement(legendLine("Unknown", LINK_UNKNOWN));
+        addSpacer(cell);
 
         Paragraph nodeHeading = new Paragraph("NODE STYLE", PdfTheme.LABEL_FONT);
         nodeHeading.setSpacingAfter(3f);

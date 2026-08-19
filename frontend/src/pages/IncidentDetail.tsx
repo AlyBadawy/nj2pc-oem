@@ -326,40 +326,46 @@ export function IncidentDetail() {
       n,
     ]),
   );
+  function checkInToMapNode(
+    c: ResourceCheckIn,
+    scanNode: MeshNodeSnapshot | undefined,
+  ): MeshNodeSnapshot & { offSite?: boolean; resourceTypeName?: string | null } {
+    return {
+      id: c.id,
+      hostname: c.resourceIdentifier,
+      isLocalNode: false,
+      macAddress: null,
+      meshIpAddress: null,
+      linkLocalAddress: null,
+      model: null,
+      firmwareVersion: null,
+      latitude: c.latitude,
+      longitude: c.longitude,
+      claimedDistanceMi: null,
+      channel: scanNode?.channel ?? null,
+      band: scanNode?.band ?? null,
+      frequencyMhz: scanNode?.frequencyMhz ?? null,
+      channelWidth: scanNode?.channelWidth ?? null,
+      rfPowerDbm: scanNode?.rfPowerDbm ?? null,
+      resourceId: c.resourceId,
+      resourceIdentifier: c.resourceIdentifier,
+      resourceOwnerCallsign: null,
+      resourceCustomFields: null,
+      offSite: c.offSite,
+      resourceTypeName: c.resourceTypeName,
+    };
+  }
   const dashboardMapNodes: (MeshNodeSnapshot & {
     offSite?: boolean;
     resourceTypeName?: string | null;
   })[] = gearCheckIns
     .filter((c) => c.latitude && c.longitude)
-    .map((c) => {
-      const scanNode = scanNodeByHostname.get(
-        c.resourceIdentifier.toLowerCase(),
-      );
-      return {
-        id: c.id,
-        hostname: c.resourceIdentifier,
-        isLocalNode: false,
-        macAddress: null,
-        meshIpAddress: null,
-        linkLocalAddress: null,
-        model: null,
-        firmwareVersion: null,
-        latitude: c.latitude,
-        longitude: c.longitude,
-        claimedDistanceMi: null,
-        channel: scanNode?.channel ?? null,
-        band: scanNode?.band ?? null,
-        frequencyMhz: scanNode?.frequencyMhz ?? null,
-        channelWidth: scanNode?.channelWidth ?? null,
-        rfPowerDbm: scanNode?.rfPowerDbm ?? null,
-        resourceId: c.resourceId,
-        resourceIdentifier: c.resourceIdentifier,
-        resourceOwnerCallsign: null,
-        resourceCustomFields: null,
-        offSite: c.offSite,
-        resourceTypeName: c.resourceTypeName,
-      };
-    });
+    .map((c) =>
+      checkInToMapNode(
+        c,
+        scanNodeByHostname.get(c.resourceIdentifier.toLowerCase()),
+      ),
+    );
   // The scan can include nodes that aren't a currently-open check-in on this incident (checked
   // out already, or never checked in here at all) — those still need a marker or any link
   // touching them would silently disappear (MeshMap only draws a link when both endpoints have a
@@ -383,6 +389,28 @@ export function IncidentDetail() {
         .filter((t): t is string => !!t),
     ),
   ].sort((a, b) => a.localeCompare(b));
+
+  // PDF map: the last mesh scan's own nodes (real network topology, so only its own links are
+  // drawn — no synthetic connectivity) plus every other currently-deployed piece of gear that
+  // isn't itself a scanned node (batteries, cameras, repeaters, etc.), so the printed map shows
+  // everything on site, not just the mesh — unlike the dashboard map above, which only
+  // supplements with off-site scan nodes, this deliberately excludes those (a scan node with no
+  // current check-in on this incident has no business appearing on an incident-scoped export).
+  const pdfScanNodes = latestMeshSessionDetail?.nodes ?? [];
+  const pdfScanHostnames = new Set(
+    pdfScanNodes.map((n) => n.hostname.toLowerCase()),
+  );
+  const pdfMapNodes: (MeshNodeSnapshot & {
+    offSite?: boolean;
+    resourceTypeName?: string | null;
+  })[] = [
+    ...pdfScanNodes,
+    ...gearCheckIns
+      .filter((c) => c.latitude && c.longitude)
+      .filter((c) => !pdfScanHostnames.has(c.resourceIdentifier.toLowerCase()))
+      .map((c) => checkInToMapNode(c, undefined)),
+  ];
+  const pdfMapLinks = latestMeshSessionDetail?.links ?? [];
 
   const fmt = (v: string | null) =>
     v
@@ -722,8 +750,8 @@ export function IncidentDetail() {
         onOpenChange={setPdfDialogOpen}
         incidentId={id}
         incident={incident}
-        nodes={latestMeshSessionDetail?.nodes ?? []}
-        links={latestMeshSessionDetail?.links ?? []}
+        nodes={pdfMapNodes}
+        links={pdfMapLinks}
         mapHandleRef={mapHandleRef}
         teamCardsCaptureRef={teamCardsCaptureRef}
       />
@@ -761,13 +789,14 @@ function GenerateIncidentPdfDialog({
   async function handleGenerate() {
     setGenerating(true);
     try {
-      // The PDF map shows only the most recent mesh scan's own nodes/links (passed in as
-      // `nodes`/`links`, sourced from latestMeshSessionDetail) — not the dashboard's broader
-      // "everything currently checked in" mix, which includes non-network gear (batteries,
-      // cameras, etc.) that would just clutter a network map. No per-node hostname / per-link
-      // channel text either — an incident-wide view often has many nodes close together, and
-      // the overlapping labels become illegible noise rather than useful detail. The
-      // color-coded legend already explains what each marker is.
+      // The PDF map (passed in as `nodes`/`links`, built as `pdfMapNodes`/`pdfMapLinks` above)
+      // plots every currently-deployed piece of gear, mesh nodes and non-network gear alike
+      // (batteries, cameras, repeaters, etc., each colored by type) — but the *links* are only
+      // ever the most recent mesh scan's own, real, discovered connectivity, never synthesized
+      // for the non-scanned gear. No per-node hostname / per-link channel text either — an
+      // incident-wide view often has many nodes close together, and the overlapping labels
+      // become illegible noise rather than useful detail. The color-coded legend already
+      // explains what each marker and link color mean.
       const mapImageBase64 = mapHandleRef.current?.captureSnapshot({
         nodes,
         links,
