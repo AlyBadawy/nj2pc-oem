@@ -5,6 +5,7 @@ import org.nj2pc.oem.checkin.OperatorCheckInRequest;
 import org.nj2pc.oem.checkin.OperatorCheckInResponse;
 import org.nj2pc.oem.checkin.OperatorCheckInService;
 import org.nj2pc.oem.checkin.OperatorCheckOutRequest;
+import org.nj2pc.oem.checkin.OperatorTimesheetPdfRequest;
 import org.nj2pc.oem.checkin.OperatorTimesheetPdfService;
 import org.nj2pc.oem.checkin.ResourceCheckInRequest;
 import org.nj2pc.oem.checkin.ResourceCheckInResponse;
@@ -96,9 +97,9 @@ public class IncidentController {
     }
 
     @PostMapping("/{id}/pdf")
-    public ResponseEntity<byte[]> downloadIncidentPdf(Authentication authentication, @PathVariable Long id,
+    public ResponseEntity<byte[]> downloadIncidentPdf(@PathVariable Long id,
                                                        @Valid @RequestBody IncidentPdfRequest request) {
-        byte[] pdf = incidentSummaryPdfService.generate(authentication, id, request);
+        byte[] pdf = incidentSummaryPdfService.generate(id, request);
         String filename = "Incident-" + id + ".pdf";
         return ResponseEntity.ok()
                 .contentType(MediaType.APPLICATION_PDF)
@@ -159,9 +160,10 @@ public class IncidentController {
         return operatorCheckInService.checkOut(authentication, id, checkInId, request);
     }
 
-    @GetMapping("/{id}/operator-checkins/pdf")
-    public ResponseEntity<byte[]> downloadOperatorTimesheetPdf(Authentication authentication, @PathVariable Long id) {
-        byte[] pdf = operatorTimesheetPdfService.generate(authentication, id);
+    @PostMapping("/{id}/operator-checkins/pdf")
+    public ResponseEntity<byte[]> downloadOperatorTimesheetPdf(@PathVariable Long id,
+                                                                 @RequestBody OperatorTimesheetPdfRequest request) {
+        byte[] pdf = operatorTimesheetPdfService.generate(id, request);
         String filename = "Team-Timesheet-" + id + ".pdf";
         return ResponseEntity.ok()
                 .contentType(MediaType.APPLICATION_PDF)

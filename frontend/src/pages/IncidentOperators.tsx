@@ -1,13 +1,14 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link, useNavigate, useParams } from 'react-router-dom'
 import { ArrowLeft, FileDown, Loader2, LogIn, LogOut } from 'lucide-react'
 import { toast } from 'sonner'
-import { api, apiUrl } from '@/lib/api'
+import { api } from '@/lib/api'
 import { hasPermission, useAuth } from '@/lib/auth-context'
 import type { Incident, Operator, OperatorCheckIn, OperatorRole } from '@/lib/types'
-import { credentialNoFor, incidentRef, type OperatorIdentityData } from '@/lib/identity'
+import { useTeamIdentities } from '@/lib/useTeamIdentities'
 import { OperatorIdentity } from '@/components/identity/OperatorIdentity'
+import { TeamCardsCapture, type TeamCardsCaptureHandle } from '@/components/identity/TeamCardsCapture'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -42,6 +43,7 @@ export function IncidentOperators() {
   const [checkOutTarget, setCheckOutTarget] = useState<OperatorCheckIn | null>(null)
   const [checkOutAt, setCheckOutAt] = useState('')
   const [downloadingPdf, setDownloadingPdf] = useState(false)
+  const teamCardsCaptureRef = useRef<TeamCardsCaptureHandle>(null)
 
   const { data: incident } = useQuery({
     queryKey: ['incidents', id],
@@ -125,44 +127,22 @@ export function IncidentOperators() {
     },
   })
 
-  const team = useMemo<OperatorIdentityData[]>(() => {
-    const operatorById = new Map((operators ?? []).map((o) => [o.id, o]))
-    const byOperator = new Map<number, OperatorIdentityData>()
-    // operatorCheckIns is ordered by checkedInAt desc, so the first entry seen per operator is
-    // their most recent check-in on this incident — i.e. their "last role" here, and whether
-    // that entry is still open determines the card's checked-in/out status footer.
-    for (const c of operatorCheckIns ?? []) {
-      if (byOperator.has(c.operatorId)) continue
-      const op = operatorById.get(c.operatorId)
-      const canViewContact = hasPermission(user, 'OPERATOR_VIEW_CONTACT') || c.operatorCallsign === user?.callsign
-      byOperator.set(c.operatorId, {
-        id: c.operatorId,
-        callsign: c.operatorCallsign,
-        name: op?.name ?? c.operatorCallsign,
-        licenseClass: op?.licenseClass ?? null,
-        role: c.roleName,
-        roleColor: c.roleColor,
-        roleAccessLevel: c.roleAccessLevel,
-        canViewContact,
-        phone: op?.phone ?? null,
-        email: op?.email ?? null,
-        licensePlate: op?.licensePlate ?? null,
-        photoUrl: op?.photoUrl ? apiUrl(op.photoUrl) : null,
-        credentialNo: credentialNoFor(c.operatorId),
-        incident:
-          !c.checkedOutAt && incident
-            ? { id: incident.id, name: incident.name, ref: incidentRef(incident.id, c.checkedInAt) }
-            : null,
-        checkedInAt: !c.checkedOutAt ? c.checkedInAt : null,
-      })
-    }
-    return [...byOperator.values()].sort((a, b) => a.callsign.localeCompare(b.callsign))
-  }, [operatorCheckIns, operators, incident, user])
+  const team = useTeamIdentities(operatorCheckIns, operators, incident, user)
 
   async function handleDownloadPdf() {
     setDownloadingPdf(true)
     try {
-      const response = await api.get(`/api/incidents/${id}/operator-checkins/pdf`, { responseType: 'blob' })
+      const teamCardsImageBase64 = (await teamCardsCaptureRef.current?.capturePages()) ?? []
+      if (teamCardsImageBase64.length === 0) {
+        toast.error('Team cards are not ready yet — try again in a moment')
+        setDownloadingPdf(false)
+        return
+      }
+      const response = await api.post(
+        `/api/incidents/${id}/operator-checkins/pdf`,
+        { teamCardsImageBase64 },
+        { responseType: 'blob' },
+      )
       const url = window.URL.createObjectURL(new Blob([response.data]))
       const link = document.createElement('a')
       link.href = url
@@ -187,6 +167,7 @@ export function IncidentOperators() {
 
   return (
     <div className="flex flex-col gap-6">
+      <TeamCardsCapture ref={teamCardsCaptureRef} team={team} />
       <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
         <div>
           <Button variant="ghost" size="sm" onClick={() => navigate(`/incidents/${id}`)} className="mb-2 -ml-2">

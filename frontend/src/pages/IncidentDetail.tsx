@@ -34,6 +34,11 @@ import type {
   ResourceCheckIn,
 } from "@/lib/types";
 import { MeshMap, type MeshMapHandle } from "@/components/MeshMap";
+import {
+  TeamCardsCapture,
+  type TeamCardsCaptureHandle,
+} from "@/components/identity/TeamCardsCapture";
+import { useTeamIdentities } from "@/lib/useTeamIdentities";
 import { resourceTypeColor } from "@/lib/meshVisual";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -102,6 +107,7 @@ export function IncidentDetail() {
     useState<IncidentPermission>("VIEW");
   const [pdfDialogOpen, setPdfDialogOpen] = useState(false);
   const mapHandleRef = useRef<MeshMapHandle>(null);
+  const teamCardsCaptureRef = useRef<TeamCardsCaptureHandle>(null);
 
   const { data: incident } = useQuery({
     queryKey: ["incidents", id],
@@ -271,6 +277,8 @@ export function IncidentDetail() {
     onError: () => toast.error("Failed to revoke permission"),
   });
 
+  const team = useTeamIdentities(operatorCheckIns, operators, incident, user);
+
   if (!incident) return null;
 
   const canEdit = incident.canEdit;
@@ -386,6 +394,7 @@ export function IncidentDetail() {
 
   return (
     <div className="flex flex-col gap-6">
+      <TeamCardsCapture ref={teamCardsCaptureRef} team={team} />
       <div>
         <Button
           variant="ghost"
@@ -716,6 +725,7 @@ export function IncidentDetail() {
         nodes={dashboardMapNodes}
         links={dashboardMapLinks}
         mapHandleRef={mapHandleRef}
+        teamCardsCaptureRef={teamCardsCaptureRef}
       />
     </div>
   );
@@ -731,6 +741,7 @@ function GenerateIncidentPdfDialog({
   nodes,
   links,
   mapHandleRef,
+  teamCardsCaptureRef,
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -742,6 +753,7 @@ function GenerateIncidentPdfDialog({
   })[];
   links: MeshLinkSnapshot[];
   mapHandleRef: React.RefObject<MeshMapHandle | null>;
+  teamCardsCaptureRef: React.RefObject<TeamCardsCaptureHandle | null>;
 }) {
   const [orientation, setOrientation] = useState<PdfOrientation>("LANDSCAPE");
   const [generating, setGenerating] = useState(false);
@@ -762,9 +774,11 @@ function GenerateIncidentPdfDialog({
         setGenerating(false);
         return;
       }
+      const teamCardsImageBase64 =
+        (await teamCardsCaptureRef.current?.capturePages()) ?? [];
       const response = await api.post(
         `/api/incidents/${incidentId}/pdf`,
-        { orientation, mapImageBase64 },
+        { orientation, mapImageBase64, teamCardsImageBase64 },
         { responseType: "blob" },
       );
       const url = window.URL.createObjectURL(new Blob([response.data]));

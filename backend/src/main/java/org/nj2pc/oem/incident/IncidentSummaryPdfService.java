@@ -2,7 +2,6 @@ package org.nj2pc.oem.incident;
 
 import org.nj2pc.oem.checkin.OperatorCheckInResponse;
 import org.nj2pc.oem.checkin.OperatorCheckInService;
-import org.nj2pc.oem.checkin.OperatorTimesheetPdfService;
 import org.nj2pc.oem.checkin.ResourceCheckInResponse;
 import org.nj2pc.oem.checkin.ResourceCheckInService;
 import org.nj2pc.oem.commsplan.Ics205PdfService;
@@ -15,6 +14,7 @@ import org.nj2pc.oem.mesh.MeshNodeSnapshotResponse;
 import org.nj2pc.oem.mesh.MeshSessionDetailResponse;
 import org.nj2pc.oem.mesh.MeshSessionService;
 import org.nj2pc.oem.mesh.MeshSessionSummaryResponse;
+import org.nj2pc.oem.pdf.CapturedImagePdfSupport;
 import org.nj2pc.oem.pdf.DeploymentMapSupport;
 import org.nj2pc.oem.pdf.MeshMapPdfSupport;
 import org.nj2pc.oem.pdf.OperatorCredentialPdfSupport;
@@ -30,7 +30,6 @@ import org.openpdf.text.Phrase;
 import org.openpdf.text.pdf.PdfPCell;
 import org.openpdf.text.pdf.PdfPTable;
 import org.openpdf.text.pdf.PdfWriter;
-import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
@@ -49,7 +48,6 @@ public class IncidentSummaryPdfService {
 
     private final IncidentRepository incidentRepository;
     private final OperatorCheckInService operatorCheckInService;
-    private final OperatorTimesheetPdfService operatorTimesheetPdfService;
     private final IncidentLogService incidentLogService;
     private final MeshSessionService meshSessionService;
     private final ResourceCheckInService resourceCheckInService;
@@ -59,7 +57,6 @@ public class IncidentSummaryPdfService {
 
     public IncidentSummaryPdfService(IncidentRepository incidentRepository,
                                       OperatorCheckInService operatorCheckInService,
-                                      OperatorTimesheetPdfService operatorTimesheetPdfService,
                                       IncidentLogService incidentLogService,
                                       MeshSessionService meshSessionService,
                                       ResourceCheckInService resourceCheckInService,
@@ -68,7 +65,6 @@ public class IncidentSummaryPdfService {
                                       Ics205PdfService ics205PdfService) {
         this.incidentRepository = incidentRepository;
         this.operatorCheckInService = operatorCheckInService;
-        this.operatorTimesheetPdfService = operatorTimesheetPdfService;
         this.incidentLogService = incidentLogService;
         this.meshSessionService = meshSessionService;
         this.resourceCheckInService = resourceCheckInService;
@@ -78,7 +74,7 @@ public class IncidentSummaryPdfService {
     }
 
     @Transactional(readOnly = true)
-    public byte[] generate(Authentication authentication, Long incidentId, IncidentPdfRequest request) {
+    public byte[] generate(Long incidentId, IncidentPdfRequest request) {
         Incident incident = incidentRepository.findById(incidentId)
                 .orElseThrow(() -> ApiException.notFound("Incident not found: " + incidentId));
 
@@ -138,7 +134,7 @@ public class IncidentSummaryPdfService {
                 .filter(t -> t != null && !t.isBlank())
                 .distinct().sorted().toList();
 
-        byte[] partA = renderPartA(incident, request, rotateMapContent, operatorCheckIns, authentication, mapNodeTypes);
+        byte[] partA = renderPartA(incident, request, rotateMapContent, operatorCheckIns, mapNodeTypes);
         byte[] commsPlanPart = activeCommsPlan != null
                 ? ics205PdfService.generate(activeCommsPlan.communicationPlanId())
                 : renderNoCommsPlanPage(incident);
@@ -149,8 +145,7 @@ public class IncidentSummaryPdfService {
 
     /** Summary, Map, and Team Roster/Timesheet pages. */
     private byte[] renderPartA(Incident incident, IncidentPdfRequest request, boolean rotateMapContent,
-                                List<OperatorCheckInResponse> operatorCheckIns, Authentication authentication,
-                                List<String> mapNodeTypes) {
+                                List<OperatorCheckInResponse> operatorCheckIns, List<String> mapNodeTypes) {
         return renderDocument((document, writer) -> {
             addSummaryPage(document, incident);
 
@@ -171,15 +166,21 @@ public class IncidentSummaryPdfService {
                 document.add(MeshMapPdfSupport.buildMapPageBody(request.mapImageBase64(), mapNodeTypes, availableWidth, availableHeight));
             }
 
-            // Team roster + timesheet — identical rendering to the dedicated Team/Timesheet PDF,
-            // via the same shared card-building and table-building code.
-            List<org.openpdf.text.pdf.PdfPTable> teamGridPages = OperatorCredentialPdfSupport.buildCredentialGridPages(
-                    operatorTimesheetPdfService.buildTeamCards(authentication, operatorCheckIns, incident.getName()), "0Y-AuxComs");
-            for (org.openpdf.text.pdf.PdfPTable gridPage : teamGridPages) {
+            // Team roster — one page per client-captured credential-card-grid image (same
+            // client-side capture the dedicated Team/Timesheet PDF uses), so the page matches
+            // the web Team page pixel-for-pixel instead of a server-rebuilt approximation.
+            List<String> teamCardPages = request.teamCardsImageBase64() != null ? request.teamCardsImageBase64() : List.of();
+            for (String teamCardImage : teamCardPages) {
                 document.newPage();
-                document.add(buildHeaderBlock(incident, "TEAM ROSTER"));
+                PdfPTable teamHeader = buildHeaderBlock(incident, "TEAM ROSTER");
+                float teamAvailableWidth = document.getPageSize().getWidth() - document.leftMargin() - document.rightMargin();
+                teamHeader.setTotalWidth(teamAvailableWidth);
+                float teamHeaderHeight = teamHeader.getTotalHeight();
+                document.add(teamHeader);
                 document.add(PdfSupport.spacer(8f));
-                document.add(gridPage);
+                float teamAvailableHeight = document.getPageSize().getHeight() - document.topMargin() - document.bottomMargin()
+                        - teamHeaderHeight - 8f;
+                document.add(CapturedImagePdfSupport.decodeFitted(teamCardImage, teamAvailableWidth, teamAvailableHeight));
             }
 
             document.newPage();

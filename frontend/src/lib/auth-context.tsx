@@ -2,7 +2,7 @@ import { createContext, useContext, useState, type ReactNode } from 'react'
 import { api, TOKEN_STORAGE_KEY } from '@/lib/api'
 import type { AuthResponse, Permission } from '@/lib/types'
 
-interface AuthUser {
+export interface AuthUser {
   callsign: string
   name: string
   admin: boolean

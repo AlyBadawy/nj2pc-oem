@@ -3,19 +3,12 @@ package org.nj2pc.oem.checkin;
 import org.nj2pc.oem.common.ApiException;
 import org.nj2pc.oem.incident.Incident;
 import org.nj2pc.oem.incident.IncidentRepository;
-import org.nj2pc.oem.operator.Operator;
-import org.nj2pc.oem.operator.OperatorPhotoService;
-import org.nj2pc.oem.operator.OperatorRepository;
-import org.nj2pc.oem.operator.Permission;
-import org.nj2pc.oem.operator.PermissionGuard;
-import org.nj2pc.oem.pdf.OperatorCredentialCardData;
+import org.nj2pc.oem.pdf.CapturedImagePdfSupport;
 import org.nj2pc.oem.pdf.OperatorCredentialPdfSupport;
 import org.nj2pc.oem.pdf.PdfSupport;
 import org.nj2pc.oem.pdf.PdfTheme;
-import org.nj2pc.oem.vehicle.Vehicle;
-import org.nj2pc.oem.vehicle.VehiclePlateFormatter;
-import org.nj2pc.oem.vehicle.VehicleRepository;
 import org.openpdf.text.Document;
+import org.openpdf.text.DocumentException;
 import org.openpdf.text.Element;
 import org.openpdf.text.PageSize;
 import org.openpdf.text.Paragraph;
@@ -23,47 +16,30 @@ import org.openpdf.text.Phrase;
 import org.openpdf.text.pdf.PdfPCell;
 import org.openpdf.text.pdf.PdfPTable;
 import org.openpdf.text.pdf.PdfWriter;
-import org.springframework.core.io.Resource;
-import org.springframework.security.core.Authentication;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
 import java.io.ByteArrayOutputStream;
-import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 
 @Service
 public class OperatorTimesheetPdfService {
 
     private final IncidentRepository incidentRepository;
     private final OperatorCheckInService operatorCheckInService;
-    private final OperatorRepository operatorRepository;
-    private final VehicleRepository vehicleRepository;
-    private final OperatorPhotoService operatorPhotoService;
-    private final PermissionGuard permissionGuard;
 
     public OperatorTimesheetPdfService(IncidentRepository incidentRepository,
-                                        OperatorCheckInService operatorCheckInService,
-                                        OperatorRepository operatorRepository,
-                                        VehicleRepository vehicleRepository,
-                                        OperatorPhotoService operatorPhotoService,
-                                        PermissionGuard permissionGuard) {
+                                        OperatorCheckInService operatorCheckInService) {
         this.incidentRepository = incidentRepository;
         this.operatorCheckInService = operatorCheckInService;
-        this.operatorRepository = operatorRepository;
-        this.vehicleRepository = vehicleRepository;
-        this.operatorPhotoService = operatorPhotoService;
-        this.permissionGuard = permissionGuard;
     }
 
     @Transactional(readOnly = true)
-    public byte[] generate(Authentication authentication, Long incidentId) {
+    public byte[] generate(Long incidentId, OperatorTimesheetPdfRequest request) {
         Incident incident = incidentRepository.findById(incidentId)
                 .orElseThrow(() -> ApiException.notFound("Incident not found: " + incidentId));
         List<OperatorCheckInResponse> checkIns = operatorCheckInService.findByIncident(incidentId);
-        List<OperatorCredentialCardData> team = buildTeamCards(authentication, checkIns, incident.getName());
+        List<String> teamCardPages = request.teamCardsImageBase64() != null ? request.teamCardsImageBase64() : List.of();
 
         Document document = new Document(PageSize.LETTER.rotate(),
                 PdfSupport.MARGIN_LEFT, PdfSupport.MARGIN_RIGHT, PdfSupport.MARGIN_TOP, PdfSupport.MARGIN_BOTTOM);
@@ -73,12 +49,15 @@ public class OperatorTimesheetPdfService {
             writer.setPageEvent(new PdfSupport.PaperBackground());
             document.open();
 
-            List<PdfPTable> gridPages = OperatorCredentialPdfSupport.buildCredentialGridPages(team, "0Y-AuxComs");
-            for (int i = 0; i < gridPages.size(); i++) {
-                if (i > 0) document.newPage();
+            if (teamCardPages.isEmpty()) {
                 document.add(buildHeaderBlock(incident, "TEAM ROSTER"));
                 document.add(PdfSupport.spacer(8f));
-                document.add(gridPages.get(i));
+                document.add(new Paragraph("No team members have checked in to this incident yet.", PdfTheme.VALUE_FONT));
+            } else {
+                for (int i = 0; i < teamCardPages.size(); i++) {
+                    if (i > 0) document.newPage();
+                    addTeamCardsPage(document, incident, teamCardPages.get(i));
+                }
             }
 
             document.newPage();
@@ -94,64 +73,21 @@ public class OperatorTimesheetPdfService {
         return out.toByteArray();
     }
 
-    /** One card per team member (most recent check-in on this incident determines role and
-     * checked-in/out status), matching frontend IncidentOperators.tsx's `team` memo exactly.
-     * Public so the incident-summary PDF's team/timesheet page can build the exact same card
-     * data rather than a second, possibly-drifting implementation. */
-    public List<OperatorCredentialCardData> buildTeamCards(Authentication authentication, List<OperatorCheckInResponse> checkIns,
-                                                             String incidentName) {
-        Operator caller = operatorRepository.findByCallsignIgnoreCase(authentication.getName()).orElse(null);
-        boolean canViewAll = permissionGuard.has(authentication, Permission.OPERATOR_VIEW_CONTACT);
-
-        Map<Long, OperatorCheckInResponse> lastByOperator = new LinkedHashMap<>();
-        for (OperatorCheckInResponse c : checkIns) {
-            lastByOperator.putIfAbsent(c.operatorId(), c);
-        }
-
-        Map<Long, Operator> operatorById = new LinkedHashMap<>();
-        for (Operator o : operatorRepository.findAllById(lastByOperator.keySet())) {
-            operatorById.put(o.getId(), o);
-        }
-
-        List<OperatorCredentialCardData> team = new ArrayList<>();
-        for (Map.Entry<Long, OperatorCheckInResponse> entry : lastByOperator.entrySet()) {
-            Long operatorId = entry.getKey();
-            OperatorCheckInResponse c = entry.getValue();
-            Operator op = operatorById.get(operatorId);
-            boolean canViewContact = canViewAll || (caller != null && caller.getId().equals(operatorId));
-
-            byte[] photoBytes = null;
-            if (op != null && op.getPhotoPath() != null) {
-                try {
-                    Resource resource = operatorPhotoService.load(operatorId);
-                    photoBytes = resource.getInputStream().readAllBytes();
-                } catch (Exception ignored) {
-                    photoBytes = null;
-                }
-            }
-
-            List<Vehicle> vehicles = vehicleRepository.findByOperatorId(operatorId);
-
-            team.add(new OperatorCredentialCardData(
-                    operatorId,
-                    c.operatorCallsign(),
-                    op != null ? op.getName() : c.operatorCallsign(),
-                    op != null ? op.getLicenseClass() : null,
-                    c.roleName(),
-                    c.roleColor(),
-                    c.roleAccessLevel(),
-                    op != null ? op.getPhone() : null,
-                    op != null ? op.getEmail() : null,
-                    VehiclePlateFormatter.summarize(vehicles),
-                    canViewContact,
-                    photoBytes,
-                    c.checkedOutAt() == null,
-                    c.checkedInAt(),
-                    c.checkedOutAt() == null ? incidentName : null
-            ));
-        }
-        team.sort((a, b) -> a.callsign().compareToIgnoreCase(b.callsign()));
-        return team;
+    /** One "TEAM ROSTER" page per client-captured credential-card-grid image (4x2 cards each) —
+     * a client-side snapshot of the real CredentialCardCompact components rather than a
+     * server-side rebuild, so the PDF matches the web Team page exactly (same pattern as the
+     * incident map page's client-captured mapImageBase64). */
+    private void addTeamCardsPage(Document document, Incident incident, String imageBase64) throws DocumentException {
+        PdfPTable header = buildHeaderBlock(incident, "TEAM ROSTER");
+        float availableWidth = document.getPageSize().getWidth() - document.leftMargin() - document.rightMargin();
+        header.setTotalWidth(availableWidth);
+        float headerHeight = header.getTotalHeight();
+        document.add(header);
+        float spacerHeight = 8f;
+        document.add(PdfSupport.spacer(spacerHeight));
+        float availableHeight = document.getPageSize().getHeight() - document.topMargin() - document.bottomMargin()
+                - headerHeight - spacerHeight;
+        document.add(CapturedImagePdfSupport.decodeFitted(imageBase64, availableWidth, availableHeight));
     }
 
     private PdfPTable buildHeaderBlock(Incident incident, String title) {
