@@ -27,6 +27,9 @@ public class DeploymentLocation {
 
     private String notes;
 
+    @Column(name = "off_site", nullable = false)
+    private boolean offSite = false;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private Instant createdAt = Instant.now();
 
@@ -76,6 +79,14 @@ public class DeploymentLocation {
 
     public void setNotes(String notes) {
         this.notes = notes;
+    }
+
+    public boolean isOffSite() {
+        return offSite;
+    }
+
+    public void setOffSite(boolean offSite) {
+        this.offSite = offSite;
     }
 
     public Instant getCreatedAt() {

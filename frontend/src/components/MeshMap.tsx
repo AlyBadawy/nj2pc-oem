@@ -25,9 +25,20 @@ export type MeshMapHandle = {
    * far-away nodes) without disturbing the on-screen view. `showLabels: false` drops the
    * permanent per-node hostname / per-link channel text (see meshCanvasDraw.ts) — useful for a
    * busy, incident-wide view where overlapping labels would just be noise; defaults to true
-   * (unchanged) for callers that don't pass it. Returns null if there's nothing to capture yet
-   * (map not initialized). */
-  captureSnapshot: (overrides?: { nodes?: MeshMapNode[]; links?: MeshLinkSnapshot[]; showLabels?: boolean }) => string | null
+   * (unchanged) for callers that don't pass it. `fitToBoundary: true` re-frames the live map to
+   * the incident's full boundary (or on-site node bounds if no boundary is drawn) immediately
+   * before capturing — some zoom, but the whole incident area always fits — then restores
+   * whatever pan/zoom the map had beforehand once the capture is done, so the on-screen view
+   * doesn't visibly change. No-op in offline-fallback mode, which already reframes to the full
+   * boundary/node bounds on every draw. Returns null if there's nothing to capture yet (map not
+   * initialized). Async because fitting the view means waiting for newly-revealed tiles to load
+   * before the snapshot can be taken. */
+  captureSnapshot: (overrides?: {
+    nodes?: MeshMapNode[]
+    links?: MeshLinkSnapshot[]
+    showLabels?: boolean
+    fitToBoundary?: boolean
+  }) => Promise<string | null>
 }
 
 /** Plain inline-SVG circle markers instead of Leaflet's default raster icon set — sidesteps the
@@ -81,12 +92,13 @@ export const MeshMap = forwardRef<MeshMapHandle, Props>(function MeshMap({ nodes
   const wrapperRef = useRef<HTMLDivElement>(null)
   const containerRef = useRef<HTMLDivElement>(null)
   const mapRef = useRef<L.Map | null>(null)
+  const tileLayerRef = useRef<L.TileLayer | null>(null)
   const fallbackCanvasRef = useRef<HTMLCanvasElement>(null)
   const [useFallback, setUseFallback] = useState(() => typeof navigator !== 'undefined' && navigator.onLine === false)
   const [isFullscreen, setIsFullscreen] = useState(false)
 
   useImperativeHandle(forwardedRef, () => ({
-    captureSnapshot: (overrides) => {
+    captureSnapshot: async (overrides) => {
       const effectiveNodes = overrides?.nodes ?? nodes
       const effectiveLinks = overrides?.links ?? links
       const showLabels = overrides?.showLabels ?? true
@@ -95,6 +107,8 @@ export const MeshMap = forwardRef<MeshMapHandle, Props>(function MeshMap({ nodes
         // screen, so just grab it directly instead of re-rendering. With overrides, redraw
         // offscreen at the same size so the export can differ from the live view (e.g. the PDF
         // excluding off-site/far nodes) without disturbing what's actually shown on screen.
+        // fitToBoundary is a no-op here — the offline canvas already reframes to the full
+        // boundary/node bounds on every draw, there's no persistent pan/zoom to fix.
         if (!overrides) {
           return fallbackCanvasRef.current?.toDataURL('image/png') ?? null
         }
@@ -114,9 +128,39 @@ export const MeshMap = forwardRef<MeshMapHandle, Props>(function MeshMap({ nodes
         drawMeshCanvas(ctx, width, height, { nodes: effectiveNodes, links: effectiveLinks, boundaryPoints }, showLabels)
         return canvas.toDataURL('image/png')
       }
-      if (!mapRef.current || !containerRef.current) return null
-      return captureLiveLeafletSnapshot(
-        mapRef.current,
+      const map = mapRef.current
+      if (!map || !containerRef.current) return null
+
+      let restoreView: (() => void) | null = null
+      if (overrides?.fitToBoundary) {
+        const bounds = computeIncidentBounds(boundaryPoints, effectiveNodes)
+        if (bounds) {
+          const prevCenter = map.getCenter()
+          const prevZoom = map.getZoom()
+          restoreView = () => map.setView(prevCenter, prevZoom, { animate: false })
+          await new Promise<void>((resolve) => {
+            let done = false
+            const finish = () => {
+              if (done) return
+              done = true
+              resolve()
+            }
+            // Newly-revealed tiles need a moment to fetch/paint before the DOM-tile-reading
+            // capture below would see them — 'load' fires once the tile layer has no more tiles
+            // outstanding for the current view, but if every needed tile was already cached (no
+            // new requests), it may never fire, so a hard cap guarantees this always resolves.
+            tileLayerRef.current?.once('load', finish)
+            setTimeout(finish, 1200)
+            map.fitBounds(
+              L.latLngBounds(L.latLng(bounds.minLat, bounds.minLng), L.latLng(bounds.maxLat, bounds.maxLng)),
+              { padding: [30, 30], maxZoom: 16, animate: false },
+            )
+          })
+        }
+      }
+
+      const dataUrl = captureLiveLeafletSnapshot(
+        map,
         containerRef.current,
         {
           nodes: effectiveNodes,
@@ -125,6 +169,8 @@ export const MeshMap = forwardRef<MeshMapHandle, Props>(function MeshMap({ nodes
         },
         showLabels,
       )
+      restoreView?.()
+      return dataUrl
     },
   }))
 
@@ -185,6 +231,7 @@ export const MeshMap = forwardRef<MeshMapHandle, Props>(function MeshMap({ nodes
       if (tileErrorCount >= 4) setUseFallback(true)
     })
     tileLayer.addTo(map)
+    tileLayerRef.current = tileLayer
 
     // Robustly resize the map whenever its container's actual size changes (covers fullscreen
     // enter/exit and any other layout shift) instead of guessing at timing around events.
@@ -273,6 +320,7 @@ export const MeshMap = forwardRef<MeshMapHandle, Props>(function MeshMap({ nodes
       resizeObserver.disconnect()
       map.remove()
       mapRef.current = null
+      tileLayerRef.current = null
     }
   }, [nodes, links, boundaryPoints, useFallback])
 

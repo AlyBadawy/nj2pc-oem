@@ -585,7 +585,7 @@ function GeneratePdfDialog({
         (l) => mapNodeHostnames.has(l.fromHostname.toLowerCase()) && mapNodeHostnames.has(l.toHostname.toLowerCase()),
       )
 
-      const mapImageBase64 = mapHandleRef.current?.captureSnapshot({ nodes: mapNodes, links: mapLinks })
+      const mapImageBase64 = await mapHandleRef.current?.captureSnapshot({ nodes: mapNodes, links: mapLinks })
       if (!mapImageBase64) {
         toast.error('Map is not ready yet — try again in a moment')
         setGenerating(false)

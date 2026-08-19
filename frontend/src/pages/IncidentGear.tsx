@@ -11,6 +11,7 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
 import { Badge } from '@/components/ui/badge'
+import { Checkbox } from '@/components/ui/checkbox'
 import { Textarea } from '@/components/ui/textarea'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
@@ -53,6 +54,11 @@ function DeploymentLocationCard({
         <CardTitle className="text-base flex items-center gap-2">
           <MapPin className="size-4 text-primary shrink-0" />
           <span className="truncate">{location.name}</span>
+          {location.offSite && (
+            <Badge variant="secondary" className="shrink-0">
+              Off-site
+            </Badge>
+          )}
           {canEdit && (
             <Button
               type="button"
@@ -165,11 +171,13 @@ export function IncidentGear() {
   const [newNotes, setNewNotes] = useState('')
   const [coords, setCoords] = useState<Coords | null>(null)
   const [geoStatus, setGeoStatus] = useState<GeoStatus>('idle')
+  const [newOffSite, setNewOffSite] = useState(false)
 
   const [editingLocation, setEditingLocation] = useState<DeploymentLocation | null>(null)
   const [editName, setEditName] = useState('')
   const [editNotes, setEditNotes] = useState('')
   const [editCoords, setEditCoords] = useState<Coords | null>(null)
+  const [editOffSite, setEditOffSite] = useState(false)
 
   function openEdit(location: DeploymentLocation) {
     setEditingLocation(location)
@@ -178,6 +186,7 @@ export function IncidentGear() {
     setEditCoords(
       location.latitude && location.longitude ? { lat: location.latitude, lng: location.longitude } : null,
     )
+    setEditOffSite(location.offSite)
   }
 
   const { data: incident } = useQuery({
@@ -213,6 +222,7 @@ export function IncidentGear() {
           latitude: coords?.lat ?? null,
           longitude: coords?.lng ?? null,
           notes: newNotes || null,
+          offSite: newOffSite,
         })
       ).data,
     onSuccess: () => {
@@ -223,6 +233,7 @@ export function IncidentGear() {
       setNewNotes('')
       setCoords(null)
       setGeoStatus('idle')
+      setNewOffSite(false)
     },
     onError: () => toast.error('Failed to create deployment location'),
   })
@@ -235,6 +246,7 @@ export function IncidentGear() {
           latitude: editCoords?.lat ?? null,
           longitude: editCoords?.lng ?? null,
           notes: editNotes || null,
+          offSite: editOffSite,
         })
       ).data,
     onSuccess: () => {
@@ -424,6 +436,12 @@ export function IncidentGear() {
               <Label htmlFor="newLocationNotes">Notes</Label>
               <Textarea id="newLocationNotes" value={newNotes} onChange={(e) => setNewNotes(e.target.value)} />
             </div>
+            <div className="flex items-center gap-2">
+              <Checkbox id="newLocationOffSite" checked={newOffSite} onCheckedChange={(v) => setNewOffSite(v === true)} />
+              <Label htmlFor="newLocationOffSite" className="font-normal">
+                Off-site (not physically at the incident)
+              </Label>
+            </div>
             <DialogFooter>
               <Button type="submit" disabled={!newName || createLocationMutation.isPending}>
                 {createLocationMutation.isPending && <Loader2 className="size-4 animate-spin" />}
@@ -464,6 +482,12 @@ export function IncidentGear() {
             <div className="flex flex-col gap-1.5">
               <Label htmlFor="editLocationNotes">Notes</Label>
               <Textarea id="editLocationNotes" value={editNotes} onChange={(e) => setEditNotes(e.target.value)} />
+            </div>
+            <div className="flex items-center gap-2">
+              <Checkbox id="editLocationOffSite" checked={editOffSite} onCheckedChange={(v) => setEditOffSite(v === true)} />
+              <Label htmlFor="editLocationOffSite" className="font-normal">
+                Off-site (not physically at the incident)
+              </Label>
             </div>
             <DialogFooter>
               <Button type="submit" disabled={!editName || updateLocationMutation.isPending}>

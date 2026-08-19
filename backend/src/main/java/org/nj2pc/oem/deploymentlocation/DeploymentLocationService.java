@@ -53,6 +53,7 @@ public class DeploymentLocationService {
         location.setLatitude(request.latitude());
         location.setLongitude(request.longitude());
         location.setNotes(request.notes());
+        location.setOffSite(request.offSite());
         location.setCreatedBy(caller);
         DeploymentLocation saved = deploymentLocationRepository.save(location);
         return DeploymentLocationResponse.from(saved, 0);
@@ -71,6 +72,7 @@ public class DeploymentLocationService {
         location.setLatitude(request.latitude());
         location.setLongitude(request.longitude());
         location.setNotes(request.notes());
+        location.setOffSite(request.offSite());
         DeploymentLocation saved = deploymentLocationRepository.save(location);
         long gearCount = resourceCheckInRepository.countByDeploymentLocationIdAndCheckedOutAtIsNull(saved.getId());
         return DeploymentLocationResponse.from(saved, gearCount);

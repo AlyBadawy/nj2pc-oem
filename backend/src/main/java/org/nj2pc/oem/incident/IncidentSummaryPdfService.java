@@ -225,10 +225,27 @@ public class IncidentSummaryPdfService {
             document.add(PdfSupport.spacer(8f));
             document.add(buildMeshScansTable(scanSummaries));
 
+            List<DeploymentLocationResponse> onSiteLocations = deploymentLocations.stream()
+                    .filter(l -> !l.offSite()).toList();
+            List<DeploymentLocationResponse> offSiteLocations = deploymentLocations.stream()
+                    .filter(DeploymentLocationResponse::offSite).toList();
+
             document.newPage();
             document.add(buildHeaderBlock(incident, "DEPLOYMENT LOCATIONS & GEAR"));
             document.add(PdfSupport.spacer(8f));
-            addDeploymentLocationsSection(document, deploymentLocations, gearByLocationId);
+            addDeploymentLocationsSection(document, onSiteLocations, gearByLocationId,
+                    deploymentLocations.isEmpty() ? "No deployment locations recorded for this incident."
+                            : "No on-site deployment locations recorded for this incident.");
+
+            // A separate page, since off-site locations (e.g. a supernode/gateway relaying from
+            // an operator's home) aren't physically at the incident — a 2in x 2in "where is
+            // this" map and GPS coordinates for the incident's own site don't apply to them.
+            if (!offSiteLocations.isEmpty()) {
+                document.newPage();
+                document.add(buildHeaderBlock(incident, "OFF-SITE DEPLOYMENT LOCATIONS"));
+                document.add(PdfSupport.spacer(8f));
+                addOffSiteDeploymentLocationsSection(document, offSiteLocations, gearByLocationId);
+            }
         });
     }
 
@@ -402,9 +419,10 @@ public class IncidentSummaryPdfService {
     }
 
     private void addDeploymentLocationsSection(Document document, List<DeploymentLocationResponse> locations,
-                                                Map<Long, List<ResourceCheckInResponse>> gearByLocationId) throws DocumentException {
+                                                Map<Long, List<ResourceCheckInResponse>> gearByLocationId,
+                                                String emptyMessage) throws DocumentException {
         if (locations.isEmpty()) {
-            document.add(new Paragraph("No deployment locations recorded for this incident.", PdfTheme.VALUE_FONT));
+            document.add(new Paragraph(emptyMessage, PdfTheme.VALUE_FONT));
             return;
         }
 
@@ -440,6 +458,29 @@ public class IncidentSummaryPdfService {
             gearCell.setPadding(0f);
             mapAndGear.addCell(gearCell);
             document.add(mapAndGear);
+        }
+    }
+
+    /** Same layout as {@link #addDeploymentLocationsSection}, minus the 2in x 2in static map and
+     * GPS coordinates — neither is meaningful for a location that isn't physically at the
+     * incident site. */
+    private void addOffSiteDeploymentLocationsSection(Document document, List<DeploymentLocationResponse> locations,
+                                                        Map<Long, List<ResourceCheckInResponse>> gearByLocationId) throws DocumentException {
+        boolean first = true;
+        for (DeploymentLocationResponse loc : locations) {
+            if (!first) {
+                document.add(PdfSupport.spacer(8f));
+            }
+            first = false;
+
+            PdfPTable locHeader = new PdfPTable(1);
+            locHeader.setWidthPercentage(100);
+            locHeader.addCell(PdfSupport.nestedLabeledCell(loc.name(), PdfSupport.nullToDash(loc.notes())));
+            document.add(locHeader);
+            document.add(PdfSupport.spacer(6f));
+
+            List<ResourceCheckInResponse> gear = gearByLocationId.getOrDefault(loc.id(), List.of());
+            document.add(buildGearTable(gear));
         }
     }
 

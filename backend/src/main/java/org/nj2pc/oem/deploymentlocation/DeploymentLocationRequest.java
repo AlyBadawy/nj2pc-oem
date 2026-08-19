@@ -6,6 +6,7 @@ public record DeploymentLocationRequest(
         @NotBlank String name,
         String latitude,
         String longitude,
-        String notes
+        String notes,
+        boolean offSite
 ) {
 }

@@ -797,10 +797,14 @@ function GenerateIncidentPdfDialog({
       // incident-wide view often has many nodes close together, and the overlapping labels
       // become illegible noise rather than useful detail. The color-coded legend already
       // explains what each marker and link color mean.
-      const mapImageBase64 = mapHandleRef.current?.captureSnapshot({
+      // fitToBoundary: true reframes the map to the incident's full boundary before capturing —
+      // some zoom, but the whole incident area always fits — rather than whatever pan/zoom the
+      // operator happened to be looking at on screen when they clicked Generate PDF.
+      const mapImageBase64 = await mapHandleRef.current?.captureSnapshot({
         nodes,
         links,
         showLabels: false,
+        fitToBoundary: true,
       });
       if (!mapImageBase64) {
         toast.error("Map is not ready yet — try again in a moment");

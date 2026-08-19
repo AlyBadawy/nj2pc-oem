@@ -219,6 +219,7 @@ export interface DeploymentLocation {
   latitude: string | null
   longitude: string | null
   notes: string | null
+  offSite: boolean
   createdAt: string
   createdByCallsign: string | null
   gearCount: number
